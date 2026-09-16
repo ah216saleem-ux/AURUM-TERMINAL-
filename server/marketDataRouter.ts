@@ -25,8 +25,8 @@ export const ASSET_CONFIGS = [
     symbol: 'XAU/USD',
     name: 'Gold Spot',
     category: 'commodities',
-    primaryProvider: 'YAHOO_FINANCE' as const,
-    providerSymbol: 'GC=F',
+    primaryProvider: 'BIQUOTE',
+    providerSymbol: 'XAUUSD',
     decimals: 2
   },
   {
