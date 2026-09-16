@@ -1,0 +1,6 @@
+{
+  "name": "Aurum Terminal",
+  "description": "Autonomous AI trading assistant and signal center for Gold, NASDAQ, S&P 500, and Crude Oil. Features real-time AI trade setups, risk-reward ratios, deep market reasoning, and Telegram integration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

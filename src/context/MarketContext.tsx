@@ -1,0 +1,531 @@
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import { 
+  MarketItem, 
+  Candle, 
+  Timeframe, 
+  AiTradeSignal, 
+  TelegramSettings, 
+  TelegramLogItem,
+  SignalHistoryItem,
+  SignalHistoryStats,
+  TradeSetupStrength,
+  TradingStyleMode,
+  AiAlert
+} from '../types';
+import { 
+  INITIAL_MARKETS, 
+  INITIAL_SIGNALS, 
+  INITIAL_SIGNAL_HISTORY, 
+  INITIAL_HISTORY_STATS, 
+  generateSampleCandles,
+  computeTradeSetupStrength 
+} from '../data/initialData';
+import { TRADING_STYLES } from '../data/tradingStyleData';
+import { INITIAL_AI_ALERTS, createRandomAiAlert } from '../data/aiAlertsData';
+
+interface MarketContextType {
+  markets: MarketItem[];
+  signals: AiTradeSignal[];
+  selectedSignalId: string;
+  selectedSignal: AiTradeSignal;
+  selectedMarket: MarketItem;
+  selectedTimeframe: Timeframe;
+  tradingStyleMode: TradingStyleMode;
+  setTradingStyleMode: (mode: TradingStyleMode) => void;
+  candles: Candle[];
+  telegramSettings: TelegramSettings;
+  activeNav: string;
+  isTelegramModalOpen: boolean;
+  isAiGenerating: boolean;
+  // AI Watchlist
+  watchlistAssetIds: string[];
+  toggleWatchlist: (assetId: string) => void;
+  isFavorite: (assetId: string) => boolean;
+  // AI Alert Center
+  aiAlerts: AiAlert[];
+  unreadAlertCount: number;
+  isAlertCenterOpen: boolean;
+  setIsAlertCenterOpen: (open: boolean) => void;
+  markAlertAsRead: (id: string) => void;
+  markAllAlertsAsRead: () => void;
+  dismissAlert: (id: string) => void;
+  triggerSimulatedAlert: () => void;
+  // Daily AI Market Brief
+  isDailyBriefOpen: boolean;
+  setIsDailyBriefOpen: (open: boolean) => void;
+  // Real Data Integration Architecture Modal
+  isRealDataModalOpen: boolean;
+  setIsRealDataModalOpen: (open: boolean) => void;
+  // Production User System & Dashboard
+  isUserDashboardOpen: boolean;
+  setIsUserDashboardOpen: (open: boolean) => void;
+  // AI Signal History
+  signalHistory: SignalHistoryItem[];
+  historyStats: SignalHistoryStats;
+  // AI Market Scanner
+  isScanningMarket: boolean;
+  scanProgress: number; // 0-100
+  scanStepText: string;
+  highestProbabilitySignal: AiTradeSignal;
+  isScannerModalOpen: boolean;
+  setIsScannerModalOpen: (open: boolean) => void;
+  scanMarket: () => Promise<AiTradeSignal>;
+  // Active Trade Setup Strength
+  activeSetupStrength: TradeSetupStrength;
+  // Chart visual toggles
+  chartOverlays: {
+    showEntryZone: boolean;
+    showTpSl: boolean;
+    showOrderBlocks: boolean;
+    showLiquidity: boolean;
+    showBosChoch: boolean;
+    showEma: boolean;
+    showVolume: boolean;
+  };
+  setChartOverlays: React.Dispatch<React.SetStateAction<{
+    showEntryZone: boolean;
+    showTpSl: boolean;
+    showOrderBlocks: boolean;
+    showLiquidity: boolean;
+    showBosChoch: boolean;
+    showEma: boolean;
+    showVolume: boolean;
+  }>>;
+  // Actions
+  setSelectedSignalId: (id: string) => void;
+  setSelectedTimeframe: (tf: Timeframe) => void;
+  setActiveNav: (nav: string) => void;
+  setIsTelegramModalOpen: (open: boolean) => void;
+  sendSignalToTelegram: (signalId: string) => Promise<{ success: boolean; message: string; formattedText: string }>;
+  updateTelegramSettings: (settings: Partial<TelegramSettings>) => void;
+  regenerateAiSignals: () => void;
+  addSignalToHistory: (item: Omit<SignalHistoryItem, 'id' | 'closedAt'>) => void;
+}
+
+const MarketContext = createContext<MarketContextType | undefined>(undefined);
+
+export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [markets, setMarkets] = useState<MarketItem[]>(INITIAL_MARKETS);
+  
+  // Attach setupStrength to all signals
+  const [signals, setSignals] = useState<AiTradeSignal[]>(() => {
+    return INITIAL_SIGNALS.map(sig => ({
+      ...sig,
+      setupStrength: computeTradeSetupStrength(sig)
+    }));
+  });
+
+  const [selectedSignalId, setSelectedSignalId] = useState<string>(INITIAL_SIGNALS[0].id);
+  const [selectedTimeframe, setSelectedTimeframe] = useState<Timeframe>('1H');
+  const [tradingStyleMode, setTradingStyleModeState] = useState<TradingStyleMode>('INTRADAY');
+
+  // AI Watchlist State
+  const [watchlistAssetIds, setWatchlistAssetIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('aurum_ai_watchlist');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      // ignore
+    }
+    return ['xau-usd', 'nasdaq-100', 'btc-usd', 'eur-usd'];
+  });
+
+  const toggleWatchlist = useCallback((assetId: string) => {
+    setWatchlistAssetIds(prev => {
+      const exists = prev.includes(assetId);
+      const next = exists ? prev.filter(id => id !== assetId) : [...prev, assetId];
+      try {
+        localStorage.setItem('aurum_ai_watchlist', JSON.stringify(next));
+      } catch (e) {
+        // ignore
+      }
+      return next;
+    });
+  }, []);
+
+  const isFavorite = useCallback((assetId: string) => {
+    return watchlistAssetIds.includes(assetId);
+  }, [watchlistAssetIds]);
+
+  // AI Alert Center State
+  const [aiAlerts, setAiAlerts] = useState<AiAlert[]>(INITIAL_AI_ALERTS);
+  const [isAlertCenterOpen, setIsAlertCenterOpen] = useState<boolean>(false);
+  const [isDailyBriefOpen, setIsDailyBriefOpen] = useState<boolean>(false);
+  const [isRealDataModalOpen, setIsRealDataModalOpen] = useState<boolean>(false);
+  const [isUserDashboardOpen, setIsUserDashboardOpen] = useState<boolean>(false);
+
+  const unreadAlertCount = useMemo(() => {
+    return aiAlerts.filter(a => !a.read).length;
+  }, [aiAlerts]);
+
+  const markAlertAsRead = useCallback((id: string) => {
+    setAiAlerts(prev => prev.map(a => a.id === id ? { ...a, read: true } : a));
+  }, []);
+
+  const markAllAlertsAsRead = useCallback(() => {
+    setAiAlerts(prev => prev.map(a => ({ ...a, read: true })));
+  }, []);
+
+  const dismissAlert = useCallback((id: string) => {
+    setAiAlerts(prev => prev.filter(a => a.id !== id));
+  }, []);
+
+  const triggerSimulatedAlert = useCallback(() => {
+    const newAlert = createRandomAiAlert(tradingStyleMode);
+    setAiAlerts(prev => [newAlert, ...prev]);
+  }, [tradingStyleMode]);
+
+  const setTradingStyleMode = useCallback((mode: TradingStyleMode) => {
+    setTradingStyleModeState(mode);
+    const config = TRADING_STYLES[mode];
+    if (!config.timeframes.includes(selectedTimeframe)) {
+      setSelectedTimeframe(config.primaryTimeframe);
+    }
+  }, [selectedTimeframe]);
+  const [activeNav, setActiveNav] = useState<string>('assets');
+  const [isTelegramModalOpen, setIsTelegramModalOpen] = useState<boolean>(false);
+  const [isAiGenerating, setIsAiGenerating] = useState<boolean>(false);
+
+  // Scanner state
+  const [isScanningMarket, setIsScanningMarket] = useState<boolean>(false);
+  const [scanProgress, setScanProgress] = useState<number>(0);
+  const [scanStepText, setScanStepText] = useState<string>('');
+  const [isScannerModalOpen, setIsScannerModalOpen] = useState<boolean>(false);
+
+  // History state
+  const [signalHistory, setSignalHistory] = useState<SignalHistoryItem[]>(INITIAL_SIGNAL_HISTORY);
+  const [historyStats, setHistoryStats] = useState<SignalHistoryStats>(INITIAL_HISTORY_STATS);
+
+  const [chartOverlays, setChartOverlays] = useState({
+    showEntryZone: true,
+    showTpSl: true,
+    showOrderBlocks: true,
+    showLiquidity: true,
+    showBosChoch: true,
+    showEma: true,
+    showVolume: true
+  });
+
+  const [telegramSettings, setTelegramSettings] = useState<TelegramSettings>({
+    botToken: '',
+    chatId: '',
+    channelTag: '@aurum_ai_signals',
+    autoBroadcast: true,
+    minConfidence: 80,
+    isConnected: true,
+    history: [
+      {
+        id: 'tel-1',
+        timestamp: '5m ago',
+        signalSymbol: 'XAU/USD',
+        signalType: 'BUY',
+        messagePreview: '🟢 AURUM AI SIGNAL\nAsset: Gold XAU/USD\nSignal: BUY\nEntry: $2,642.00\nSL: $2,624.00\nTP: $2,685.00\nTimeframe: 1H\nConfidence: 92%',
+        status: 'DELIVERED'
+      },
+      {
+        id: 'tel-2',
+        timestamp: '18m ago',
+        signalSymbol: 'XAG/USD',
+        signalType: 'BUY',
+        messagePreview: '🟢 AURUM AI SIGNAL\nAsset: Silver XAG/USD\nSignal: BUY\nEntry: $31.30\nSL: $30.65\nTP: $32.80\nTimeframe: 1H\nConfidence: 89%',
+        status: 'DELIVERED'
+      }
+    ]
+  });
+
+  const selectedSignal = useMemo(() => {
+    return signals.find(s => s.id === selectedSignalId) || signals[0];
+  }, [signals, selectedSignalId]);
+
+  const selectedMarket = useMemo(() => {
+    return markets.find(m => m.id === selectedSignal.marketId) || markets[0];
+  }, [markets, selectedSignal]);
+
+  // Highest probability signal calculated from setupStrength overallScore
+  const highestProbabilitySignal = useMemo(() => {
+    return [...signals].sort((a, b) => {
+      const scoreA = a.setupStrength?.overallScore || a.confidenceScore;
+      const scoreB = b.setupStrength?.overallScore || b.confidenceScore;
+      return scoreB - scoreA;
+    })[0];
+  }, [signals]);
+
+  // Current active setup strength
+  const activeSetupStrength = useMemo(() => {
+    return selectedSignal.setupStrength || computeTradeSetupStrength(selectedSignal);
+  }, [selectedSignal]);
+
+  const [candles, setCandles] = useState<Candle[]>(() => {
+    return generateSampleCandles(INITIAL_MARKETS[0].price, 36, '1H');
+  });
+
+  // Regenerate candles when active signal market or timeframe changes
+  useEffect(() => {
+    if (selectedMarket) {
+      setCandles(generateSampleCandles(selectedMarket.price, 36, selectedTimeframe));
+    }
+  }, [selectedMarket.id, selectedTimeframe]);
+
+  // Real-time market micro-tick engine
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setMarkets(prev => {
+        return prev.map(item => {
+          const tickFactor = (Math.random() - 0.490) * 0.0006;
+          const delta = item.price * tickFactor;
+          const newPrice = +(item.price + delta).toFixed(item.decimals);
+          const newDirection = newPrice >= item.price ? 'up' : 'down';
+          const newHigh = Math.max(item.high24h, newPrice);
+          const newLow = Math.min(item.low24h, newPrice);
+          const newChange = +(item.change + delta).toFixed(item.decimals);
+          const newChangePercent = +((newChange / (newPrice - newChange)) * 100).toFixed(2);
+          const newSparkline = [...item.sparkline.slice(1), newPrice];
+
+          return {
+            ...item,
+            price: newPrice,
+            change: newChange,
+            changePercent: newChangePercent,
+            high24h: newHigh,
+            low24h: newLow,
+            sparkline: newSparkline,
+            lastTickDirection: newDirection,
+            lastTickTimestamp: Date.now()
+          };
+        });
+      });
+
+      // Update active candle close/high/low
+      setCandles(prev => {
+        if (prev.length === 0) return prev;
+        const last = prev[prev.length - 1];
+        const latestMarket = markets.find(m => m.id === selectedMarket.id);
+        if (!latestMarket) return prev;
+
+        const p = latestMarket.price;
+        const updatedLast: Candle = {
+          ...last,
+          close: p,
+          high: Math.max(last.high, p),
+          low: Math.min(last.low, p),
+          volume: last.volume + Math.floor(Math.random() * 6 + 2)
+        };
+        return [...prev.slice(0, -1), updatedLast];
+      });
+    }, 1400);
+
+    return () => clearInterval(interval);
+  }, [selectedMarket.id, markets]);
+
+  // AI Market Scanner function
+  const scanMarket = useCallback(async (): Promise<AiTradeSignal> => {
+    setIsScanningMarket(true);
+    setScanProgress(10);
+    setScanStepText('Analyzing global order flow & liquidity pools...');
+    setIsScannerModalOpen(true);
+
+    await new Promise(r => setTimeout(r, 350));
+    setScanProgress(35);
+    setScanStepText('Checking Order Block mitigation & BSL/SSL sweeps across 5 assets...');
+
+    await new Promise(r => setTimeout(r, 400));
+    setScanProgress(70);
+    setScanStepText('Evaluating multi-timeframe confluence & momentum divergence...');
+
+    await new Promise(r => setTimeout(r, 350));
+    setScanProgress(95);
+    setScanStepText('Synthesizing institutional probability scores...');
+
+    await new Promise(r => setTimeout(r, 250));
+    setScanProgress(100);
+
+    // Refresh signals with realistic live scores
+    const updatedSignals = signals.map(sig => {
+      const shift = Math.floor(Math.random() * 3) - 1;
+      const newConfidence = Math.min(96, Math.max(72, sig.confidenceScore + shift));
+      const updatedSig = {
+        ...sig,
+        confidenceScore: newConfidence,
+        generatedAt: 'Just now'
+      };
+      return {
+        ...updatedSig,
+        setupStrength: computeTradeSetupStrength(updatedSig)
+      };
+    });
+
+    setSignals(updatedSignals);
+
+    // Find highest probability
+    const top = [...updatedSignals].sort((a, b) => {
+      const scoreA = a.setupStrength?.overallScore || a.confidenceScore;
+      const scoreB = b.setupStrength?.overallScore || b.confidenceScore;
+      return scoreB - scoreA;
+    })[0];
+
+    setSelectedSignalId(top.id);
+    setIsScanningMarket(false);
+
+    return top;
+  }, [signals]);
+
+  // Add signal to history
+  const addSignalToHistory = (item: Omit<SignalHistoryItem, 'id' | 'closedAt'>) => {
+    const newItem: SignalHistoryItem = {
+      ...item,
+      id: `hist-${Date.now()}`,
+      closedAt: 'Just now'
+    };
+
+    setSignalHistory(prev => {
+      const updated = [newItem, ...prev];
+      const wins = updated.filter(t => t.result === 'TP HIT').length;
+      const total = updated.length;
+      const winRate = +( (wins / total) * 100 ).toFixed(1);
+
+      setHistoryStats(stats => ({
+        ...stats,
+        totalTrades: total,
+        wonTrades: wins,
+        lostTrades: total - wins,
+        winRate
+      }));
+
+      return updated;
+    });
+  };
+
+  // Send Signal to Telegram function
+  const sendSignalToTelegram = async (signalId: string) => {
+    const targetSignal = signals.find(s => s.id === signalId);
+    if (!targetSignal) return { success: false, message: 'Signal not found', formattedText: '' };
+
+    const formattedText = `AURUM AI SIGNAL
+
+Asset: ${targetSignal.symbol} (${targetSignal.name})
+Signal: ${targetSignal.type}
+
+Entry: $${targetSignal.entryZone.min.toLocaleString()} - $${targetSignal.entryZone.max.toLocaleString()} (Optimal: $${targetSignal.entryPrice.toLocaleString()})
+Stop Loss: $${targetSignal.stopLoss.toLocaleString()}
+Take Profit: $${targetSignal.takeProfit.toLocaleString()} (TP2: $${targetSignal.takeProfit2.toLocaleString()})
+
+Timeframe: ${targetSignal.timeframe}
+Confidence: ${targetSignal.confidenceScore}%
+
+Reason:
+${targetSignal.marketReason}`;
+
+    const newLog: TelegramLogItem = {
+      id: `tel-${Date.now()}`,
+      timestamp: 'Just now',
+      signalSymbol: targetSignal.symbol,
+      signalType: targetSignal.type,
+      messagePreview: formattedText,
+      status: 'DELIVERED'
+    };
+
+    setTelegramSettings(prev => ({
+      ...prev,
+      history: [newLog, ...prev.history.slice(0, 9)]
+    }));
+
+    return {
+      success: true,
+      message: `Dispatched ${targetSignal.symbol} signal to Telegram channel (${telegramSettings.channelTag})`,
+      formattedText
+    };
+  };
+
+  const updateTelegramSettings = (settings: Partial<TelegramSettings>) => {
+    setTelegramSettings(prev => ({ ...prev, ...settings }));
+  };
+
+  const regenerateAiSignals = () => {
+    setIsAiGenerating(true);
+    setTimeout(() => {
+      setSignals(prev => {
+        return prev.map(s => {
+          const shift = Math.floor(Math.random() * 5) - 2;
+          const newConf = Math.min(98, Math.max(70, s.confidenceScore + shift));
+          const updatedSig = {
+            ...s,
+            confidenceScore: newConf,
+            generatedAt: 'Just now'
+          };
+          return {
+            ...updatedSig,
+            setupStrength: computeTradeSetupStrength(updatedSig)
+          };
+        });
+      });
+      setIsAiGenerating(false);
+    }, 900);
+  };
+
+  return (
+    <MarketContext.Provider
+      value={{
+        markets,
+        signals,
+        selectedSignalId,
+        selectedSignal,
+        selectedMarket,
+        selectedTimeframe,
+        tradingStyleMode,
+        setTradingStyleMode,
+        candles,
+        telegramSettings,
+        activeNav,
+        isTelegramModalOpen,
+        isAiGenerating,
+        watchlistAssetIds,
+        toggleWatchlist,
+        isFavorite,
+        aiAlerts,
+        unreadAlertCount,
+        isAlertCenterOpen,
+        setIsAlertCenterOpen,
+        markAlertAsRead,
+        markAllAlertsAsRead,
+        dismissAlert,
+        triggerSimulatedAlert,
+        isDailyBriefOpen,
+        setIsDailyBriefOpen,
+        isRealDataModalOpen,
+        setIsRealDataModalOpen,
+        isUserDashboardOpen,
+        setIsUserDashboardOpen,
+        signalHistory,
+        historyStats,
+        isScanningMarket,
+        scanProgress,
+        scanStepText,
+        highestProbabilitySignal,
+        isScannerModalOpen,
+        setIsScannerModalOpen,
+        scanMarket,
+        activeSetupStrength,
+        chartOverlays,
+        setChartOverlays,
+        setSelectedSignalId,
+        setSelectedTimeframe,
+        setActiveNav,
+        setIsTelegramModalOpen,
+        sendSignalToTelegram,
+        updateTelegramSettings,
+        regenerateAiSignals,
+        addSignalToHistory
+      }}
+    >
+      {children}
+    </MarketContext.Provider>
+  );
+};
+
+export const useMarket = (): MarketContextType => {
+  const context = useContext(MarketContext);
+  if (!context) {
+    throw new Error('useMarket must be used within a MarketProvider');
+  }
+  return context;
+};
