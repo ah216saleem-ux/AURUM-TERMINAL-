@@ -292,6 +292,9 @@ export interface TelegramSettings {
   autoBroadcast: boolean;
   minConfidence: number;
   isConnected: boolean;
+  enabled: boolean;
+  sentCountToday: number;
+  sentKeys: string[];
   history: TelegramLogItem[];
 }
 

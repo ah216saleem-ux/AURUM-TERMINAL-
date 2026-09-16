@@ -22,6 +22,8 @@ import {
 } from '../data/initialData';
 import { TRADING_STYLES } from '../data/tradingStyleData';
 import { INITIAL_AI_ALERTS, createRandomAiAlert } from '../data/aiAlertsData';
+import { getSmartTradeApprovalChecklist } from '../data/aiValidationData';
+import { getAurumRiskEvaluation } from '../data/riskQualityData';
 
 interface MarketContextType {
   markets: MarketItem[];
@@ -56,6 +58,9 @@ interface MarketContextType {
   // Real Data Integration Architecture Modal
   isRealDataModalOpen: boolean;
   setIsRealDataModalOpen: (open: boolean) => void;
+  // QA & Live Monitoring Control Modal
+  isQaModalOpen: boolean;
+  setIsQaModalOpen: (open: boolean) => void;
   // Production User System & Dashboard
   isUserDashboardOpen: boolean;
   setIsUserDashboardOpen: (open: boolean) => void;
@@ -96,7 +101,7 @@ interface MarketContextType {
   setSelectedTimeframe: (tf: Timeframe) => void;
   setActiveNav: (nav: string) => void;
   setIsTelegramModalOpen: (open: boolean) => void;
-  sendSignalToTelegram: (signalId: string) => Promise<{ success: boolean; message: string; formattedText: string }>;
+  sendSignalToTelegram: (signalId: string, statusUpdate?: 'NEW_SIGNAL' | 'TP1_HIT' | 'SL_HIT' | 'CANCELLED', isTest?: boolean) => Promise<{ success: boolean; message: string; formattedText: string }>;
   updateTelegramSettings: (settings: Partial<TelegramSettings>) => void;
   regenerateAiSignals: () => void;
   addSignalToHistory: (item: Omit<SignalHistoryItem, 'id' | 'closedAt'>) => void;
@@ -152,6 +157,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isAlertCenterOpen, setIsAlertCenterOpen] = useState<boolean>(false);
   const [isDailyBriefOpen, setIsDailyBriefOpen] = useState<boolean>(false);
   const [isRealDataModalOpen, setIsRealDataModalOpen] = useState<boolean>(false);
+  const [isQaModalOpen, setIsQaModalOpen] = useState<boolean>(false);
   const [isUserDashboardOpen, setIsUserDashboardOpen] = useState<boolean>(false);
 
   const unreadAlertCount = useMemo(() => {
@@ -211,23 +217,18 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     chatId: '',
     channelTag: '@aurum_ai_signals',
     autoBroadcast: true,
-    minConfidence: 80,
-    isConnected: true,
+    minConfidence: 85,
+    isConnected: false,
+    enabled: false,
+    sentCountToday: 0,
+    sentKeys: [],
     history: [
       {
         id: 'tel-1',
-        timestamp: '5m ago',
+        timestamp: '1h ago',
         signalSymbol: 'XAU/USD',
         signalType: 'BUY',
-        messagePreview: '🟢 AURUM AI SIGNAL\nAsset: Gold XAU/USD\nSignal: BUY\nEntry: $2,642.00\nSL: $2,624.00\nTP: $2,685.00\nTimeframe: 1H\nConfidence: 92%',
-        status: 'DELIVERED'
-      },
-      {
-        id: 'tel-2',
-        timestamp: '18m ago',
-        signalSymbol: 'XAG/USD',
-        signalType: 'BUY',
-        messagePreview: '🟢 AURUM AI SIGNAL\nAsset: Silver XAG/USD\nSignal: BUY\nEntry: $31.30\nSL: $30.65\nTP: $32.80\nTimeframe: 1H\nConfidence: 89%',
+        messagePreview: '🟡 AURUM AI SIGNAL\n\nPair:\nXAU/USD\n\nSignal:\nBUY\n\nEntry:\n$2,638.00 - $2,644.00\n\nStop Loss:\n$2,624.00\n\nTake Profit:\nTP1: $2,685.00\nTP2: $2,710.00\n\nTimeframe:\nH1\n\nConfidence:\n92%\n\nSetup Grade:\nA+',
         status: 'DELIVERED'
       }
     ]
@@ -396,42 +397,191 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   // Send Signal to Telegram function
-  const sendSignalToTelegram = async (signalId: string) => {
-    const targetSignal = signals.find(s => s.id === signalId);
+  const sendSignalToTelegram = async (
+    signalId: string, 
+    statusUpdate?: 'NEW_SIGNAL' | 'TP1_HIT' | 'SL_HIT' | 'CANCELLED',
+    isTest: boolean = false
+  ) => {
+    // Check if enabled (unless we are testing connection via the "Send Test Message" button)
+    if (!telegramSettings.enabled && !isTest) {
+      return { 
+        success: false, 
+        message: 'Telegram Alerts are currently disabled. Please enable them in the Telegram setup panel.', 
+        formattedText: '' 
+      };
+    }
+
+    const targetSignal = signals.find(s => s.id === signalId) || signals.find(s => s.marketId === 'xau-usd') || signals[0];
     if (!targetSignal) return { success: false, message: 'Signal not found', formattedText: '' };
 
-    const formattedText = `AURUM AI SIGNAL
+    // 1. strictly Gold check (unless we are bypass testing)
+    const isGold = targetSignal.marketId === 'xau-usd' || targetSignal.symbol.toLowerCase().includes('gold') || targetSignal.symbol.includes('XAU');
+    if (!isGold && !isTest) {
+      return {
+        success: false,
+        message: 'Telegram filter active: Only XAU/USD Gold trading signals are permitted for Telegram broadcast.',
+        formattedText: ''
+      };
+    }
 
-Asset: ${targetSignal.symbol} (${targetSignal.name})
-Signal: ${targetSignal.type}
+    const setupStrength = targetSignal.setupStrength || computeTradeSetupStrength(targetSignal);
+    const grade = setupStrength.grade;
 
-Entry: $${targetSignal.entryZone.min.toLocaleString()} - $${targetSignal.entryZone.max.toLocaleString()} (Optimal: $${targetSignal.entryPrice.toLocaleString()})
-Stop Loss: $${targetSignal.stopLoss.toLocaleString()}
-Take Profit: $${targetSignal.takeProfit.toLocaleString()} (TP2: $${targetSignal.takeProfit2.toLocaleString()})
+    let formattedText = '';
+    const isUpdate = statusUpdate && statusUpdate !== 'NEW_SIGNAL';
+    const duplicateKey = `sig-${targetSignal.marketId}-${targetSignal.timeframe}-${targetSignal.type}-${targetSignal.entryPrice}`;
 
-Timeframe: ${targetSignal.timeframe}
-Confidence: ${targetSignal.confidenceScore}%
+    if (!isUpdate) {
+      // Run SIGNAL QUALITY RULES strictly for NEW signals (unless we are bypass testing)
+      if (!isTest) {
+        // AI Decision check
+        if (targetSignal.type !== 'BUY' && targetSignal.type !== 'SELL') {
+          return {
+            success: false,
+            message: 'Signal rejected: AI Decision must be BUY or SELL. WAIT signals cannot be broadcast to Telegram.',
+            formattedText: ''
+          };
+        }
 
-Reason:
-${targetSignal.marketReason}`;
+        // Confidence Score >= 85%
+        if (targetSignal.confidenceScore < 85) {
+          return {
+            success: false,
+            message: `Signal rejected: Confidence Score is ${targetSignal.confidenceScore}%. Gold signals require a minimum score of 85%.`,
+            formattedText: ''
+          };
+        }
+
+        // Setup Grade = A or A+
+        if (grade !== 'A' && grade !== 'A+') {
+          return {
+            success: false,
+            message: `Signal rejected: Setup Grade is ${grade}. Gold signals require a high-probability A or A+ Grade setup.`,
+            formattedText: ''
+          };
+        }
+
+        // Risk Evaluation check
+        const riskEval = getAurumRiskEvaluation(targetSignal.marketId, targetSignal.timeframe);
+        const riskPassed = riskEval.riskPanel.riskLevel !== 'HIGH';
+        if (!riskPassed) {
+          return {
+            success: false,
+            message: 'Signal rejected: Risk Management validation failed (High Volatility Squeeze / Risk detected).',
+            formattedText: ''
+          };
+        }
+
+        // News Filter check
+        const newsPassed = riskEval.qualityFilter.newsRisk.passed;
+        if (!newsPassed) {
+          return {
+            success: false,
+            message: 'Signal rejected: News Filter failed. Red Folder economic events detected in current trade window.',
+            formattedText: ''
+          };
+        }
+
+        // Trade Approval Status check
+        const approvalCheck = getSmartTradeApprovalChecklist(targetSignal.marketId, targetSignal.symbol, tradingStyleMode);
+        const isApproved = approvalCheck.status === 'TRADE APPROVED' || approvalCheck.isApproved;
+        if (!isApproved) {
+          return {
+            success: false,
+            message: 'Signal rejected: Trade Approval Status is NOT APPROVED. Setup failed confluence checks.',
+            formattedText: ''
+          };
+        }
+
+        // Limit Check: Maximum 7 per day
+        if (telegramSettings.sentCountToday >= 7) {
+          return {
+            success: false,
+            message: 'Signal rejected: Maximum limit of 6-7 signals per day has been reached for Telegram alerts.',
+            formattedText: ''
+          };
+        }
+
+        // Duplicate Check
+        if (telegramSettings.sentKeys.includes(duplicateKey)) {
+          return {
+            success: false,
+            message: 'Signal rejected: Duplicate signal protection triggered. This trade setup was already broadcast.',
+            formattedText: ''
+          };
+        }
+      }
+
+      // Format New Signal message
+      formattedText = `🟡 AURUM AI SIGNAL
+
+Pair:
+XAU/USD
+
+Signal:
+${isTest ? 'BUY' : targetSignal.type}
+
+Entry:
+$${(isTest ? 2638 : targetSignal.entryZone.min).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} - $${(isTest ? 2644 : targetSignal.entryZone.max).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+
+Stop Loss:
+$${(isTest ? 2624 : targetSignal.stopLoss).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+
+Take Profit:
+TP1: $${(isTest ? 2685 : targetSignal.takeProfit).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+TP2: $${(isTest ? 2710 : targetSignal.takeProfit2).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+
+Timeframe:
+${isTest ? 'H1' : targetSignal.timeframe}
+
+Confidence:
+${isTest ? 92 : targetSignal.confidenceScore}%
+
+Setup Grade:
+${isTest ? 'A+' : grade}`;
+    } else {
+      // Format Update Message
+      const statusLabel = statusUpdate === 'TP1_HIT' ? 'TP1 HIT' : statusUpdate === 'SL_HIT' ? 'SL HIT' : 'CANCELLED';
+      formattedText = `AURUM AI UPDATE
+
+Pair:
+XAU/USD
+
+Status:
+${statusLabel}`;
+    }
 
     const newLog: TelegramLogItem = {
       id: `tel-${Date.now()}`,
       timestamp: 'Just now',
-      signalSymbol: targetSignal.symbol,
-      signalType: targetSignal.type,
+      signalSymbol: 'XAU/USD',
+      signalType: isUpdate ? 'WAIT' : (isTest ? 'BUY' : targetSignal.type),
       messagePreview: formattedText,
       status: 'DELIVERED'
     };
 
-    setTelegramSettings(prev => ({
-      ...prev,
-      history: [newLog, ...prev.history.slice(0, 9)]
-    }));
+    setTelegramSettings(prev => {
+      const updatedKeys = isUpdate || isTest
+        ? prev.sentKeys 
+        : [...prev.sentKeys, duplicateKey];
+      
+      const updatedCount = isUpdate || isTest
+        ? prev.sentCountToday
+        : prev.sentCountToday + 1;
+
+      return {
+        ...prev,
+        sentCountToday: updatedCount,
+        sentKeys: updatedKeys,
+        history: [newLog, ...prev.history.slice(0, 9)]
+      };
+    });
 
     return {
       success: true,
-      message: `Dispatched ${targetSignal.symbol} signal to Telegram channel (${telegramSettings.channelTag})`,
+      message: isTest 
+        ? `Test wire successfully transmitted to channel (${telegramSettings.channelTag || '@aurum_ai_signals'})`
+        : `Dispatched XAU/USD ${isUpdate ? 'update' : 'signal'} to Telegram channel (${telegramSettings.channelTag || '@aurum_ai_signals'})`,
       formattedText
     };
   };
@@ -493,6 +643,8 @@ ${targetSignal.marketReason}`;
         setIsDailyBriefOpen,
         isRealDataModalOpen,
         setIsRealDataModalOpen,
+        isQaModalOpen,
+        setIsQaModalOpen,
         isUserDashboardOpen,
         setIsUserDashboardOpen,
         signalHistory,

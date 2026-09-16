@@ -50,6 +50,7 @@ export interface DetailedTimeframeSetup {
   stopLoss: number;
   takeProfit: number;
   takeProfit2?: number;
+  takeProfit3?: number;
   riskReward: string;
   aiReason: string;
   strategies: {

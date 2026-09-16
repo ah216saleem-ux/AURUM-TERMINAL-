@@ -15,21 +15,37 @@ import {
 } from 'lucide-react';
 import { MarketItem, Timeframe, Candle } from '../types';
 import { getTimeframeSetup, DetailedTimeframeSetup } from '../data/timeframeSignals';
-import { generateSampleCandles } from '../data/initialData';
+import { generateSampleCandles, INITIAL_MARKETS } from '../data/initialData';
 
 interface InteractiveCandleChartProps {
-  market: MarketItem;
+  market?: MarketItem;
+  assetId?: string;
+  currentPrice?: number;
+  entryPrice?: number;
+  stopLoss?: number;
+  takeProfit?: number;
   timeframe: Timeframe;
   onTimeframeChange?: (tf: Timeframe) => void;
   height?: number;
 }
 
 export const InteractiveCandleChart: React.FC<InteractiveCandleChartProps> = ({
-  market,
+  market: propMarket,
+  assetId,
+  currentPrice: propCurrentPrice,
   timeframe,
   onTimeframeChange,
   height = 320
 }) => {
+  // Resolve market safely - guarantees market is never undefined
+  const market: MarketItem = useMemo(() => {
+    if (propMarket && propMarket.id) return propMarket;
+    if (assetId) {
+      const found = INITIAL_MARKETS.find(m => m.id === assetId);
+      if (found) return found;
+    }
+    return INITIAL_MARKETS[0];
+  }, [propMarket, assetId]);
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(500);
   const [hoveredCandle, setHoveredCandle] = useState<Candle | null>(null);

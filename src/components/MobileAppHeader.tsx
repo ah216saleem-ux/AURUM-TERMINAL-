@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, Send, Radio, Zap, Bell, BookOpen } from 'lucide-react';
+import { Sparkles, Send, Radio, Zap, Bell, BookOpen, Activity } from 'lucide-react';
 import { SubtleGlobe } from './SubtleGlobe';
 import { useMarket } from '../context/MarketContext';
 
@@ -8,7 +8,8 @@ export const MobileAppHeader: React.FC = () => {
     setIsTelegramModalOpen, 
     setIsAlertCenterOpen, 
     unreadAlertCount,
-    setIsDailyBriefOpen 
+    setIsDailyBriefOpen,
+    setIsQaModalOpen
   } = useMarket();
 
   return (
@@ -76,6 +77,16 @@ export const MobileAppHeader: React.FC = () => {
             aria-label="Telegram signal wire"
           >
             <Send className="w-3.5 h-3.5" />
+          </button>
+
+          {/* QA & Monitor Button */}
+          <button
+            onClick={() => setIsQaModalOpen(true)}
+            className="p-2 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 border border-amber-500/30 text-amber-400 hover:text-amber-350 transition shadow-sm cursor-pointer"
+            title="Open QA & Live Monitoring Control Center"
+            aria-label="QA & Monitor"
+          >
+            <Activity className="w-3.5 h-3.5 animate-pulse" />
           </button>
         </div>
       </div>

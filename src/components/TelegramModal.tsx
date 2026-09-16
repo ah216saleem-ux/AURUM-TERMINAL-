@@ -8,10 +8,15 @@ import {
   ShieldCheck, 
   Sliders, 
   Layers, 
-  ExternalLink,
+  Copy,
+  Wifi,
+  WifiOff,
   BellRing,
   AlertCircle,
-  Copy
+  TrendingUp,
+  XCircle,
+  AlertTriangle,
+  Power
 } from 'lucide-react';
 import { useMarket } from '../context/MarketContext';
 
@@ -25,54 +30,128 @@ export const TelegramModal: React.FC = () => {
     sendSignalToTelegram
   } = useMarket();
 
-  const [botToken, setBotToken] = useState(telegramSettings.botToken);
-  const [channelTag, setChannelTag] = useState(telegramSettings.channelTag);
-  const [autoBroadcast, setAutoBroadcast] = useState(telegramSettings.autoBroadcast);
-  const [minConfidence, setMinConfidence] = useState(telegramSettings.minConfidence);
+  const [botToken, setBotToken] = useState(telegramSettings.botToken || '');
+  const [chatId, setChatId] = useState(telegramSettings.chatId || '');
+  const [channelTag, setChannelTag] = useState(telegramSettings.channelTag || '@aurum_ai_signals');
+  const [enabled, setEnabled] = useState(telegramSettings.enabled);
+  const [isConnected, setIsConnected] = useState(telegramSettings.isConnected);
+  
   const [isSaved, setIsSaved] = useState(false);
   const [testSent, setTestSent] = useState(false);
+  const [testStatus, setTestStatus] = useState<string | null>(null);
   const [copiedSample, setCopiedSample] = useState(false);
+  const [copiedUpdateSample, setCopiedUpdateSample] = useState(false);
 
   if (!isTelegramModalOpen) return null;
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleConnect = (e: React.FormEvent) => {
     e.preventDefault();
+    const tokenClean = botToken.trim();
+    const chatClean = chatId.trim() || channelTag.trim();
+    
+    const nextConnected = tokenClean.length > 0 && chatClean.length > 0;
+    
     updateTelegramSettings({
-      botToken: botToken.trim(),
-      channelTag: channelTag.trim() || '@aurum_ai_signals',
-      autoBroadcast,
-      minConfidence,
-      isConnected: true
+      botToken: tokenClean,
+      chatId: chatClean,
+      channelTag: chatClean.startsWith('@') ? chatClean : `@${chatClean}`,
+      isConnected: nextConnected,
+      enabled: enabled
     });
+
+    setIsConnected(nextConnected);
     setIsSaved(true);
     setTimeout(() => {
       setIsSaved(false);
-      setIsTelegramModalOpen(false);
-    }, 1000);
+    }, 1500);
+  };
+
+  const handleToggleEnabled = () => {
+    const nextEnabled = !enabled;
+    setEnabled(nextEnabled);
+    updateTelegramSettings({ enabled: nextEnabled });
   };
 
   const handleTestBroadcast = async () => {
     setTestSent(true);
-    await sendSignalToTelegram(signals[0].id);
-    setTimeout(() => setTestSent(false), 2000);
+    setTestStatus(null);
+    const goldSignal = signals.find(s => s.marketId === 'xau-usd') || signals[0];
+    const res = await sendSignalToTelegram(goldSignal.id, 'NEW_SIGNAL', true);
+    
+    if (res.success) {
+      setTestStatus('Test Signal Dispatched Successfully!');
+    } else {
+      setTestStatus(`Error: ${res.message}`);
+    }
+    setTimeout(() => {
+      setTestSent(false);
+      setTestStatus(null);
+    }, 3000);
   };
 
-  const sampleSignal = signals[0];
-  const sampleMessage = `AURUM TERMINAL SIGNAL
+  const handleTriggerAdvancedAlert = async (type: 'TP1_HIT' | 'SL_HIT' | 'CANCELLED') => {
+    setTestSent(true);
+    setTestStatus(null);
+    const goldSignal = signals.find(s => s.marketId === 'xau-usd') || signals[0];
+    const res = await sendSignalToTelegram(goldSignal.id, type, !enabled || !isConnected);
+    
+    if (res.success) {
+      const label = type === 'TP1_HIT' ? 'TP1 Hit' : type === 'SL_HIT' ? 'SL Hit' : 'Cancelled';
+      setTestStatus(`Advanced Alert [${label}] Dispatched Successfully!`);
+    } else {
+      setTestStatus(`Error: ${res.message}`);
+    }
+    setTimeout(() => {
+      setTestSent(false);
+      setTestStatus(null);
+    }, 3000);
+  };
 
-Asset: ${sampleSignal.symbol} (${sampleSignal.name})
-Signal: ${sampleSignal.type}
-Entry: $${sampleSignal.entryZone.min.toLocaleString()} - $${sampleSignal.entryZone.max.toLocaleString()} (Optimal: $${sampleSignal.entryPrice.toLocaleString()})
-SL: $${sampleSignal.stopLoss.toLocaleString()}
-TP: TP1 $${sampleSignal.takeProfit.toLocaleString()} | TP2 $${sampleSignal.takeProfit2.toLocaleString()}
-Timeframe: ${sampleSignal.timeframe}
-Confidence: ${sampleSignal.confidenceScore}%
-Reason: ${sampleSignal.marketReason}`;
+  const sampleSignalMessage = `🟡 AURUM AI SIGNAL
+
+Pair:
+XAU/USD
+
+Signal:
+BUY
+
+Entry:
+$2,638.00 - $2,644.00
+
+Stop Loss:
+$2,624.00
+
+Take Profit:
+TP1: $2,685.00
+TP2: $2,710.00
+
+Timeframe:
+H1
+
+Confidence:
+92%
+
+Setup Grade:
+A+`;
+
+  const sampleUpdateMessage = `AURUM AI UPDATE
+
+Pair:
+XAU/USD
+
+Status:
+TP1 HIT / SL HIT / CANCELLED`;
 
   const handleCopySample = () => {
-    navigator.clipboard.writeText(sampleMessage);
+    navigator.clipboard.writeText(sampleSignalMessage);
     setCopiedSample(true);
     setTimeout(() => setCopiedSample(false), 2000);
+  };
+
+  const handleCopyUpdateSample = () => {
+    navigator.clipboard.writeText(sampleUpdateMessage);
+    setCopiedUpdateSample(true);
+    setTimeout(() => setCopiedUpdateSample(false), 2000);
   };
 
   return (
@@ -88,167 +167,227 @@ Reason: ${sampleSignal.marketReason}`;
         </button>
 
         {/* Header */}
-        <div>
+        <div className="border-b border-zinc-800 pb-4">
           <div className="flex items-center gap-2 text-xs font-mono-num text-amber-400 font-semibold uppercase tracking-wider mb-1">
             <Bot className="w-4 h-4 text-amber-400" />
-            <span>INSTANT DISPATCH SYSTEM</span>
+            <span>XAU/USD SIGNAL GATEWAY</span>
           </div>
           <h2 className="text-xl sm:text-2xl font-bold text-white font-syne">
-            Telegram AI Signal Integration
+            AURUM Telegram Terminal
           </h2>
           <p className="text-zinc-400 text-xs sm:text-sm mt-1">
-            Link your Telegram bot or channel to receive automated AI trading signals, take profit triggers, and stop loss updates in real-time.
+            Configure automated professional notifications only for Gold XAU/USD trading signals.
           </p>
         </div>
 
         {/* Live Channel Status Banner */}
-        <div className="p-4 rounded-xl bg-neutral-900/90 border border-zinc-800 flex items-center justify-between">
+        <div className="p-4 rounded-xl bg-neutral-900/90 border border-zinc-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse" />
+            <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center ${isConnected ? 'bg-emerald-500/20' : 'bg-zinc-800'}`}>
+              <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-zinc-500'}`} />
+            </div>
             <div>
-              <span className="text-xs font-mono-num font-bold text-white block">
-                Telegram Dispatch Engine: ACTIVE
-              </span>
-              <span className="text-[11px] text-zinc-400 font-mono-num">
-                Connected to {telegramSettings.channelTag}
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-mono-num font-bold text-white block">
+                  Status: {isConnected ? 'CONNECTED' : 'DISCONNECTED'}
+                </span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400 font-bold uppercase font-mono-num">
+                  {enabled ? 'Alerts Active' : 'Alerts Paused'}
+                </span>
+              </div>
+              <span className="text-[11px] text-zinc-400 font-mono-num block mt-0.5">
+                {isConnected 
+                  ? `Active Broadcast Channel: ${chatId || channelTag}` 
+                  : 'Specify Bot Token and Chat ID to connect'}
               </span>
             </div>
           </div>
 
-          <button
-            onClick={handleTestBroadcast}
-            disabled={testSent}
-            className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-amber-300 text-xs font-mono-num font-semibold border border-amber-500/30 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-          >
-            <Send className="w-3.5 h-3.5 text-amber-400" />
-            <span>{testSent ? 'Dispatched!' : 'Send Test Wire'}</span>
-          </button>
-        </div>
-
-        {/* Template Preview Card */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-xs font-mono-num text-zinc-400">
-            <span className="text-amber-400 font-semibold flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5" />
-              <span>Standard Telegram Message Schema</span>
-            </span>
+          <div className="flex items-center gap-2">
+            {/* Enable/Disable Toggle */}
             <button
-              onClick={handleCopySample}
-              className="text-zinc-400 hover:text-white flex items-center gap-1 cursor-pointer"
+              onClick={handleToggleEnabled}
+              className={`px-3.5 py-1.5 rounded-lg font-mono-num font-bold text-xs flex items-center gap-1.5 transition cursor-pointer border ${
+                enabled 
+                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20' 
+                  : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-white'
+              }`}
             >
-              {copiedSample ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-              <span>{copiedSample ? 'Copied' : 'Copy'}</span>
+              <Power className="w-3.5 h-3.5" />
+              <span>{enabled ? 'Alerts Enabled' : 'Alerts Disabled'}</span>
             </button>
           </div>
-
-          <pre className="p-4 rounded-xl bg-neutral-900/90 border border-zinc-800 text-[11px] font-mono-num text-zinc-200 whitespace-pre-wrap leading-relaxed">
-            {sampleMessage}
-          </pre>
         </div>
 
         {/* Telegram Configuration Form */}
-        <form onSubmit={handleSave} className="space-y-4 pt-2 border-t border-zinc-800">
+        <form onSubmit={handleConnect} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-mono-num text-zinc-300 block mb-1">
-                Telegram Bot Token (Optional)
+              <label className="text-xs font-mono-num text-zinc-300 block mb-1 font-semibold">
+                Telegram Bot Token
               </label>
               <input
                 type="password"
                 value={botToken}
                 onChange={(e) => setBotToken(e.target.value)}
-                placeholder="123456789:ABCdefGhIJKlmNoPQRstuv..."
+                placeholder="e.g. 7481902456:AAHzD8..."
                 className="w-full px-3.5 py-2.5 rounded-xl bg-neutral-900 border border-zinc-800 text-white text-xs font-mono-num focus:border-amber-400 focus:outline-none placeholder:text-zinc-600"
               />
             </div>
 
             <div>
-              <label className="text-xs font-mono-num text-zinc-300 block mb-1">
-                Target Channel / Chat ID
+              <label className="text-xs font-mono-num text-zinc-300 block mb-1 font-semibold">
+                Telegram Chat ID / Channel ID
               </label>
               <input
                 type="text"
-                value={channelTag}
-                onChange={(e) => setChannelTag(e.target.value)}
-                placeholder="@aurum_ai_signals"
+                value={chatId}
+                onChange={(e) => setChatId(e.target.value)}
+                placeholder="e.g. @aurum_ai_signals or -100123456"
                 className="w-full px-3.5 py-2.5 rounded-xl bg-neutral-900 border border-zinc-800 text-white text-xs font-mono-num focus:border-amber-400 focus:outline-none placeholder:text-zinc-600"
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-            <div className="p-3.5 rounded-xl bg-neutral-900 border border-zinc-800 flex items-center justify-between">
-              <div>
-                <span className="text-xs font-mono-num text-white font-semibold block">
-                  Autonomous Broadcast
-                </span>
-                <span className="text-[11px] text-zinc-400 font-mono-num">
-                  Auto-send when confidence ≥ {minConfidence}%
-                </span>
-              </div>
-              <input
-                type="checkbox"
-                checked={autoBroadcast}
-                onChange={(e) => setAutoBroadcast(e.target.checked)}
-                className="w-4 h-4 accent-amber-500 rounded cursor-pointer"
-              />
-            </div>
-
-            <div className="p-3.5 rounded-xl bg-neutral-900 border border-zinc-800 space-y-1.5">
-              <div className="flex justify-between text-xs font-mono-num">
-                <span className="text-zinc-300">Min Confidence Filter</span>
-                <span className="text-amber-400 font-bold">{minConfidence}%</span>
-              </div>
-              <input
-                type="range"
-                min="70"
-                max="95"
-                value={minConfidence}
-                onChange={(e) => setMinConfidence(Number(e.target.value))}
-                className="w-full accent-amber-500 cursor-pointer"
-              />
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-zinc-800">
-            <button
-              type="button"
-              onClick={() => setIsTelegramModalOpen(false)}
-              className="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-mono-num transition cursor-pointer"
-            >
-              Cancel
-            </button>
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-[11px] text-zinc-500 font-mono-num block">
+              💡 Ensure your Telegram Bot is added as an administrator to your channel/group.
+            </span>
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl bg-gradient-to-r from-[#D4AF37] to-[#B38728] hover:brightness-110 text-black font-bold text-xs font-mono-num flex items-center gap-2 transition cursor-pointer"
+              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#D4AF37] to-[#B38728] hover:brightness-110 text-black font-bold text-xs font-mono-num flex items-center gap-2 transition cursor-pointer"
             >
-              {isSaved ? <Check className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
-              <span>{isSaved ? 'Settings Saved!' : 'Save & Enable Integration'}</span>
+              {isSaved ? <Check className="w-4 h-4 text-black" /> : <ShieldCheck className="w-4 h-4 text-black" />}
+              <span>{isSaved ? 'Connected!' : 'Connect Bot'}</span>
             </button>
           </div>
         </form>
 
+        {/* Advanced Tester Panel */}
+        <div className="p-4 rounded-xl bg-zinc-950 border border-amber-500/10 space-y-3.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-mono-num font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+              <Sliders className="w-3.5 h-3.5" />
+              <span>Professional Testing & Live Simulation</span>
+            </span>
+            <span className="text-[10px] text-zinc-500 font-mono-num">
+              Bypass filters for test wires
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <button
+              onClick={handleTestBroadcast}
+              disabled={testSent}
+              className="px-2.5 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-800 text-[11px] font-semibold transition flex flex-col items-center justify-center gap-1 cursor-pointer disabled:opacity-50"
+            >
+              <Send className="w-3.5 h-3.5 text-amber-400" />
+              <span className="font-mono-num">Send Test Signal</span>
+            </button>
+            <button
+              onClick={() => handleTriggerAdvancedAlert('TP1_HIT')}
+              disabled={testSent}
+              className="px-2.5 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-800 text-[11px] font-semibold transition flex flex-col items-center justify-center gap-1 cursor-pointer disabled:opacity-50"
+            >
+              <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="font-mono-num">Simulate TP Hit</span>
+            </button>
+            <button
+              onClick={() => handleTriggerAdvancedAlert('SL_HIT')}
+              disabled={testSent}
+              className="px-2.5 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-800 text-[11px] font-semibold transition flex flex-col items-center justify-center gap-1 cursor-pointer disabled:opacity-50"
+            >
+              <XCircle className="w-3.5 h-3.5 text-rose-500" />
+              <span className="font-mono-num">Simulate SL Hit</span>
+            </button>
+            <button
+              onClick={() => handleTriggerAdvancedAlert('CANCELLED')}
+              disabled={testSent}
+              className="px-2.5 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-800 text-[11px] font-semibold transition flex flex-col items-center justify-center gap-1 cursor-pointer disabled:opacity-50"
+            >
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+              <span className="font-mono-num">Simulate Cancel</span>
+            </button>
+          </div>
+
+          {testStatus && (
+            <div className={`p-2.5 rounded-lg text-xs font-mono-num border ${
+              testStatus.startsWith('Error') 
+                ? 'bg-rose-500/10 border-rose-500/25 text-rose-400' 
+                : 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400'
+            }`}>
+              {testStatus}
+            </div>
+          )}
+        </div>
+
+        {/* Message Templates Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Signal Template Preview */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-[11px] font-mono-num text-zinc-400">
+              <span className="text-amber-400 font-semibold flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5" />
+                <span>🟡 Signal Message Format</span>
+              </span>
+              <button
+                onClick={handleCopySample}
+                className="text-zinc-500 hover:text-white flex items-center gap-1 cursor-pointer transition"
+              >
+                {copiedSample ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                <span>{copiedSample ? 'Copied' : 'Copy'}</span>
+              </button>
+            </div>
+
+            <pre className="p-3.5 rounded-xl bg-neutral-900/90 border border-zinc-800 text-[10px] font-mono-num text-zinc-200 whitespace-pre-wrap leading-relaxed max-h-52 overflow-y-auto">
+              {sampleSignalMessage}
+            </pre>
+          </div>
+
+          {/* Update Template Preview */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-[11px] font-mono-num text-zinc-400">
+              <span className="text-amber-400 font-semibold flex items-center gap-1.5">
+                <BellRing className="w-3.5 h-3.5" />
+                <span>📢 Update Message Format</span>
+              </span>
+              <button
+                onClick={handleCopyUpdateSample}
+                className="text-zinc-500 hover:text-white flex items-center gap-1 cursor-pointer transition"
+              >
+                {copiedUpdateSample ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                <span>{copiedUpdateSample ? 'Copied' : 'Copy'}</span>
+              </button>
+            </div>
+
+            <pre className="p-3.5 rounded-xl bg-neutral-900/90 border border-zinc-800 text-[10px] font-mono-num text-zinc-200 whitespace-pre-wrap leading-relaxed max-h-52 overflow-y-auto">
+              {sampleUpdateMessage}
+            </pre>
+          </div>
+        </div>
+
         {/* Telegram Dispatch Activity Log */}
         {telegramSettings.history.length > 0 && (
-          <div className="space-y-2 pt-2 border-t border-zinc-800">
+          <div className="space-y-2 border-t border-zinc-800 pt-4">
             <div className="text-xs font-mono-num text-zinc-400 font-semibold uppercase tracking-wider flex items-center gap-1.5">
               <Radio className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Recent Dispatched Signals</span>
+              <span>Recent Dispatched Signals & Updates</span>
             </div>
             <div className="space-y-2 max-h-36 overflow-y-auto">
               {telegramSettings.history.map((log) => (
                 <div
                   key={log.id}
-                  className="p-2.5 rounded-lg bg-neutral-900/60 border border-zinc-800 text-xs font-mono-num flex items-center justify-between"
+                  className="p-2.5 rounded-lg bg-neutral-900/60 border border-zinc-800 text-xs font-mono-num flex items-center justify-between gap-4"
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                    <span className="font-bold text-white">{log.signalSymbol}</span>
-                    <span className="text-amber-300 font-semibold">({log.signalType})</span>
-                    <span className="text-zinc-500 text-[10px]">{log.timestamp}</span>
+                  <div className="flex items-center gap-2 overflow-hidden">
+                    <span className={`w-2 h-2 rounded-full ${log.messagePreview.includes('UPDATE') ? 'bg-amber-400' : 'bg-emerald-400'}`} />
+                    <span className="font-bold text-white whitespace-nowrap">{log.signalSymbol}</span>
+                    <span className="text-zinc-500 text-[10px] whitespace-nowrap">{log.timestamp}</span>
+                    <span className="text-zinc-400 text-[10px] truncate max-w-xs block border-l border-zinc-800 pl-2">
+                      {log.messagePreview.replace(/\n+/g, ' ')}
+                    </span>
                   </div>
-                  <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold">
+                  <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold shrink-0">
                     {log.status}
                   </span>
                 </div>

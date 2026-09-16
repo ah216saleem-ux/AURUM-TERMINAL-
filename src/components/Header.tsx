@@ -14,7 +14,8 @@ import {
   Calculator,
   Radar,
   History,
-  User
+  User,
+  Activity
 } from 'lucide-react';
 import { useMarket } from '../context/MarketContext';
 
@@ -25,6 +26,7 @@ export const Header: React.FC = () => {
     setIsTelegramModalOpen,
     setIsRealDataModalOpen,
     setIsUserDashboardOpen,
+    setIsQaModalOpen,
     telegramSettings,
     scanMarket,
     isScanningMarket
@@ -159,6 +161,15 @@ export const Header: React.FC = () => {
             >
               <User className="w-3.5 h-3.5 text-amber-400" />
               <span className="hidden xl:inline">Account</span>
+            </button>
+
+            <button
+              onClick={() => setIsQaModalOpen(true)}
+              className="p-2 sm:px-3 sm:py-2 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 border border-amber-500/40 text-amber-400 text-xs font-bold font-mono-num flex items-center gap-1.5 transition cursor-pointer shadow-md"
+              title="Open QA & Live Monitoring Control Center"
+            >
+              <Activity className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+              <span className="hidden xl:inline">QA & Monitor</span>
             </button>
 
             <button

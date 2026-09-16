@@ -35,11 +35,12 @@ import { getAssetAiProfile } from '../data/multiAssetIntelligence';
 import { SignalLifecycleTimeline } from './SignalLifecycleTimeline';
 import { SmartTradeApprovalChecklist } from './SmartTradeApprovalChecklist';
 import { AiConfidenceBreakdown } from './AiConfidenceBreakdown';
+import { ASSET_BACKTEST_DATA } from '../data/backtestLearningData';
 
 interface SignalDetailModalProps {
   market: MarketItem | null;
   onClose: () => void;
-  initialViewMode?: 'CHART' | 'MODE_AI' | 'AI_PROFILE' | 'LIFECYCLE' | 'STRATEGY';
+  initialViewMode?: 'AI_SETUP' | 'CHART' | 'MODE_AI' | 'AI_PROFILE' | 'LIFECYCLE' | 'STRATEGY';
 }
 
 type StrategyTab = 'ALL' | 'SMC' | 'TREND' | 'BREAKOUT' | 'LIQUIDITY' | 'STRUCTURE' | 'MOMENTUM';
@@ -47,13 +48,20 @@ type StrategyTab = 'ALL' | 'SMC' | 'TREND' | 'BREAKOUT' | 'LIQUIDITY' | 'STRUCTU
 export const SignalDetailModal: React.FC<SignalDetailModalProps> = ({ 
   market, 
   onClose,
-  initialViewMode = 'CHART'
+  initialViewMode = 'AI_SETUP'
 }) => {
   const { tradingStyleMode, sendSignalToTelegram } = useMarket();
   const activeStyleConfig = TRADING_STYLES[tradingStyleMode];
 
   const [selectedTf, setSelectedTf] = useState<Timeframe>(activeStyleConfig.primaryTimeframe);
-  const [modalView, setModalView] = useState<'CHART' | 'MODE_AI' | 'AI_PROFILE' | 'LIFECYCLE' | 'STRATEGY'>(initialViewMode);
+  const [modalView, setModalView] = useState<'AI_SETUP' | 'CHART' | 'MODE_AI' | 'AI_PROFILE' | 'LIFECYCLE' | 'STRATEGY'>(initialViewMode);
+  const [expandedSections, setExpandedSections] = useState({
+    timeframes: true,
+    tradeSetup: true,
+    smc: true,
+    strategy: true,
+    backtest: true
+  });
   const [activeTab, setActiveTab] = useState<StrategyTab>('ALL');
   const [copied, setCopied] = useState<boolean>(false);
   const [telegramSuccess, setTelegramSuccess] = useState<string | null>(null);
@@ -422,8 +430,19 @@ AI STRATEGY ANALYSIS:
             </div>
           </div>
 
-          {/* View Mode Toggle: Interactive Candlestick Chart vs Mode AI Decision vs AI Profile vs Lifecycle Timeline vs Strategy Engine */}
-          <div className="grid grid-cols-5 gap-1 p-1 rounded-xl bg-neutral-950 border border-zinc-800 text-[10px] sm:text-xs font-mono-num font-bold">
+          {/* View Mode Toggle: Detailed AI Setup vs Interactive Chart vs Mode AI vs AI Profile vs Lifecycle vs Strategy */}
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 p-1 rounded-xl bg-neutral-950 border border-zinc-800 text-[10px] sm:text-xs font-mono-num font-bold">
+            <button
+              onClick={() => setModalView('AI_SETUP')}
+              className={`py-2 px-1 rounded-lg flex items-center justify-center gap-1 transition cursor-pointer text-center ${
+                modalView === 'AI_SETUP'
+                  ? 'bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#B38728] text-black shadow-md shadow-amber-500/25 font-black'
+                  : 'text-zinc-400 hover:text-white hover:bg-zinc-900/50'
+              }`}
+            >
+              <Zap className="w-3.5 h-3.5" />
+              <span className="truncate">AI Setup</span>
+            </button>
             <button
               onClick={() => setModalView('CHART')}
               className={`py-2 px-1 rounded-lg flex items-center justify-center gap-1 transition cursor-pointer text-center ${
@@ -481,7 +500,306 @@ AI STRATEGY ANALYSIS:
             </button>
           </div>
 
-          {modalView === 'LIFECYCLE' ? (
+          {modalView === 'AI_SETUP' ? (
+            /* DETAILED AI SETUP PAGE VIEW (5 SECTIONS) */
+            <div className="space-y-3.5 font-mono-num">
+              {/* 1. ALL TIMEFRAMES ANALYSIS */}
+              <div className="rounded-2xl bg-[#0c0f18] border border-amber-500/25 p-3.5 space-y-3">
+                <div 
+                  onClick={() => setExpandedSections(prev => ({ ...prev, timeframes: !prev.timeframes }))}
+                  className="flex items-center justify-between cursor-pointer select-none"
+                >
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-amber-400" />
+                    <h3 className="text-xs sm:text-sm font-bold text-amber-300 uppercase tracking-wide">
+                      1. ALL TIMEFRAMES ANALYSIS
+                    </h3>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-zinc-400 font-bold">8 Timeframes Active</span>
+                    {expandedSections.timeframes ? <ChevronDown className="w-4 h-4 text-zinc-400 rotate-180 transition" /> : <ChevronDown className="w-4 h-4 text-zinc-400 transition" />}
+                  </div>
+                </div>
+
+                {expandedSections.timeframes && (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-zinc-800/80">
+                    {(['1M', '5M', '15M', '30M', '1H', '4H', '1D', '1W'] as Timeframe[]).map((tf) => {
+                      const tfSetup = getTimeframeSetup(market.id, tf);
+                      const isSelected = selectedTf === tf;
+                      
+                      let statusText = 'In Entry Zone';
+                      if (tf === '1M') statusText = 'Micro FVG Entry';
+                      else if (tf === '5M') statusText = 'OB Mitigation';
+                      else if (tf === '15M') statusText = 'In Entry Zone';
+                      else if (tf === '30M') statusText = 'Sweep Complete';
+                      else if (tf === '1H') statusText = 'Optimal Entry';
+                      else if (tf === '4H') statusText = 'Trend Retest';
+                      else if (tf === '1D') statusText = 'Structural Base';
+                      else if (tf === '1W') statusText = 'Macro Accumulation';
+
+                      return (
+                        <button
+                          key={tf}
+                          onClick={() => setSelectedTf(tf)}
+                          className={`p-2 rounded-xl text-left border transition-all cursor-pointer ${
+                            isSelected 
+                              ? 'bg-amber-500/15 border-amber-400/80 shadow-[0_0_12px_rgba(245,158,11,0.2)] scale-[1.02]' 
+                              : 'bg-neutral-950/80 border-zinc-800 hover:border-zinc-700'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className={`text-xs font-bold ${isSelected ? 'text-amber-300' : 'text-zinc-300'}`}>
+                              {tf}
+                            </span>
+                            <span className={`px-1.5 py-0.2 rounded text-[9px] font-extrabold uppercase ${
+                              tfSetup.signal === 'BUY' 
+                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                                : tfSetup.signal === 'SELL' 
+                                  ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' 
+                                  : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                            }`}>
+                              {tfSetup.signal}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-[10px]">
+                            <span className="text-zinc-500">Confidence</span>
+                            <span className="font-bold text-amber-300">{tfSetup.confidence}%</span>
+                          </div>
+                          <div className="text-[9px] text-zinc-500 truncate mt-1 pt-1 border-t border-zinc-800/50">
+                            {statusText}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* 2. AI TRADE SETUP */}
+              <div className="rounded-2xl bg-[#0c0f18] border border-amber-500/25 p-3.5 space-y-3">
+                <div 
+                  onClick={() => setExpandedSections(prev => ({ ...prev, tradeSetup: !prev.tradeSetup }))}
+                  className="flex items-center justify-between cursor-pointer select-none"
+                >
+                  <div className="flex items-center gap-2">
+                    <Target className="w-4 h-4 text-emerald-400" />
+                    <h3 className="text-xs sm:text-sm font-bold text-emerald-300 uppercase tracking-wide">
+                      2. AI TRADE SETUP ({selectedTf})
+                    </h3>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${badgeStyle.bg} ${badgeStyle.text}`}>
+                      {setup.signal}
+                    </span>
+                    {expandedSections.tradeSetup ? <ChevronDown className="w-4 h-4 text-zinc-400 rotate-180 transition" /> : <ChevronDown className="w-4 h-4 text-zinc-400 transition" />}
+                  </div>
+                </div>
+
+                {expandedSections.tradeSetup && (
+                  <div className="space-y-3 pt-2 border-t border-zinc-800/80">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                      <div className="p-2 rounded-xl bg-neutral-950 border border-zinc-800">
+                        <span className="text-[9.5px] text-zinc-500 block uppercase">Signal</span>
+                        <span className={`text-xs font-black ${badgeStyle.text}`}>{setup.signal}</span>
+                      </div>
+                      <div className="p-2 rounded-xl bg-neutral-950 border border-zinc-800">
+                        <span className="text-[9.5px] text-zinc-500 block uppercase">Entry</span>
+                        <span className="text-xs font-bold text-zinc-100 truncate block">
+                          ${setup.entry.toLocaleString(undefined, { minimumFractionDigits: market.decimals })}
+                        </span>
+                      </div>
+                      <div className="p-2 rounded-xl bg-neutral-950 border border-rose-500/30">
+                        <span className="text-[9.5px] text-rose-400/80 block uppercase">Stop Loss</span>
+                        <span className="text-xs font-bold text-rose-400 truncate block">
+                          ${setup.stopLoss.toLocaleString(undefined, { minimumFractionDigits: market.decimals })}
+                        </span>
+                      </div>
+                      <div className="p-2 rounded-xl bg-neutral-950 border border-amber-500/30">
+                        <span className="text-[9.5px] text-amber-400 block uppercase">Risk Reward</span>
+                        <span className="text-xs font-bold text-amber-300 truncate block">{setup.riskReward}</span>
+                      </div>
+                    </div>
+
+                    {/* TP Targets Row */}
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      <div className="p-2 rounded-xl bg-emerald-950/20 border border-emerald-500/30">
+                        <span className="text-[9.5px] text-emerald-400/80 block uppercase">TP1 Target</span>
+                        <span className="text-xs font-bold text-emerald-300 truncate block">
+                          ${setup.takeProfit.toLocaleString(undefined, { minimumFractionDigits: market.decimals })}
+                        </span>
+                      </div>
+                      <div className="p-2 rounded-xl bg-emerald-950/30 border border-emerald-500/40">
+                        <span className="text-[9.5px] text-emerald-400/80 block uppercase">TP2 Target</span>
+                        <span className="text-xs font-bold text-emerald-300 truncate block">
+                          ${(setup.takeProfit2 ?? (setup.signal === 'SELL' ? setup.entry - Math.abs(setup.takeProfit - setup.entry) * 1.6 : setup.entry + Math.abs(setup.takeProfit - setup.entry) * 1.6)).toLocaleString(undefined, { minimumFractionDigits: market.decimals })}
+                        </span>
+                      </div>
+                      <div className="p-2 rounded-xl bg-emerald-950/40 border border-emerald-400">
+                        <span className="text-[9.5px] text-emerald-300 block uppercase">TP3 Target</span>
+                        <span className="text-xs font-extrabold text-emerald-200 truncate block">
+                          ${(setup.takeProfit3 ?? (setup.signal === 'SELL' ? setup.entry - Math.abs(setup.takeProfit - setup.entry) * 2.3 : setup.entry + Math.abs(setup.takeProfit - setup.entry) * 2.3)).toLocaleString(undefined, { minimumFractionDigits: market.decimals })}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* AI Reason */}
+                    <div className="p-2.5 rounded-xl bg-neutral-950 border border-zinc-800 space-y-0.5">
+                      <span className="text-[9.5px] text-amber-400 font-bold uppercase block">AI Reason</span>
+                      <p className="text-xs text-zinc-300 leading-relaxed font-sans">{setup.aiReason}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 3. SMART MONEY ANALYSIS */}
+              <div className="rounded-2xl bg-[#0c0f18] border border-amber-500/25 p-3.5 space-y-3">
+                <div 
+                  onClick={() => setExpandedSections(prev => ({ ...prev, smc: !prev.smc }))}
+                  className="flex items-center justify-between cursor-pointer select-none"
+                >
+                  <div className="flex items-center gap-2">
+                    <BrainCircuit className="w-4 h-4 text-amber-400" />
+                    <h3 className="text-xs sm:text-sm font-bold text-amber-300 uppercase tracking-wide">
+                      3. SMART MONEY ANALYSIS (SMC)
+                    </h3>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-emerald-400 font-bold">Institutional Flow</span>
+                    {expandedSections.smc ? <ChevronDown className="w-4 h-4 text-zinc-400 rotate-180 transition" /> : <ChevronDown className="w-4 h-4 text-zinc-400 transition" />}
+                  </div>
+                </div>
+
+                {expandedSections.smc && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-zinc-800/80 text-xs">
+                    <div className="p-2 rounded-xl bg-neutral-950 border border-zinc-800 flex items-center justify-between">
+                      <span className="text-zinc-400 text-[11px]">Order Block</span>
+                      <span className="font-bold text-amber-300 text-[11px] truncate">{st.smc.orderBlock}</span>
+                    </div>
+                    <div className="p-2 rounded-xl bg-neutral-950 border border-zinc-800 flex items-center justify-between">
+                      <span className="text-zinc-400 text-[11px]">Fair Value Gap</span>
+                      <span className="font-bold text-amber-300 text-[11px] truncate">{st.smc.fairValueGap}</span>
+                    </div>
+                    <div className="p-2 rounded-xl bg-neutral-950 border border-zinc-800 flex items-center justify-between">
+                      <span className="text-zinc-400 text-[11px]">Liquidity Zone</span>
+                      <span className="font-bold text-emerald-400 text-[11px] truncate">{st.smc.liquiditySweep}</span>
+                    </div>
+                    <div className="p-2 rounded-xl bg-neutral-950 border border-zinc-800 flex items-center justify-between">
+                      <span className="text-zinc-400 text-[11px]">BOS Level</span>
+                      <span className="font-bold text-zinc-100 text-[11px] truncate">{st.smc.bos}</span>
+                    </div>
+                    <div className="p-2 rounded-xl bg-neutral-950 border border-zinc-800 flex items-center justify-between sm:col-span-2">
+                      <span className="text-zinc-400 text-[11px]">CHOCH Level</span>
+                      <span className="font-bold text-amber-300 text-[11px] truncate">{st.smc.choch}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 4. STRATEGY CONFIRMATION */}
+              <div className="rounded-2xl bg-[#0c0f18] border border-amber-500/25 p-3.5 space-y-3">
+                <div 
+                  onClick={() => setExpandedSections(prev => ({ ...prev, strategy: !prev.strategy }))}
+                  className="flex items-center justify-between cursor-pointer select-none"
+                >
+                  <div className="flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-amber-400" />
+                    <h3 className="text-xs sm:text-sm font-bold text-amber-300 uppercase tracking-wide">
+                      4. STRATEGY CONFIRMATION
+                    </h3>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-zinc-400">5 Pillars Confluence</span>
+                    {expandedSections.strategy ? <ChevronDown className="w-4 h-4 text-zinc-400 rotate-180 transition" /> : <ChevronDown className="w-4 h-4 text-zinc-400 transition" />}
+                  </div>
+                </div>
+
+                {expandedSections.strategy && (
+                  <div className="space-y-2.5 pt-2 border-t border-zinc-800/80 text-xs">
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 text-center">
+                      <div className="p-2 rounded-xl bg-neutral-950 border border-zinc-800">
+                        <span className="text-[9px] text-zinc-500 uppercase block">SMC</span>
+                        <span className="font-bold text-amber-300 text-[11px]">CONFIRMED</span>
+                      </div>
+                      <div className="p-2 rounded-xl bg-neutral-950 border border-zinc-800">
+                        <span className="text-[9px] text-zinc-500 uppercase block">Trend</span>
+                        <span className="font-bold text-emerald-400 text-[11px]">ALIGNED</span>
+                      </div>
+                      <div className="p-2 rounded-xl bg-neutral-950 border border-zinc-800">
+                        <span className="text-[9px] text-zinc-500 uppercase block">Breakout</span>
+                        <span className="font-bold text-zinc-200 text-[11px]">RETESTED</span>
+                      </div>
+                      <div className="p-2 rounded-xl bg-neutral-950 border border-zinc-800">
+                        <span className="text-[9px] text-zinc-500 uppercase block">Liquidity</span>
+                        <span className="font-bold text-amber-300 text-[11px]">SWEPT</span>
+                      </div>
+                      <div className="p-2 rounded-xl bg-neutral-950 border border-zinc-800 col-span-2 sm:col-span-1">
+                        <span className="text-[9px] text-zinc-500 uppercase block">Momentum</span>
+                        <span className="font-bold text-emerald-400 text-[11px]">EXPANDING</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-gradient-to-r from-amber-500/20 via-neutral-950 to-neutral-950 border border-amber-500/40">
+                      <div>
+                        <span className="text-[10px] text-zinc-400 uppercase block">Final AI Score</span>
+                        <span className="text-xs text-zinc-300 font-bold">Strategy Confluence</span>
+                      </div>
+                      <div className="text-right flex items-center gap-2">
+                        <span className="text-lg font-black text-amber-300 font-mono-num">{setup.confidence}%</span>
+                        <span className="px-2 py-0.5 rounded bg-emerald-500 text-black font-extrabold text-[9.5px]">
+                          A+ SETUP
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 5. BACKTEST SUMMARY */}
+              {(() => {
+                const backtest = ASSET_BACKTEST_DATA.find(b => b.assetId === market.id) || ASSET_BACKTEST_DATA[0];
+                return (
+                  <div className="rounded-2xl bg-[#0c0f18] border border-amber-500/25 p-3.5 space-y-3">
+                    <div 
+                      onClick={() => setExpandedSections(prev => ({ ...prev, backtest: !prev.backtest }))}
+                      className="flex items-center justify-between cursor-pointer select-none"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Gauge className="w-4 h-4 text-emerald-400" />
+                        <h3 className="text-xs sm:text-sm font-bold text-emerald-300 uppercase tracking-wide">
+                          5. BACKTEST SUMMARY
+                        </h3>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-amber-300 font-bold">{backtest.totalTrades} Trades Tested</span>
+                        {expandedSections.backtest ? <ChevronDown className="w-4 h-4 text-zinc-400 rotate-180 transition" /> : <ChevronDown className="w-4 h-4 text-zinc-400 transition" />}
+                      </div>
+                    </div>
+
+                    {expandedSections.backtest && (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-zinc-800/80 text-xs">
+                        <div className="p-2 rounded-xl bg-neutral-950 border border-zinc-800">
+                          <span className="text-[9.5px] text-zinc-500 block uppercase">Win Rate</span>
+                          <span className="text-sm font-black text-emerald-400">{backtest.winRate}%</span>
+                        </div>
+                        <div className="p-2 rounded-xl bg-neutral-950 border border-zinc-800">
+                          <span className="text-[9.5px] text-zinc-500 block uppercase">Profit Factor</span>
+                          <span className="text-sm font-bold text-amber-300">{backtest.profitFactor}</span>
+                        </div>
+                        <div className="p-2 rounded-xl bg-neutral-950 border border-zinc-800">
+                          <span className="text-[9.5px] text-zinc-500 block uppercase">Best Timeframe</span>
+                          <span className="text-xs font-bold text-zinc-100 truncate block">{backtest.bestTimeframe}</span>
+                        </div>
+                        <div className="p-2 rounded-xl bg-neutral-950 border border-zinc-800">
+                          <span className="text-[9.5px] text-zinc-500 block uppercase">Strategy Performance</span>
+                          <span className="text-sm font-black text-emerald-400">{backtest.totalRMultiple}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          ) : modalView === 'LIFECYCLE' ? (
             /* SIGNAL LIFECYCLE TIMELINE VIEW */
             <SignalLifecycleTimeline
               assetId={market.id}

@@ -24,11 +24,13 @@ import { computeModeDecision, ModeDecisionResult } from '../data/modeDecisionEng
 
 interface ModeAnalysisPanelProps {
   initialAssetId?: string;
+  selectedAssetId?: string;
   isCompact?: boolean;
 }
 
 export const ModeAnalysisPanel: React.FC<ModeAnalysisPanelProps> = ({ 
   initialAssetId,
+  selectedAssetId,
   isCompact = false 
 }) => {
   const { 
@@ -40,8 +42,16 @@ export const ModeAnalysisPanel: React.FC<ModeAnalysisPanelProps> = ({
   } = useMarket();
 
   const [activeAssetId, setActiveAssetId] = useState<string>(
-    initialAssetId || selectedSignal?.marketId || 'xau-usd'
+    selectedAssetId || initialAssetId || selectedSignal?.marketId || 'xau-usd'
   );
+
+  // Sync with selectedAssetId if provided
+  React.useEffect(() => {
+    if (selectedAssetId) {
+      setActiveAssetId(selectedAssetId);
+    }
+  }, [selectedAssetId]);
+
   const [isExpanded, setIsExpanded] = useState<boolean>(!isCompact);
 
   // Compute decision result for the selected asset and active mode
