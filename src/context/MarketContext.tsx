@@ -24,6 +24,8 @@ import { TRADING_STYLES } from '../data/tradingStyleData';
 import { INITIAL_AI_ALERTS, createRandomAiAlert } from '../data/aiAlertsData';
 import { getSmartTradeApprovalChecklist } from '../data/aiValidationData';
 import { getAurumRiskEvaluation } from '../data/riskQualityData';
+import { PRODUCTION_CONFIG } from '../config/productionConfig';
+import { marketDataService, ConnectionStatus } from '../services/marketDataService';
 
 interface MarketContextType {
   markets: MarketItem[];
@@ -35,6 +37,10 @@ interface MarketContextType {
   tradingStyleMode: TradingStyleMode;
   setTradingStyleMode: (mode: TradingStyleMode) => void;
   candles: Candle[];
+  dataConnectedStatus: ConnectionStatus;
+  isDataConnected: boolean;
+  lastMarketDataUpdate: number;
+  refreshMarketData: () => Promise<void>;
   telegramSettings: TelegramSettings;
   activeNav: string;
   isTelegramModalOpen: boolean;
@@ -260,26 +266,33 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return generateSampleCandles(INITIAL_MARKETS[0].price, 36, '1H');
   });
 
-  // Regenerate candles when active signal market or timeframe changes
-  useEffect(() => {
-    if (selectedMarket) {
-      setCandles(generateSampleCandles(selectedMarket.price, 36, selectedTimeframe));
-    }
-  }, [selectedMarket.id, selectedTimeframe]);
+  const [dataConnectedStatus, setDataConnectedStatus] = useState<ConnectionStatus>(marketDataService.getStatus());
+  const [lastMarketDataUpdate, setLastMarketDataUpdate] = useState<number>(Date.now());
+  const isDataConnected = dataConnectedStatus === 'DATA CONNECTED';
 
-  // Real-time market micro-tick engine
+  // Real-time market data service layer subscription (Binance for Crypto, Yahoo Finance for Gold & Markets)
   useEffect(() => {
-    const interval = setInterval(() => {
-      setMarkets(prev => {
-        return prev.map(item => {
-          const tickFactor = (Math.random() - 0.490) * 0.0006;
-          const delta = item.price * tickFactor;
-          const newPrice = +(item.price + delta).toFixed(item.decimals);
-          const newDirection = newPrice >= item.price ? 'up' : 'down';
-          const newHigh = Math.max(item.high24h, newPrice);
-          const newLow = Math.min(item.low24h, newPrice);
-          const newChange = +(item.change + delta).toFixed(item.decimals);
-          const newChangePercent = +((newChange / (newPrice - newChange)) * 100).toFixed(2);
+    let active = true;
+
+    // Subscribe to unified service updates
+    const unsubscribe = marketDataService.subscribe(({ markets: incomingMarkets, status, lastUpdate }) => {
+      if (!active) return;
+      
+      setDataConnectedStatus(status);
+      setLastMarketDataUpdate(lastUpdate);
+
+      setMarkets(prevMarkets => {
+        return prevMarkets.map(item => {
+          const update = incomingMarkets[item.id];
+          if (!update || update.price == null) return item;
+
+          const newPrice = update.price;
+          const diff = newPrice - item.price;
+          const direction = newPrice >= item.price ? 'up' : 'down';
+          const newHigh = update.high24h != null ? update.high24h : Math.max(item.high24h, newPrice);
+          const newLow = update.low24h != null ? update.low24h : Math.min(item.low24h, newPrice);
+          const newChange = update.change != null ? update.change : +(item.change + diff).toFixed(item.decimals);
+          const newChangePercent = update.changePercent != null ? update.changePercent : +((newChange / (newPrice - newChange)) * 100).toFixed(2);
           const newSparkline = [...item.sparkline.slice(1), newPrice];
 
           return {
@@ -289,34 +302,67 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             changePercent: newChangePercent,
             high24h: newHigh,
             low24h: newLow,
+            volume24h: update.volume24h || item.volume24h,
             sparkline: newSparkline,
-            lastTickDirection: newDirection,
-            lastTickTimestamp: Date.now()
+            lastTickDirection: direction,
+            lastTickTimestamp: update.lastTickTimestamp || lastUpdate
           };
         });
       });
+    });
 
-      // Update active candle close/high/low
-      setCandles(prev => {
-        if (prev.length === 0) return prev;
-        const last = prev[prev.length - 1];
-        const latestMarket = markets.find(m => m.id === selectedMarket.id);
-        if (!latestMarket) return prev;
+    // Start auto-refresh polling (every 4 seconds)
+    marketDataService.startAutoRefresh(4000);
 
-        const p = latestMarket.price;
-        const updatedLast: Candle = {
-          ...last,
-          close: p,
-          high: Math.max(last.high, p),
-          low: Math.min(last.low, p),
-          volume: last.volume + Math.floor(Math.random() * 6 + 2)
-        };
-        return [...prev.slice(0, -1), updatedLast];
-      });
-    }, 1400);
+    return () => {
+      active = false;
+      unsubscribe();
+      marketDataService.stopAutoRefresh();
+    };
+  }, []);
 
-    return () => clearInterval(interval);
-  }, [selectedMarket.id, markets]);
+  // Fetch real OHLC candles for Gold from Yahoo Finance or fallback
+  useEffect(() => {
+    let active = true;
+    if (selectedMarket) {
+      if (selectedMarket.id === 'xau-usd') {
+        marketDataService.fetchGoldCandles(selectedTimeframe).then(realCandles => {
+          if (!active) return;
+          if (realCandles && realCandles.length > 0) {
+            setCandles(realCandles);
+          } else {
+            setCandles(generateSampleCandles(selectedMarket.price, 36, selectedTimeframe));
+          }
+        });
+      } else {
+        setCandles(generateSampleCandles(selectedMarket.price, 36, selectedTimeframe));
+      }
+    }
+    return () => {
+      active = false;
+    };
+  }, [selectedMarket.id, selectedTimeframe]);
+
+  // Update active candle close when real prices update for selected market
+  useEffect(() => {
+    if (!selectedMarket) return;
+    setCandles(prev => {
+      if (prev.length === 0) return prev;
+      const last = prev[prev.length - 1];
+      if (last.close === selectedMarket.price) return prev;
+      const updatedLast: Candle = {
+        ...last,
+        close: selectedMarket.price,
+        high: Math.max(last.high, selectedMarket.price),
+        low: Math.min(last.low, selectedMarket.price)
+      };
+      return [...prev.slice(0, -1), updatedLast];
+    });
+  }, [selectedMarket?.price]);
+
+  const refreshMarketData = useCallback(async () => {
+    await marketDataService.fetchAllMarketPrices();
+  }, []);
 
   // AI Market Scanner function
   const scanMarket = useCallback(async (): Promise<AiTradeSignal> => {
@@ -624,6 +670,10 @@ ${statusLabel}`;
         tradingStyleMode,
         setTradingStyleMode,
         candles,
+        dataConnectedStatus,
+        isDataConnected,
+        lastMarketDataUpdate,
+        refreshMarketData,
         telegramSettings,
         activeNav,
         isTelegramModalOpen,

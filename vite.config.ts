@@ -1,11 +1,38 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig} from 'vite';
+import { defineConfig, type Plugin } from 'vite';
+import { handleMarketDataRequest } from './server/marketDataRouter';
+
+function marketDataBackendPlugin(): Plugin {
+  return {
+    name: 'aurum-market-data-backend',
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        if (req.url && req.url.startsWith('/api/market-data')) {
+          const handled = await handleMarketDataRequest(req, res);
+          if (!handled) next();
+        } else {
+          next();
+        }
+      });
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        if (req.url && req.url.startsWith('/api/market-data')) {
+          const handled = await handleMarketDataRequest(req, res);
+          if (!handled) next();
+        } else {
+          next();
+        }
+      });
+    }
+  };
+}
 
 export default defineConfig(() => {
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), marketDataBackendPlugin()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

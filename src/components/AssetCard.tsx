@@ -5,6 +5,7 @@ import { MarketItem, SignalType } from '../types';
 import { getTimeframeSetup } from '../data/timeframeSignals';
 import { useMarket } from '../context/MarketContext';
 import { getStyleAdjustedParameters } from '../data/tradingStyleData';
+import { ASSET_PROVIDER_CONFIGS } from '../services/marketDataService';
 
 interface AssetCardProps {
   market: MarketItem;
@@ -256,9 +257,16 @@ export const AssetCard: React.FC<AssetCardProps> = ({
         {/* Center Row: Large Live Price, 24h Change & Trend Indicator */}
         <div className="flex items-end justify-between gap-3 pt-0.5">
           <div className="space-y-1">
-            <span className="text-[10px] font-mono-num font-bold text-zinc-500 uppercase tracking-widest block">
-              Current Live Price
-            </span>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] font-mono-num font-bold text-zinc-500 uppercase tracking-widest block">
+                Live Price {market.lastTickTimestamp ? `• ${new Date(market.lastTickTimestamp).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : ''}
+              </span>
+              {ASSET_PROVIDER_CONFIGS[market.id] && (
+                <span className="text-[9px] font-mono-num px-1.5 py-0.5 rounded bg-zinc-900 border border-amber-500/20 text-amber-300/80">
+                  {ASSET_PROVIDER_CONFIGS[market.id].primaryProvider === 'BINANCE' ? 'Binance API' : 'Yahoo Finance'}
+                </span>
+              )}
+            </div>
             <div className="flex items-baseline gap-2.5">
               <span className="text-2xl sm:text-3xl font-black font-mono-num text-white tracking-tight">
                 ${market.price.toLocaleString(undefined, { 
