@@ -38,6 +38,7 @@ export const ASSET_CONFIGS: AssetConfigItem[] = [
     category: 'commodities',
     primaryProvider: 'BIQUOTE' as const,
     providerSymbol: 'XAUUSD',
+    fallbackSymbol: 'GC=F',
     decimals: 2
   },
   {
@@ -47,6 +48,7 @@ export const ASSET_CONFIGS: AssetConfigItem[] = [
     category: 'commodities',
     primaryProvider: 'BIQUOTE' as const,
     providerSymbol: 'XAGUSD',
+    fallbackSymbol: 'SI=F',
     decimals: 2
   },
   {
@@ -462,6 +464,9 @@ export async function fetchAllMarketData() {
           if (process.env.GOLDAPI_KEY) {
             const metal = config.id === 'xag-usd' ? 'XAG' : 'XAU';
             quote = await fetchGoldApiQuote(metal);
+          }
+          if (!quote && config.fallbackSymbol) {
+            quote = await fetchYahooQuote(config.fallbackSymbol);
           }
         } else if (config.category === 'forex') {
           if (process.env.FINNHUB_API_KEY) {

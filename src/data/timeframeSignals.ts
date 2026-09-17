@@ -423,9 +423,9 @@ export const ASSET_TIMEFRAME_SETUPS: AssetTimeframeMap = {
       entry: 19835.00,
       entryZone: '19,820.00 – 19,845.00',
       stopLoss: 19770.00,
-      takeProfit: 19960.00,
+      takeProfit: 19965.00,
       takeProfit2: 20050.00,
-      riskReward: '1:1.9',
+      riskReward: '1:2.0',
       aiReason: '5M momentum breakout with semiconductor buy volume and pre-market low defense.',
       strategies: {
         smc: {

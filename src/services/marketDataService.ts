@@ -152,6 +152,11 @@ class MarketDataService {
   private isFetching: boolean = false;
   private failureCount: number = 0;
 
+  // WebSocket Client support
+  private ws: WebSocket | null = null;
+  private wsConnected: boolean = false;
+  private reconnectTimer: any = null;
+
   public latestPrices: Record<string, number> = {
     'btc-usd': 102450.00,
     'xau-usd': 4302.50,
@@ -173,6 +178,126 @@ class MarketDataService {
 
   public getStatus(): ConnectionStatus {
     return this.status;
+  }
+
+  public isWebSocketStreaming(): boolean {
+    return this.wsConnected;
+  }
+
+  private connectWebSocket() {
+    if (this.ws) {
+      try {
+        this.ws.close();
+      } catch (e) {}
+    }
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/api/streaming`;
+
+    try {
+      this.ws = new WebSocket(wsUrl);
+
+      this.ws.onopen = () => {
+        this.wsConnected = true;
+        this.status = 'DATA CONNECTED';
+        this.lastUpdateTimestamp = Date.now();
+        this.failureCount = 0;
+        if (this.reconnectTimer) {
+          clearTimeout(this.reconnectTimer);
+          this.reconnectTimer = null;
+        }
+        
+        // Push initial status update immediately
+        this.notify({});
+      };
+
+      this.ws.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          if (payload.type === 'init' && payload.data) {
+            const mapped: Record<string, Partial<MarketItem>> = {};
+            for (const [id, val] of Object.entries(payload.data as Record<string, any>)) {
+              mapped[id] = {
+                price: val.price,
+                change: val.change,
+                changePercent: val.changePercent,
+                high24h: val.high24h,
+                low24h: val.low24h,
+                volume24h: val.volume24h,
+                lastTickTimestamp: val.timestamp || Date.now(),
+                bid: val.bid,
+                ask: val.ask
+              };
+              this.latestPrices[id] = val.price;
+            }
+            this.status = 'DATA CONNECTED';
+            this.lastUpdateTimestamp = Date.now();
+            this.notify(mapped);
+          } else if (payload.type === 'tick' && payload.data) {
+            const val = payload.data;
+            const mapped: Record<string, Partial<MarketItem>> = {
+              [val.assetId]: {
+                price: val.price,
+                change: val.change,
+                changePercent: val.changePercent,
+                high24h: val.high24h,
+                low24h: val.low24h,
+                volume24h: val.volume24h,
+                lastTickTimestamp: val.timestamp || Date.now(),
+                bid: val.bid,
+                ask: val.ask
+              }
+            };
+            this.latestPrices[val.assetId] = val.price;
+            this.status = 'DATA CONNECTED';
+            this.lastUpdateTimestamp = Date.now();
+            this.notify(mapped);
+          }
+        } catch (e) {
+          console.error('[MarketDataService] Error parsing WebSocket frame:', e);
+        }
+      };
+
+      this.ws.onclose = () => {
+        this.wsConnected = false;
+        this.ws = null;
+        this.triggerWSReconnect();
+        this.notify({});
+      };
+
+      this.ws.onerror = (err) => {
+        console.error('[MarketDataService] WebSocket connection error:', err);
+        this.wsConnected = false;
+        this.ws = null;
+        this.triggerWSReconnect();
+        this.notify({});
+      };
+    } catch (err) {
+      console.error('[MarketDataService] Failed to establish WebSocket:', err);
+      this.triggerWSReconnect();
+    }
+  }
+
+  private triggerWSReconnect() {
+    if (this.reconnectTimer) return;
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.connectWebSocket();
+    }, 5000);
+  }
+
+  public disconnectWebSocket() {
+    if (this.ws) {
+      try {
+        this.ws.close();
+      } catch (e) {}
+      this.ws = null;
+    }
+    this.wsConnected = false;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
   }
 
   public getLastUpdate(): number {
@@ -392,10 +517,17 @@ class MarketDataService {
    * Start automatic polling refresh
    */
   public startAutoRefresh(intervalMs: number = 4000) {
+    // Start WebSocket Live price streaming first
+    this.connectWebSocket();
+
     if (this.refreshIntervalTimer) return;
     this.fetchAllMarketPrices();
+    
     this.refreshIntervalTimer = setInterval(() => {
-      this.fetchAllMarketPrices();
+      // Use polling ONLY as a fallback when WebSocket is offline
+      if (!this.wsConnected) {
+        this.fetchAllMarketPrices();
+      }
     }, intervalMs);
   }
 
@@ -403,6 +535,7 @@ class MarketDataService {
    * Stop automatic polling refresh
    */
   public stopAutoRefresh() {
+    this.disconnectWebSocket();
     if (this.refreshIntervalTimer) {
       clearInterval(this.refreshIntervalTimer);
       this.refreshIntervalTimer = null;

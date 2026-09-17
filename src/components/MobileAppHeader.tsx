@@ -13,6 +13,7 @@ export const MobileAppHeader: React.FC = () => {
     dataConnectedStatus,
     lastMarketDataUpdate,
     isDataConnected,
+    isWebSocketActive,
     refreshMarketData
   } = useMarket();
 
@@ -101,9 +102,9 @@ export const MobileAppHeader: React.FC = () => {
         {/* Subtle floating overlay badge with DATA CONNECTED status */}
         <div className="absolute bottom-1 flex items-center gap-2 px-3 py-1 rounded-full bg-black/75 backdrop-blur-md border border-amber-500/30 text-[10px] font-mono-num text-zinc-300 shadow-lg">
           <div className="flex items-center gap-1.5">
-            <span className={`w-2 h-2 rounded-full ${isDataConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400 animate-ping'}`} />
-            <span className={isDataConnected ? 'text-emerald-400 font-bold tracking-wider' : 'text-amber-400 font-bold'}>
-              {dataConnectedStatus}
+            <span className={`w-2 h-2 rounded-full ${isWebSocketActive ? 'bg-cyan-400 animate-pulse' : isDataConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400 animate-ping'}`} />
+            <span className={isWebSocketActive ? 'text-cyan-400 font-bold tracking-wider animate-pulse' : isDataConnected ? 'text-emerald-400 font-bold tracking-wider' : 'text-amber-400 font-bold'}>
+              {isWebSocketActive ? 'LIVE WS STREAM' : dataConnectedStatus}
             </span>
           </div>
           <span className="text-zinc-600">•</span>

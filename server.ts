@@ -3,6 +3,7 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { handleMarketDataRequest } from './server/marketDataRouter';
 import { handleNewsRequest } from './server/newsRouter';
+import { initWebSocketServer } from './server/websocketServer';
 
 async function startServer() {
   const app = express();
@@ -41,9 +42,11 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Aurum Terminal server running on port ${PORT}`);
   });
+
+  initWebSocketServer(server);
 }
 
 startServer();

@@ -32,6 +32,22 @@ export const AssetCard: React.FC<AssetCardProps> = ({
 
   const { tradingStyleMode, isFavorite, toggleWatchlist } = useMarket();
 
+  const prevPriceRef = React.useRef<number>(market.price);
+  const [flash, setFlash] = React.useState<'up' | 'down' | null>(null);
+
+  React.useEffect(() => {
+    if (market.price > prevPriceRef.current) {
+      setFlash('up');
+      const timer = setTimeout(() => setFlash(null), 350);
+      return () => clearTimeout(timer);
+    } else if (market.price < prevPriceRef.current) {
+      setFlash('down');
+      const timer = setTimeout(() => setFlash(null), 350);
+      return () => clearTimeout(timer);
+    }
+    prevPriceRef.current = market.price;
+  }, [market.price]);
+
   // Retrieve timeframe setup and adjust with active trading style mode
   const defaultTf = tradingStyleMode === 'SCALPING' ? '5M' : tradingStyleMode === 'SWING' ? '4H' : '1H';
   const rawSetup = getTimeframeSetup(market.id, defaultTf);
@@ -271,22 +287,38 @@ export const AssetCard: React.FC<AssetCardProps> = ({
                 </span>
               )}
             </div>
-            <div className="flex items-baseline gap-2.5">
-              <span className="text-2xl sm:text-3xl font-black font-mono-num text-white tracking-tight">
-                ${market.price.toLocaleString(undefined, { 
-                  minimumFractionDigits: market.decimals, 
-                  maximumFractionDigits: market.decimals 
-                })}
-              </span>
-              
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-mono-num font-bold border ${
-                isPositive 
-                  ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' 
-                  : 'bg-rose-500/15 text-rose-400 border-rose-500/30'
-              }`}>
-                {isPositive ? <TrendingUp className="w-3.5 h-3.5 mr-1" /> : <TrendingDown className="w-3.5 h-3.5 mr-1" />}
-                {isPositive ? `+${market.changePercent}%` : `${market.changePercent}%`}
-              </span>
+            <div className="flex flex-col gap-1.5 pt-0.5">
+              <div className="flex items-baseline gap-2.5">
+                <span className={`text-2xl sm:text-3xl font-black font-mono-num tracking-tight transition-all duration-300 rounded px-1.5 py-0.5 ${
+                  flash === 'up' 
+                    ? 'text-emerald-400 bg-emerald-500/15 scale-[1.02] shadow-[0_0_12px_rgba(16,185,129,0.2)]' 
+                    : flash === 'down' 
+                    ? 'text-rose-400 bg-rose-500/15 scale-[1.02] shadow-[0_0_12px_rgba(244,63,94,0.2)]' 
+                    : 'text-white'
+                }`}>
+                  ${market.price.toLocaleString(undefined, { 
+                    minimumFractionDigits: market.decimals, 
+                    maximumFractionDigits: market.decimals 
+                  })}
+                </span>
+                
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-mono-num font-bold border ${
+                  isPositive 
+                    ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' 
+                    : 'bg-rose-500/15 text-rose-400 border-rose-500/30'
+                }`}>
+                  {isPositive ? <TrendingUp className="w-3.5 h-3.5 mr-1" /> : <TrendingDown className="w-3.5 h-3.5 mr-1" />}
+                  {isPositive ? `+${market.changePercent}%` : `${market.changePercent}%`}
+                </span>
+              </div>
+
+              {market.bid != null && market.ask != null && (
+                <div className="flex items-center gap-2 text-[10px] font-mono-num font-bold text-zinc-500 bg-zinc-950/50 px-2 py-0.5 rounded border border-zinc-900 w-fit">
+                  <span>BID: <span className="text-zinc-300">${market.bid.toFixed(market.decimals)}</span></span>
+                  <span className="text-zinc-700">|</span>
+                  <span>ASK: <span className="text-zinc-300">${market.ask.toFixed(market.decimals)}</span></span>
+                </div>
+              )}
             </div>
           </div>
 

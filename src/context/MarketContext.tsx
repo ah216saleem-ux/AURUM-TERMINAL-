@@ -42,6 +42,7 @@ interface MarketContextType {
   candles: Candle[];
   dataConnectedStatus: ConnectionStatus;
   isDataConnected: boolean;
+  isWebSocketActive: boolean;
   lastMarketDataUpdate: number;
   refreshMarketData: () => Promise<void>;
   telegramSettings: TelegramSettings;
@@ -142,7 +143,13 @@ export function mapSetupToTradeSignal(
   learningAdjustment?: { adjustment: number; reasoning: string }
 ): AiTradeSignal {
   const bonus = learningAdjustment?.adjustment || 0;
-  let finalConfidence = Math.max(50, Math.min(99, setup.confidence + bonus));
+  let newsConfidencePenalty = 0;
+  if (newsBlocked || newsRiskLevel === 'HIGH' || newsRiskLevel === 'EXTREME') {
+    newsConfidencePenalty = -20;
+  } else if (newsRiskLevel === 'MEDIUM') {
+    newsConfidencePenalty = -10;
+  }
+  let finalConfidence = Math.max(50, Math.min(99, setup.confidence + bonus + newsConfidencePenalty));
   
   let finalSignal = setup.signal;
   let blockMessage = '';
@@ -152,7 +159,7 @@ export function mapSetupToTradeSignal(
     blockMessage = '[HIGH NEWS RISK BLOCKOUT] New trade entries temporarily locked to preserve capital.';
   } else if (finalConfidence < 75) {
     finalSignal = 'WAIT';
-    blockMessage = '[LOW CONFIDENCE EXCLUSION] Strategy performance adjustments pushed confidence below 75% threshold.';
+    blockMessage = '[LOW CONFIDENCE EXCLUSION] Strategy performance adjustments or news risk pushed confidence below 75% threshold.';
   }
 
   const isBuy = finalSignal === 'BUY';
@@ -563,15 +570,19 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
     const symbol = symbolMap[marketId] || marketId;
     const assetRate = strategyLearning.winRatesByAsset[symbol];
-    if (assetRate > 80) {
-      adjustment += 2;
-    } else if (assetRate > 0 && assetRate < 50) {
-      adjustment -= 3;
+    if (assetRate !== undefined) {
+      if (assetRate > 80) {
+        adjustment += 2;
+      } else if (assetRate > 0 && assetRate < 50) {
+        adjustment -= 3;
+      }
     }
 
     const tfRate = strategyLearning.winRatesByTimeframe[timeframe];
-    if (tfRate > 80) {
-      adjustment += 1;
+    if (tfRate !== undefined) {
+      if (tfRate > 80) {
+        adjustment += 1;
+      }
     }
 
     return { adjustment, reasoning: reasoning || 'Strategy execution within normal baseline variance' };
@@ -636,6 +647,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   });
 
   const [dataConnectedStatus, setDataConnectedStatus] = useState<ConnectionStatus>(marketDataService.getStatus());
+  const [isWebSocketActive, setIsWebSocketActive] = useState<boolean>(marketDataService.isWebSocketStreaming());
   const [lastMarketDataUpdate, setLastMarketDataUpdate] = useState<number>(Date.now());
   const isDataConnected = dataConnectedStatus === 'DATA CONNECTED';
 
@@ -648,6 +660,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (!active) return;
       
       setDataConnectedStatus(status);
+      setIsWebSocketActive(marketDataService.isWebSocketStreaming());
       setLastMarketDataUpdate(lastUpdate);
 
       setMarkets(prevMarkets => {
@@ -674,7 +687,9 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             volume24h: update.volume24h || item.volume24h,
             sparkline: newSparkline,
             lastTickDirection: direction,
-            lastTickTimestamp: update.lastTickTimestamp || lastUpdate
+            lastTickTimestamp: update.lastTickTimestamp || lastUpdate,
+            bid: update.bid != null ? update.bid : item.bid,
+            ask: update.ask != null ? update.ask : item.ask
           };
         });
       });
@@ -892,25 +907,29 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const highProb = scanned.filter(s => s.type !== 'WAIT' && s.confidenceScore >= 80);
         if (highProb.length > 0) {
           const best = highProb.sort((a, b) => b.confidenceScore - a.confidenceScore)[0];
-          const newAlert: AiAlert = {
-            id: `alert-scan-bg-${Date.now()}`,
-            assetId: best.marketId,
-            symbol: best.symbol,
-            name: best.name,
-            signal: best.type,
-            tradingMode: 'INTRADAY',
-            confidence: best.confidenceScore,
-            entry: best.entryPrice,
-            stopLoss: best.stopLoss,
-            takeProfit: best.takeProfit,
-            takeProfit2: best.takeProfit2,
-            aiReason: `M30 completed close confirms high-probability ${best.type === 'BUY' ? 'Bullish' : 'Bearish'} setup with ${best.confidenceScore}% confidence. SL placed safely beyond noise.`,
-            timestamp: 'Just now',
-            read: false,
-            urgency: 'HIGH',
-            setupGrade: 'A+'
-          };
-          setAiAlerts(prev => [newAlert, ...prev]);
+          setAiAlerts(prev => {
+            const isDuplicate = prev.some(a => a.assetId === best.marketId && a.signal === best.type);
+            if (isDuplicate) return prev;
+            const newAlert: AiAlert = {
+              id: `alert-scan-bg-${Date.now()}`,
+              assetId: best.marketId,
+              symbol: best.symbol,
+              name: best.name,
+              signal: best.type,
+              tradingMode: 'INTRADAY',
+              confidence: best.confidenceScore,
+              entry: best.entryPrice,
+              stopLoss: best.stopLoss,
+              takeProfit: best.takeProfit,
+              takeProfit2: best.takeProfit2,
+              aiReason: `M30 completed close confirms high-probability ${best.type === 'BUY' ? 'Bullish' : 'Bearish'} setup with ${best.confidenceScore}% confidence. SL placed safely beyond noise.`,
+              timestamp: 'Just now',
+              read: false,
+              urgency: 'HIGH',
+              setupGrade: 'A+'
+            };
+            return [newAlert, ...prev];
+          });
         }
 
         return scanned;
@@ -1183,6 +1202,7 @@ ${statusLabel}`;
         candles,
         dataConnectedStatus,
         isDataConnected,
+        isWebSocketActive,
         lastMarketDataUpdate,
         refreshMarketData,
         telegramSettings,

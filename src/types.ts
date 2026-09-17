@@ -59,6 +59,8 @@ export interface MarketItem {
   sparkline: number[];
   lastTickDirection?: 'up' | 'down';
   lastTickTimestamp?: number;
+  bid?: number;
+  ask?: number;
 }
 
 export interface Candle {
