@@ -59,6 +59,71 @@ export const AssetDetailView: React.FC<AssetDetailViewProps> = ({
   const [showChart, setShowChart] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
   const [telegramSuccess, setTelegramSuccess] = useState<string | null>(null);
+  const [timeLeft, setTimeLeft] = useState<string>('Initializing...');
+
+  // Real-time Countdown Timer synchronized with candle intervals
+  React.useEffect(() => {
+    const updateTimer = () => {
+      const now = new Date();
+      const mins = now.getMinutes();
+      const secs = now.getSeconds();
+      const hrs = now.getHours();
+
+      let totalSecs = 0;
+      switch (selectedTf) {
+        case '1M':
+          totalSecs = 60 - secs;
+          break;
+        case '5M':
+          totalSecs = (5 * 60) - ((mins % 5) * 60 + secs);
+          break;
+        case '15M':
+          totalSecs = (15 * 60) - ((mins % 15) * 60 + secs);
+          break;
+        case '30M':
+          totalSecs = (30 * 60) - ((mins % 30) * 60 + secs);
+          break;
+        case '1H':
+          totalSecs = (60 * 60) - (mins * 60 + secs);
+          break;
+        case '4H':
+          totalSecs = (4 * 3600) - (((hrs % 4) * 3600) + mins * 60 + secs);
+          break;
+        case '1D':
+          totalSecs = (24 * 3600) - (hrs * 3600 + mins * 60 + secs);
+          break;
+        case '1W':
+          const day = now.getDay();
+          const daysRemaining = day === 0 ? 0 : 7 - day;
+          totalSecs = (daysRemaining * 24 * 3600) + ((24 - hrs) * 3600) - (mins * 60 + secs);
+          break;
+        default:
+          totalSecs = (30 * 60) - ((mins % 30) * 60 + secs);
+      }
+
+      if (totalSecs < 0) totalSecs = 0;
+
+      if (selectedTf === '1M' || selectedTf === '5M' || selectedTf === '15M' || selectedTf === '30M' || selectedTf === '1H') {
+        const m = Math.floor(totalSecs / 60);
+        const s = totalSecs % 60;
+        setTimeLeft(`${m}:${s.toString().padStart(2, '0')} remaining`);
+      } else if (selectedTf === '4H' || selectedTf === '1D') {
+        const h = Math.floor(totalSecs / 3600);
+        const m = Math.floor((totalSecs % 3600) / 60);
+        const s = totalSecs % 60;
+        setTimeLeft(`${h}h ${m}m ${s.toString().padStart(2, '0')}s remaining`);
+      } else {
+        const d = Math.floor(totalSecs / (24 * 3600));
+        const h = Math.floor((totalSecs % (24 * 3600)) / 3600);
+        const m = Math.floor((totalSecs % 3600) / 60);
+        setTimeLeft(`${d}d ${h}h ${m}m remaining`);
+      }
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [selectedTf]);
 
   // Expandable sections state for Advanced Analysis
   const [expandedSections, setExpandedSections] = useState({
@@ -220,112 +285,157 @@ ${setup.aiReason}`;
       </div>
 
       {/* =========================================================================
-          STEP 1: LIVE ASSET SIGNAL (TOP SECTION)
-          Asset: XAU/USD
-          Signal: BUY / SELL / WAIT
-          Entry:
-          Stop Loss:
-          Take Profit:
-          Timeframe:
-          (Do NOT show Final AI Confidence at the top)
+          PROMINENT SELECTED PAIR VIEW
+          Displays live price, price movement, BUY/SELL/WAIT status, confidence,
+          active setup status, entry price, stop loss, TP1, TP2, Risk Reward,
+          and remaining setup time countdown timer.
       ========================================================================= */}
-      <div className="p-4 sm:p-5 rounded-3xl bg-[#0c0f18]/90 backdrop-blur-xl border border-amber-500/35 shadow-2xl relative overflow-hidden space-y-4">
-        {/* Ambient Top Glow */}
-        <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-gradient-to-br from-amber-500/15 via-amber-400/5 to-transparent blur-3xl" />
+      <div className="p-5 sm:p-6 rounded-2xl bg-zinc-950 border border-amber-500/50 shadow-xl shadow-amber-500/5 relative overflow-hidden space-y-5">
+        {/* Decorative background glow */}
+        <div className="pointer-events-none absolute -right-24 -top-24 h-48 w-48 rounded-full bg-gradient-to-br from-amber-500/10 via-amber-400/5 to-transparent blur-3xl" />
 
-        {/* Section Title */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-            <span className="text-[11px] font-mono-num font-black text-amber-400 uppercase tracking-widest">
-              LIVE ASSET SIGNAL
-            </span>
-          </div>
-
-          <div className="flex items-center gap-1.5 text-[11px] font-mono-num text-zinc-400">
-            <span>Timeframe:</span>
-            <strong className="text-amber-300 font-bold px-1.5 py-0.5 rounded bg-neutral-900 border border-zinc-800">
-              {selectedTf}
-            </strong>
-          </div>
-        </div>
-
-        {/* Asset Header: Name & Price */}
-        <div className="flex items-start justify-between gap-3">
+        {/* Header containing Pair Title & Live Status Indicator */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-900 pb-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-              {assetInfo.symbol}
-            </h1>
-            <span className="text-xs font-semibold text-zinc-400 block">
-              {assetInfo.name}
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              <h1 className="text-3xl font-black text-white tracking-tight uppercase font-syne">
+                {assetInfo.symbol}
+              </h1>
+              <span className="text-xs text-zinc-500 font-mono-num ml-1">
+                ({assetInfo.name})
+              </span>
+            </div>
+            <p className="text-[11px] text-zinc-400 mt-0.5">
+              AURUM Autonomous Live Terminal Feed • Confluence Checked
+            </p>
+          </div>
+
+          {/* Timeframe & Live Connection */}
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-mono-num font-bold text-zinc-400 bg-zinc-900 border border-zinc-800 px-2 py-1 rounded-lg">
+              TF: {selectedTf}
+            </span>
+            <span className="flex items-center gap-1 text-[10px] font-mono-num font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+              WS LIVE
             </span>
           </div>
-
-          {/* Current Live Price */}
-          <div className="text-right">
-            <div className="text-xl sm:text-2xl font-black font-mono-num text-white">
-              ${market.price.toLocaleString(undefined, {
-                minimumFractionDigits: market.decimals,
-                maximumFractionDigits: market.decimals
-              })}
-            </div>
-            <div className={`inline-flex items-center text-xs font-mono-num font-bold ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
-              {isPositive ? <TrendingUp className="w-3.5 h-3.5 mr-0.5" /> : <TrendingDown className="w-3.5 h-3.5 mr-0.5" />}
-              {isPositive ? `+${market.changePercent}%` : `${market.changePercent}%`}
-            </div>
-          </div>
         </div>
 
-        {/* Signal Direction Badge */}
-        <div className="p-3 rounded-2xl bg-neutral-950/90 border border-zinc-800 flex items-center justify-between font-mono-num">
-          <span className="text-xs font-bold text-zinc-400 uppercase">
-            Signal Direction:
-          </span>
-          <div className={`flex items-center gap-2 px-4 py-1 rounded-full text-xs font-black tracking-wider border shadow-lg ${
-            isBuy 
-              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-emerald-500/20' 
-              : isSell 
-                ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-rose-500/20' 
-                : 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-amber-500/20'
-          }`}>
-            <span className={`w-2.5 h-2.5 rounded-full animate-pulse ${
-              isBuy ? 'bg-emerald-400' : isSell ? 'bg-rose-400' : 'bg-amber-400'
-            }`} />
-            <span>{setup.signal}</span>
+        {/* Main 3-Way Grid: Signal Status / Price / Confidence & Timer */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          
+          {/* Column 1: BUY / SELL / WAIT STATUS */}
+          <div className="p-4 rounded-xl bg-zinc-900/40 border border-zinc-900 flex flex-col justify-between">
+            <span className="text-[10px] font-mono-num font-bold text-zinc-500 uppercase tracking-widest block">
+              SIGNAL DECISION
+            </span>
+            <div className="my-2">
+              <div className={`text-4xl font-black tracking-tighter ${
+                isBuy ? 'text-emerald-400 drop-shadow-[0_0_12px_rgba(16,185,129,0.25)]' :
+                isSell ? 'text-rose-400 drop-shadow-[0_0_12px_rgba(244,63,94,0.25)]' :
+                'text-amber-400 drop-shadow-[0_0_12px_rgba(245,158,11,0.25)]'
+              }`}>
+                {setup.signal}
+              </div>
+            </div>
+            <div className="text-[11px] font-medium text-zinc-400 flex items-center gap-1.5">
+              <span className={`w-2 h-2 rounded-full ${isBuy ? 'bg-emerald-400' : isSell ? 'bg-rose-400' : 'bg-amber-400'}`} />
+              <span>SMC Order Block Alignment</span>
+            </div>
           </div>
+
+          {/* Column 2: LIVE WEBSOCKET PRICE & MOVEMENT */}
+          <div className="p-4 rounded-xl bg-zinc-900/40 border border-zinc-900 flex flex-col justify-between">
+            <span className="text-[10px] font-mono-num font-bold text-zinc-500 uppercase tracking-widest block">
+              LIVE TERMINAL PRICE
+            </span>
+            <div className="my-2">
+              <div className="text-3xl font-black font-mono-num text-white tracking-tight">
+                ${market.price.toLocaleString(undefined, {
+                  minimumFractionDigits: market.decimals,
+                  maximumFractionDigits: market.decimals
+                })}
+              </div>
+            </div>
+            <div className="flex items-center justify-between text-[11px] font-mono-num font-bold">
+              <span className="text-zinc-500">24H Change:</span>
+              <span className={`inline-flex items-center ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {isPositive ? <TrendingUp className="w-3.5 h-3.5 mr-0.5" /> : <TrendingDown className="w-3.5 h-3.5 mr-0.5" />}
+                {isPositive ? `+${market.changePercent}%` : `${market.changePercent}%`}
+              </span>
+            </div>
+          </div>
+
+          {/* Column 3: CONFIDENCE SCORE & TIMER */}
+          <div className="p-4 rounded-xl bg-zinc-900/40 border border-zinc-900 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono-num font-bold text-zinc-500 uppercase tracking-widest block">
+                CONFIDENCE SCORE
+              </span>
+              <span className="text-xs font-black text-amber-400">
+                {setup.confidence}%
+              </span>
+            </div>
+            <div className="my-2 space-y-1">
+              <div className="w-full bg-zinc-950 h-1.5 rounded-full overflow-hidden border border-zinc-900">
+                <div 
+                  className="bg-gradient-to-r from-amber-600 to-amber-400 h-full rounded-full transition-all duration-500" 
+                  style={{ width: `${setup.confidence}%` }}
+                />
+              </div>
+              <div className="text-[10.5px] font-semibold text-zinc-400">
+                Active Setup Status: <strong className="text-amber-400 font-black">SETUP ACTIVE</strong>
+              </div>
+            </div>
+            <div className="text-[11px] font-mono-num text-zinc-400 flex items-center justify-between">
+              <span>Time Left:</span>
+              <strong className="text-amber-400 font-extrabold">{timeLeft}</strong>
+            </div>
+          </div>
+
         </div>
 
-        {/* Live Asset Parameters Grid: Entry, Stop Loss, Take Profit, Timeframe */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono-num text-xs">
-          {/* Entry */}
-          <div className="p-2.5 rounded-xl bg-neutral-950/80 border border-zinc-800">
-            <span className="text-[10px] text-zinc-500 uppercase block font-semibold">Entry</span>
-            <span className="text-sm font-black text-white block mt-0.5">
-              ${setup.entry.toLocaleString(undefined, { minimumFractionDigits: market.decimals })}
+        {/* Bottom Prominent Parameters Grid (Entry, SL, TP1, TP2, Risk Reward) */}
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-2 text-xs font-mono-num">
+          {/* Entry price */}
+          <div className="p-3 rounded-xl bg-zinc-900/20 border border-zinc-900">
+            <span className="text-[10px] text-zinc-500 uppercase block font-bold">Entry Zone</span>
+            <span className="text-sm font-black text-white block mt-1 truncate">
+              {setup.entryZone}
             </span>
           </div>
 
           {/* Stop Loss */}
-          <div className="p-2.5 rounded-xl bg-neutral-950/80 border border-rose-500/30">
-            <span className="text-[10px] text-rose-400/90 uppercase block font-semibold">Stop Loss</span>
-            <span className="text-sm font-black text-rose-400 block mt-0.5">
+          <div className="p-3 rounded-xl bg-zinc-900/20 border border-rose-950/40">
+            <span className="text-[10px] text-rose-500/80 uppercase block font-bold">Stop Loss (SL)</span>
+            <span className="text-sm font-black text-rose-400 block mt-1">
               ${setup.stopLoss.toLocaleString(undefined, { minimumFractionDigits: market.decimals })}
             </span>
           </div>
 
-          {/* Take Profit */}
-          <div className="p-2.5 rounded-xl bg-neutral-950/80 border border-emerald-500/30">
-            <span className="text-[10px] text-emerald-400/90 uppercase block font-semibold">Take Profit</span>
-            <span className="text-sm font-black text-emerald-400 block mt-0.5">
+          {/* TP1 */}
+          <div className="p-3 rounded-xl bg-zinc-900/20 border border-emerald-950/40">
+            <span className="text-[10px] text-emerald-500/80 uppercase block font-bold">Take Profit 1</span>
+            <span className="text-sm font-black text-emerald-400 block mt-1">
               ${tp1.toLocaleString(undefined, { minimumFractionDigits: market.decimals })}
             </span>
           </div>
 
-          {/* Timeframe */}
-          <div className="p-2.5 rounded-xl bg-neutral-950/80 border border-amber-500/30">
-            <span className="text-[10px] text-amber-400/90 uppercase block font-semibold">Timeframe</span>
-            <span className="text-sm font-black text-amber-300 block mt-0.5">
-              {selectedTf}
+          {/* TP2 */}
+          <div className="p-3 rounded-xl bg-zinc-900/20 border border-emerald-950/40">
+            <span className="text-[10px] text-emerald-500/80 uppercase block font-bold">Take Profit 2</span>
+            <span className="text-sm font-black text-emerald-400 block mt-1">
+              ${tp2.toLocaleString(undefined, { minimumFractionDigits: market.decimals })}
+            </span>
+          </div>
+
+          {/* Risk Reward */}
+          <div className="p-3 rounded-xl bg-zinc-900/20 border border-amber-950/40 col-span-2 sm:col-span-1">
+            <span className="text-[10px] text-amber-500/80 uppercase block font-bold">Risk Reward</span>
+            <span className="text-sm font-black text-amber-400 block mt-1">
+              {setup.riskReward}
             </span>
           </div>
         </div>

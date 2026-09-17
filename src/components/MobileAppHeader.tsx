@@ -14,6 +14,7 @@ export const MobileAppHeader: React.FC = () => {
     lastMarketDataUpdate,
     isDataConnected,
     isWebSocketActive,
+    streamStatus,
     refreshMarketData
   } = useMarket();
 
@@ -99,12 +100,24 @@ export const MobileAppHeader: React.FC = () => {
       {/* Subtle 3D Globe Animation (Compact & Interactive) */}
       <div className="relative mt-2 h-28 sm:h-32 w-full flex items-center justify-center">
         <SubtleGlobe />
-        {/* Subtle floating overlay badge with DATA CONNECTED status */}
+        {/* Subtle floating overlay badge with LIVE / RECONNECTING / FALLBACK status */}
         <div className="absolute bottom-1 flex items-center gap-2 px-3 py-1 rounded-full bg-black/75 backdrop-blur-md border border-amber-500/30 text-[10px] font-mono-num text-zinc-300 shadow-lg">
           <div className="flex items-center gap-1.5">
-            <span className={`w-2 h-2 rounded-full ${isWebSocketActive ? 'bg-cyan-400 animate-pulse' : isDataConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400 animate-ping'}`} />
-            <span className={isWebSocketActive ? 'text-cyan-400 font-bold tracking-wider animate-pulse' : isDataConnected ? 'text-emerald-400 font-bold tracking-wider' : 'text-amber-400 font-bold'}>
-              {isWebSocketActive ? 'LIVE WS STREAM' : dataConnectedStatus}
+            <span className={`w-2 h-2 rounded-full ${
+              streamStatus === 'LIVE' 
+                ? 'bg-cyan-400 animate-pulse' 
+                : streamStatus === 'RECONNECTING' 
+                ? 'bg-amber-400 animate-pulse' 
+                : 'bg-rose-400 animate-pulse'
+            }`} />
+            <span className={`font-bold tracking-wider uppercase ${
+              streamStatus === 'LIVE' 
+                ? 'text-cyan-400' 
+                : streamStatus === 'RECONNECTING' 
+                ? 'text-amber-400' 
+                : 'text-rose-400'
+            }`}>
+              {streamStatus}
             </span>
           </div>
           <span className="text-zinc-600">•</span>

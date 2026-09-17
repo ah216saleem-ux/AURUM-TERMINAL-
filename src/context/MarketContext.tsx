@@ -28,7 +28,7 @@ import { INITIAL_AI_ALERTS, createRandomAiAlert } from '../data/aiAlertsData';
 import { getSmartTradeApprovalChecklist } from '../data/aiValidationData';
 import { getAurumRiskEvaluation } from '../data/riskQualityData';
 import { PRODUCTION_CONFIG } from '../config/productionConfig';
-import { marketDataService, ConnectionStatus } from '../services/marketDataService';
+import { marketDataService, ConnectionStatus, StreamStatus } from '../services/marketDataService';
 
 interface MarketContextType {
   markets: MarketItem[];
@@ -43,6 +43,7 @@ interface MarketContextType {
   dataConnectedStatus: ConnectionStatus;
   isDataConnected: boolean;
   isWebSocketActive: boolean;
+  streamStatus: StreamStatus;
   lastMarketDataUpdate: number;
   refreshMarketData: () => Promise<void>;
   telegramSettings: TelegramSettings;
@@ -648,6 +649,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const [dataConnectedStatus, setDataConnectedStatus] = useState<ConnectionStatus>(marketDataService.getStatus());
   const [isWebSocketActive, setIsWebSocketActive] = useState<boolean>(marketDataService.isWebSocketStreaming());
+  const [streamStatus, setStreamStatus] = useState<StreamStatus>(marketDataService.getStreamStatus());
   const [lastMarketDataUpdate, setLastMarketDataUpdate] = useState<number>(Date.now());
   const isDataConnected = dataConnectedStatus === 'DATA CONNECTED';
 
@@ -656,11 +658,12 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     let active = true;
 
     // Subscribe to unified service updates
-    const unsubscribe = marketDataService.subscribe(({ markets: incomingMarkets, status, lastUpdate }) => {
+    const unsubscribe = marketDataService.subscribe(({ markets: incomingMarkets, status, lastUpdate, streamStatus: incomingStreamStatus }) => {
       if (!active) return;
       
       setDataConnectedStatus(status);
       setIsWebSocketActive(marketDataService.isWebSocketStreaming());
+      setStreamStatus(incomingStreamStatus);
       setLastMarketDataUpdate(lastUpdate);
 
       setMarkets(prevMarkets => {
@@ -1203,6 +1206,7 @@ ${statusLabel}`;
         dataConnectedStatus,
         isDataConnected,
         isWebSocketActive,
+        streamStatus,
         lastMarketDataUpdate,
         refreshMarketData,
         telegramSettings,

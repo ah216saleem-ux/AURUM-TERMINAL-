@@ -138,14 +138,18 @@ export const ASSET_PROVIDER_CONFIGS: Record<string, AssetProviderConfig> = {
 
 export type ConnectionStatus = 'DATA CONNECTED' | 'CONNECTING' | 'ERROR';
 
+export type StreamStatus = 'LIVE' | 'RECONNECTING' | 'FALLBACK';
+
 export type MarketDataListener = (payload: {
   markets: Record<string, Partial<MarketItem>>;
   status: ConnectionStatus;
   lastUpdate: number;
+  streamStatus: StreamStatus;
 }) => void;
 
 class MarketDataService {
   private status: ConnectionStatus = 'CONNECTING';
+  private streamStatus: StreamStatus = 'RECONNECTING';
   private lastUpdateTimestamp: number = 0;
   private listeners: Set<MarketDataListener> = new Set();
   private refreshIntervalTimer: any = null;
@@ -174,10 +178,15 @@ class MarketDataService {
   constructor() {
     // Initial status
     this.status = 'CONNECTING';
+    this.streamStatus = 'RECONNECTING';
   }
 
   public getStatus(): ConnectionStatus {
     return this.status;
+  }
+
+  public getStreamStatus(): StreamStatus {
+    return this.streamStatus;
   }
 
   public isWebSocketStreaming(): boolean {
@@ -194,12 +203,17 @@ class MarketDataService {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/api/streaming`;
 
+    // Actively trying to connect
+    this.streamStatus = 'RECONNECTING';
+    this.notify({});
+
     try {
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
         this.wsConnected = true;
         this.status = 'DATA CONNECTED';
+        this.streamStatus = 'LIVE';
         this.lastUpdateTimestamp = Date.now();
         this.failureCount = 0;
         if (this.reconnectTimer) {
@@ -231,6 +245,7 @@ class MarketDataService {
               this.latestPrices[id] = val.price;
             }
             this.status = 'DATA CONNECTED';
+            this.streamStatus = 'LIVE';
             this.lastUpdateTimestamp = Date.now();
             this.notify(mapped);
           } else if (payload.type === 'tick' && payload.data) {
@@ -250,6 +265,7 @@ class MarketDataService {
             };
             this.latestPrices[val.assetId] = val.price;
             this.status = 'DATA CONNECTED';
+            this.streamStatus = 'LIVE';
             this.lastUpdateTimestamp = Date.now();
             this.notify(mapped);
           }
@@ -261,6 +277,7 @@ class MarketDataService {
       this.ws.onclose = () => {
         this.wsConnected = false;
         this.ws = null;
+        this.streamStatus = 'FALLBACK';
         this.triggerWSReconnect();
         this.notify({});
       };
@@ -269,12 +286,15 @@ class MarketDataService {
         console.warn('[MarketDataService] WebSocket connection alert (will fallback to REST polling):', err);
         this.wsConnected = false;
         this.ws = null;
+        this.streamStatus = 'FALLBACK';
         this.triggerWSReconnect();
         this.notify({});
       };
     } catch (err) {
       console.warn('[MarketDataService] Failed to establish WebSocket connection (falling back to REST):', err);
+      this.streamStatus = 'FALLBACK';
       this.triggerWSReconnect();
+      this.notify({});
     }
   }
 
@@ -294,6 +314,7 @@ class MarketDataService {
       this.ws = null;
     }
     this.wsConnected = false;
+    this.streamStatus = 'FALLBACK';
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -317,7 +338,8 @@ class MarketDataService {
         fn({
           markets,
           status: this.status,
-          lastUpdate: this.lastUpdateTimestamp
+          lastUpdate: this.lastUpdateTimestamp,
+          streamStatus: this.streamStatus
         });
       } catch (e) {
         console.error('[MarketDataService] Listener error:', e);
