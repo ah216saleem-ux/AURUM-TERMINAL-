@@ -10,7 +10,7 @@
 
 import { MarketItem, Candle, Timeframe } from '../types';
 
-export type ProviderType = 'BINANCE' | 'YAHOO_FINANCE' | 'OPEN_EXCHANGE';
+export type ProviderType = 'BINANCE' | 'YAHOO_FINANCE' | 'OPEN_EXCHANGE' | 'BIQUOTE';
 
 export interface AssetProviderConfig {
   id: string;
@@ -39,9 +39,9 @@ export const ASSET_PROVIDER_CONFIGS: Record<string, AssetProviderConfig> = {
     symbol: 'XAU/USD',
     name: 'Gold Spot',
     category: 'commodities',
-    primaryProvider: 'YAHOO_FINANCE',
-    providerSymbol: 'GC=F',
-    exchangeName: 'COMEX / LBMA Live Feed',
+    primaryProvider: 'BIQUOTE',
+    providerSymbol: 'XAUUSD',
+    exchangeName: 'Biquote Gold Spot Feed',
     decimals: 2
   },
   'xag-usd': {
@@ -253,6 +253,30 @@ class MarketDataService {
       }
     } catch (err) {
       console.warn('[MarketDataService] Direct Binance client fallback failed:', err);
+    }
+
+    // 2b. Client-side direct fallback: Biquote API for Gold Spot (XAU/USD)
+    try {
+      const biquoteRes = await fetch('https://biquote.io/api/XAUUSD');
+      if (biquoteRes.ok) {
+        const d = await biquoteRes.json();
+        const rawPrice = d.mid || d.bid || d.ask || d.last;
+        if (rawPrice) {
+          const price = +rawPrice.toFixed(2);
+          const changePercent = d.dayDiffPercent != null ? +d.dayDiffPercent.toFixed(2) : 0;
+          fallbackResults['xau-usd'] = {
+            price,
+            changePercent,
+            high24h: d.high ? +d.high.toFixed(2) : price,
+            low24h: d.low ? +d.low.toFixed(2) : price,
+            lastTickTimestamp: Date.now()
+          };
+          this.status = 'DATA CONNECTED';
+          this.lastUpdateTimestamp = Date.now();
+        }
+      }
+    } catch (err) {
+      console.warn('[MarketDataService] Direct Biquote client fallback failed:', err);
     }
 
     // 3. Client-side direct fallback: Open Exchange Rates for Forex pairs

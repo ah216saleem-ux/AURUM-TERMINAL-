@@ -9,8 +9,19 @@ const memoryCache: Record<string, CachedData> = {};
 const CACHE_TTL_MS = 2500; // 2.5s TTL for quotes
 const CANDLE_CACHE_TTL_MS = 15000; // 15s TTL for candles
 
+export interface AssetConfigItem {
+  id: string;
+  symbol: string;
+  name: string;
+  category: 'crypto' | 'commodities' | 'indices' | 'forex';
+  primaryProvider: 'BINANCE' | 'GOLD_API' | 'FINNHUB' | 'TWELVE_DATA' | 'YAHOO_FINANCE' | 'BIQUOTE';
+  providerSymbol: string;
+  fallbackSymbol?: string;
+  decimals: number;
+}
+
 // Asset configuration mapping
-export const ASSET_CONFIGS = [
+export const ASSET_CONFIGS: AssetConfigItem[] = [
   {
     id: 'btc-usd',
     symbol: 'BTC/USD',
@@ -25,7 +36,7 @@ export const ASSET_CONFIGS = [
     symbol: 'XAU/USD',
     name: 'Gold Spot',
     category: 'commodities',
-    primaryProvider: 'BIQUOTE',
+    primaryProvider: 'BIQUOTE' as const,
     providerSymbol: 'XAUUSD',
     decimals: 2
   },
@@ -34,8 +45,9 @@ export const ASSET_CONFIGS = [
     symbol: 'XAG/USD',
     name: 'Silver',
     category: 'commodities',
-    primaryProvider: 'YAHOO_FINANCE' as const,
-    providerSymbol: 'SI=F',
+    primaryProvider: 'GOLD_API' as const,
+    providerSymbol: 'XAG',
+    fallbackSymbol: 'SI=F',
     decimals: 2
   },
   {
@@ -43,8 +55,9 @@ export const ASSET_CONFIGS = [
     symbol: 'WTI Crude Oil',
     name: 'WTI Crude Oil',
     category: 'commodities',
-    primaryProvider: 'YAHOO_FINANCE' as const,
-    providerSymbol: 'CL=F',
+    primaryProvider: 'TWELVE_DATA' as const,
+    providerSymbol: 'WTI/USD',
+    fallbackSymbol: 'CL=F',
     decimals: 2
   },
   {
@@ -52,9 +65,9 @@ export const ASSET_CONFIGS = [
     symbol: 'NASDAQ 100',
     name: 'NASDAQ 100',
     category: 'indices',
-    primaryProvider: 'YAHOO_FINANCE' as const,
+    primaryProvider: 'FINNHUB' as const,
     providerSymbol: '^NDX',
-    fallbackSymbol: 'QQQ',
+    fallbackSymbol: '^NDX',
     decimals: 2
   },
   {
@@ -62,9 +75,9 @@ export const ASSET_CONFIGS = [
     symbol: 'S&P 500',
     name: 'S&P 500',
     category: 'indices',
-    primaryProvider: 'YAHOO_FINANCE' as const,
+    primaryProvider: 'FINNHUB' as const,
     providerSymbol: '^GSPC',
-    fallbackSymbol: 'SPY',
+    fallbackSymbol: '^GSPC',
     decimals: 2
   },
   {
@@ -72,8 +85,9 @@ export const ASSET_CONFIGS = [
     symbol: 'EUR/USD',
     name: 'EUR/USD',
     category: 'forex',
-    primaryProvider: 'YAHOO_FINANCE' as const,
-    providerSymbol: 'EURUSD=X',
+    primaryProvider: 'FINNHUB' as const,
+    providerSymbol: 'OANDA:EUR_USD',
+    fallbackSymbol: 'EURUSD=X',
     decimals: 4
   },
   {
@@ -81,8 +95,9 @@ export const ASSET_CONFIGS = [
     symbol: 'GBP/USD',
     name: 'GBP/USD',
     category: 'forex',
-    primaryProvider: 'YAHOO_FINANCE' as const,
-    providerSymbol: 'GBPUSD=X',
+    primaryProvider: 'FINNHUB' as const,
+    providerSymbol: 'OANDA:GBP_USD',
+    fallbackSymbol: 'GBPUSD=X',
     decimals: 4
   },
   {
@@ -90,8 +105,9 @@ export const ASSET_CONFIGS = [
     symbol: 'USD/JPY',
     name: 'USD/JPY',
     category: 'forex',
-    primaryProvider: 'YAHOO_FINANCE' as const,
-    providerSymbol: 'JPY=X',
+    primaryProvider: 'FINNHUB' as const,
+    providerSymbol: 'OANDA:USD_JPY',
+    fallbackSymbol: 'JPY=X',
     decimals: 2
   },
   {
@@ -99,8 +115,9 @@ export const ASSET_CONFIGS = [
     symbol: 'AUD/USD',
     name: 'AUD/USD',
     category: 'forex',
-    primaryProvider: 'YAHOO_FINANCE' as const,
-    providerSymbol: 'AUDUSD=X',
+    primaryProvider: 'FINNHUB' as const,
+    providerSymbol: 'OANDA:AUD_USD',
+    fallbackSymbol: 'AUDUSD=X',
     decimals: 4
   },
   {
@@ -108,11 +125,177 @@ export const ASSET_CONFIGS = [
     symbol: 'USD/CAD',
     name: 'USD/CAD',
     category: 'forex',
-    primaryProvider: 'YAHOO_FINANCE' as const,
-    providerSymbol: 'CAD=X',
+    primaryProvider: 'FINNHUB' as const,
+    providerSymbol: 'OANDA:USD_CAD',
+    fallbackSymbol: 'CAD=X',
     decimals: 4
   }
 ];
+
+// Fetch Biquote public quote for Gold Spot (XAU/USD)
+async function fetchBiquoteQuote(symbol: string = 'XAUUSD') {
+  try {
+    const res = await fetch(`https://biquote.io/api/${encodeURIComponent(symbol)}`, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+    });
+    if (!res.ok) {
+      throw new Error(`Biquote status ${res.status}`);
+    }
+    const d = await res.json();
+    if (!d) return null;
+
+    const rawPrice = d.mid || d.bid || d.ask || d.last;
+    if (rawPrice == null || rawPrice === 0) return null;
+
+    const price = +rawPrice.toFixed(2);
+    const changePercent = d.dayDiffPercent != null ? +d.dayDiffPercent.toFixed(2) : 0;
+    const change = +(price * (changePercent / 100)).toFixed(2);
+    const high24h = d.high ? +d.high.toFixed(2) : price;
+    const low24h = d.low ? +d.low.toFixed(2) : price;
+    const timestamp = d.timestamp ? new Date(d.timestamp).getTime() : Date.now();
+
+    return {
+      price,
+      change,
+      changePercent,
+      high24h,
+      low24h,
+      provider: 'BIQUOTE',
+      providerSymbol: symbol,
+      timestamp
+    };
+  } catch (err: any) {
+    console.warn(`[Biquote] Fetch failed for ${symbol}:`, err?.message || err);
+    return null;
+  }
+}
+
+// Fetch GoldAPI quote for precious metals (XAU, XAG) using x-access-token header
+async function fetchGoldApiQuote(metal: string = 'XAU') {
+  const apiKey = process.env.GOLDAPI_KEY;
+  if (!apiKey || apiKey.trim() === '') {
+    return null;
+  }
+  try {
+    const res = await fetch(`https://www.goldapi.io/api/${metal}/USD`, {
+      headers: {
+        'x-access-token': apiKey,
+        'Content-Type': 'application/json'
+      }
+    });
+    if (!res.ok) {
+      if (res.status !== 401 && res.status !== 403) {
+        console.warn(`[GoldAPI] status ${res.status} for ${metal}`);
+      }
+      return null;
+    }
+    const d = await res.json();
+    if (!d || d.price == null) {
+      return null;
+    }
+
+    const price = d.price;
+    const prevClose = d.prev_close_price || d.open_price || price;
+    const change = d.ch != null ? d.ch : +(price - prevClose).toFixed(4);
+    const changePercent = d.chp != null ? d.chp : (prevClose ? +(((price - prevClose) / prevClose) * 100).toFixed(2) : 0);
+    const high24h = d.high_price || price;
+    const low24h = d.low_price || price;
+    const timestamp = d.timestamp ? d.timestamp * 1000 : Date.now();
+
+    return {
+      price,
+      change,
+      changePercent,
+      high24h,
+      low24h,
+      provider: 'GOLD_API',
+      providerSymbol: metal,
+      timestamp
+    };
+  } catch (err: any) {
+    return null;
+  }
+}
+
+// Fetch Finnhub quote for forex and indices
+async function fetchFinnhubQuote(symbol: string) {
+  const apiKey = process.env.FINNHUB_API_KEY;
+  if (!apiKey || apiKey.trim() === '') {
+    return null;
+  }
+  try {
+    const res = await fetch(`https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${apiKey}`);
+    if (!res.ok) {
+      if (res.status !== 401 && res.status !== 403) {
+        console.warn(`[Finnhub] status ${res.status} for ${symbol}`);
+      }
+      return null;
+    }
+    const d = await res.json();
+    if (d.c == null || d.c === 0) {
+      return null;
+    }
+
+    const price = d.c;
+    const prevClose = d.pc || price;
+    const change = +(price - prevClose).toFixed(4);
+    const changePercent = prevClose ? +(((price - prevClose) / prevClose) * 100).toFixed(2) : 0;
+    const high24h = d.h || price;
+    const low24h = d.l || price;
+    const timestamp = d.t ? d.t * 1000 : Date.now();
+
+    return {
+      price,
+      change,
+      changePercent,
+      high24h,
+      low24h,
+      provider: 'FINNHUB',
+      providerSymbol: symbol,
+      timestamp
+    };
+  } catch (err: any) {
+    return null;
+  }
+}
+
+// Fetch Twelve Data quote for Crude Oil (WTI)
+async function fetchTwelveDataQuote(symbol: string = 'WTI/USD') {
+  const apiKey = process.env.TWELVE_DATA_API_KEY;
+  if (!apiKey || apiKey.trim() === '') {
+    return null;
+  }
+  try {
+    const res = await fetch(`https://api.twelvedata.com/quote?symbol=${encodeURIComponent(symbol)}&apikey=${apiKey}`);
+    if (!res.ok) {
+      return null;
+    }
+    const d = await res.json();
+    if (!d || d.close == null) {
+      return null;
+    }
+    const price = parseFloat(d.close);
+    const prevClose = parseFloat(d.previous_close || price);
+    const change = +(price - prevClose).toFixed(4);
+    const changePercent = prevClose ? +(((price - prevClose) / prevClose) * 100).toFixed(2) : 0;
+    const high24h = parseFloat(d.high || price);
+    const low24h = parseFloat(d.low || price);
+    const timestamp = d.datetime ? new Date(d.datetime).getTime() : Date.now();
+
+    return {
+      price,
+      change,
+      changePercent,
+      high24h,
+      low24h,
+      provider: 'TWELVE_DATA',
+      providerSymbol: symbol,
+      timestamp
+    };
+  } catch (err) {
+    return null;
+  }
+}
 
 // Fetch crypto ticker from Binance API
 async function fetchBinanceTicker(symbol: string = 'BTCUSDT') {
@@ -267,20 +450,74 @@ export async function fetchAllMarketData() {
   // Fetch Binance BTC
   const binancePromise = fetchBinanceTicker('BTCUSDT');
 
-  // Fetch Yahoo quotes in parallel
+  // Fetch Biquote for Gold Spot (XAU/USD)
+  const biquotePromises = ASSET_CONFIGS
+    .filter(c => c.primaryProvider === 'BIQUOTE')
+    .map(async (config) => {
+      let quote = await fetchBiquoteQuote(config.providerSymbol);
+      if (!quote && process.env.GOLDAPI_KEY) {
+        quote = await fetchGoldApiQuote('XAU');
+      }
+      return { assetId: config.id, quote };
+    });
+
+  // Fetch GoldAPI for precious metals (XAG) if API key is provided, otherwise fallback to Yahoo Finance
+  const goldApiPromises = ASSET_CONFIGS
+    .filter(c => c.primaryProvider === 'GOLD_API')
+    .map(async (config) => {
+      let quote = null;
+      if (process.env.GOLDAPI_KEY) {
+        quote = await fetchGoldApiQuote(config.providerSymbol);
+      }
+      if (!quote && config.fallbackSymbol) {
+        quote = await fetchYahooQuote(config.fallbackSymbol);
+      }
+      return { assetId: config.id, quote };
+    });
+
+  // Fetch Finnhub for forex and indices if API key is provided, otherwise fallback to Yahoo Finance
+  const finnhubPromises = ASSET_CONFIGS
+    .filter(c => c.primaryProvider === 'FINNHUB')
+    .map(async (config) => {
+      let quote = null;
+      if (process.env.FINNHUB_API_KEY) {
+        quote = await fetchFinnhubQuote(config.providerSymbol);
+      }
+      if (!quote && config.fallbackSymbol) {
+        quote = await fetchYahooQuote(config.fallbackSymbol);
+      }
+      return { assetId: config.id, quote };
+    });
+
+  // Fetch Twelve Data for Crude Oil if API key is provided, otherwise fallback to Yahoo Finance
+  const twelveDataPromises = ASSET_CONFIGS
+    .filter(c => c.primaryProvider === 'TWELVE_DATA')
+    .map(async (config) => {
+      let quote = null;
+      if (process.env.TWELVE_DATA_API_KEY) {
+        quote = await fetchTwelveDataQuote(config.providerSymbol);
+      }
+      if (!quote && config.fallbackSymbol) {
+        quote = await fetchYahooQuote(config.fallbackSymbol);
+      }
+      return { assetId: config.id, quote };
+    });
+
+  // Fetch Yahoo quotes for other assets if any
   const yahooPromises = ASSET_CONFIGS
     .filter(c => c.primaryProvider === 'YAHOO_FINANCE')
     .map(async (config) => {
       const quote = await fetchYahooQuote(config.providerSymbol);
-      return {
-        assetId: config.id,
-        quote
-      };
+      return { assetId: config.id, quote };
     });
 
-  const [binanceData, ...yahooResults] = await Promise.all([
+  const [binanceData, biquoteResults, goldApiResults, finnhubResults, twelveDataResults, yahooResults] = await Promise.all([
     binancePromise,
-    ...yahooPromises
+    Promise.all(biquotePromises),
+    Promise.all(goldApiPromises),
+    Promise.all(finnhubPromises),
+    Promise.all(twelveDataPromises),
+    Promise.all(yahooPromises)
   ]);
 
   const results: Record<string, any> = {};
@@ -291,6 +528,42 @@ export async function fetchAllMarketData() {
       ...binanceData
     };
   }
+
+  biquoteResults.forEach(item => {
+    if (item.quote) {
+      results[item.assetId] = {
+        assetId: item.assetId,
+        ...item.quote
+      };
+    }
+  });
+
+  goldApiResults.forEach(item => {
+    if (item.quote) {
+      results[item.assetId] = {
+        assetId: item.assetId,
+        ...item.quote
+      };
+    }
+  });
+
+  finnhubResults.forEach(item => {
+    if (item.quote) {
+      results[item.assetId] = {
+        assetId: item.assetId,
+        ...item.quote
+      };
+    }
+  });
+
+  twelveDataResults.forEach(item => {
+    if (item.quote) {
+      results[item.assetId] = {
+        assetId: item.assetId,
+        ...item.quote
+      };
+    }
+  });
 
   yahooResults.forEach(item => {
     if (item.quote) {
@@ -377,6 +650,14 @@ export async function handleMarketDataRequest(req: IncomingMessage, res: ServerR
       return true;
     }
 
+    if (pathname === '/api/market-data/biquote') {
+      const symbol = parsedUrl.searchParams.get('symbol') || 'XAUUSD';
+      const data = await fetchBiquoteQuote(symbol);
+      res.statusCode = data ? 200 : 502;
+      res.end(JSON.stringify(data || { error: 'Failed to fetch from Biquote' }));
+      return true;
+    }
+
     if (pathname === '/api/market-data/yahoo') {
       const symbol = parsedUrl.searchParams.get('symbol') || 'GC=F';
       const data = await fetchYahooQuote(symbol);
@@ -392,7 +673,7 @@ export async function handleMarketDataRequest(req: IncomingMessage, res: ServerR
         engine: 'AURUM Multi-Source Oracle',
         providers: {
           crypto: { provider: 'Binance API', endpoint: 'api.binance.com' },
-          gold: { provider: 'Yahoo Finance API', endpoint: 'query1.finance.yahoo.com' },
+          gold: { provider: 'Biquote Public API', endpoint: 'biquote.io/api/XAUUSD' },
           commodities: { provider: 'Yahoo Finance API (COMEX/NYMEX)', endpoint: 'query1.finance.yahoo.com' },
           indices: { provider: 'Yahoo Finance API (CME/NASDAQ)', endpoint: 'query1.finance.yahoo.com' },
           forex: { provider: 'Yahoo Finance / Spot FX', endpoint: 'query1.finance.yahoo.com' }
