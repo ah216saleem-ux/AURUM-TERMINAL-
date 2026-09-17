@@ -254,7 +254,7 @@ class MarketDataService {
             this.notify(mapped);
           }
         } catch (e) {
-          console.error('[MarketDataService] Error parsing WebSocket frame:', e);
+          console.warn('[MarketDataService] Error parsing WebSocket frame:', e);
         }
       };
 
@@ -266,14 +266,14 @@ class MarketDataService {
       };
 
       this.ws.onerror = (err) => {
-        console.error('[MarketDataService] WebSocket connection error:', err);
+        console.warn('[MarketDataService] WebSocket connection alert (will fallback to REST polling):', err);
         this.wsConnected = false;
         this.ws = null;
         this.triggerWSReconnect();
         this.notify({});
       };
     } catch (err) {
-      console.error('[MarketDataService] Failed to establish WebSocket:', err);
+      console.warn('[MarketDataService] Failed to establish WebSocket connection (falling back to REST):', err);
       this.triggerWSReconnect();
     }
   }

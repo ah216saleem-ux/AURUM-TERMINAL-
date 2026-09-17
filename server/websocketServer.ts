@@ -123,11 +123,19 @@ export function initWebSocketServer(httpServer: any) {
   const wss = new WebSocketServer({ noServer: true });
 
   httpServer.on('upgrade', (request: any, socket: any, head: any) => {
-    const pathname = new URL(request.url, `http://${request.headers.host}`).pathname;
-    if (pathname === '/api/streaming') {
-      wss.handleUpgrade(request, socket, head, (ws) => {
-        wss.emit('connection', ws, request);
-      });
+    try {
+      const url = request.url || '';
+      const pathname = url.split('?')[0];
+      if (pathname === '/api/streaming') {
+        wss.handleUpgrade(request, socket, head, (ws) => {
+          wss.emit('connection', ws, request);
+        });
+      }
+    } catch (err) {
+      console.error('[WebSocketServer] Upgrade error:', err);
+      try {
+        socket.destroy();
+      } catch (e) {}
     }
   });
 
