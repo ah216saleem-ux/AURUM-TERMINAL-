@@ -25,10 +25,41 @@ import {
   AI_LEARNING_STATUS 
 } from '../data/backtestLearningData';
 import { AiBacktestPerformanceReport } from './AiBacktestPerformanceReport';
+import { useMarket } from '../context/MarketContext';
 
 export const AiLearningBacktestView: React.FC = () => {
+  const { strategyLearning, signalHistory } = useMarket();
   const [activeSubTab, setActiveSubTab] = useState<'LEARNING' | 'STRATEGIES' | 'BACKTEST'>('LEARNING');
   const [selectedAssetId, setSelectedAssetId] = useState<string>('xau-usd');
+
+  // Dynamically map strategy performance using live strategyLearning context
+  const dynamicStrategyPerformance = STRATEGY_PERFORMANCE_DATA.map(strat => {
+    let key = 'SMC';
+    if (strat.shortCode === 'TREND') key = 'TREND';
+    if (strat.shortCode === 'BREAKOUT') key = 'BREAKOUT';
+    if (strat.shortCode === 'LIQUIDITY') key = 'LIQUIDITY';
+    if (strat.shortCode === 'MOMENTUM') key = 'MOMENTUM';
+
+    const liveWinRate = strategyLearning.winRatesByStrategy[key];
+    const liveTotal = signalHistory.filter(h => {
+      const rLower = h.reason.toLowerCase();
+      if (key === 'SMC') return rLower.includes('smc') || rLower.includes('order block') || rLower.includes('ob') || rLower.includes('supply') || rLower.includes('demand');
+      if (key === 'TREND') return rLower.includes('ema') || rLower.includes('trend') || rLower.includes('continuation');
+      if (key === 'BREAKOUT') return rLower.includes('breakout') || rLower.includes('retest') || rLower.includes('resistance') || rLower.includes('support');
+      if (key === 'LIQUIDITY') return rLower.includes('sweep') || rLower.includes('liquidity') || rLower.includes('bsl') || rLower.includes('ssl');
+      return rLower.includes('rsi') || rLower.includes('macd') || rLower.includes('momentum') || rLower.includes('divergence');
+    }).length;
+
+    const finalTotal = strat.totalSignalsTested + liveTotal;
+    const adjustedWeight = Math.min(95, Math.max(10, Math.round(liveWinRate * 1.05)));
+
+    return {
+      ...strat,
+      winRate: Number(liveWinRate.toFixed(1)),
+      confidenceWeight: adjustedWeight,
+      totalSignalsTested: finalTotal
+    };
+  });
 
   const activeAssetSummary = ASSET_BACKTEST_DATA.find(a => a.assetId === selectedAssetId) || ASSET_BACKTEST_DATA[0];
 
@@ -197,7 +228,7 @@ export const AiLearningBacktestView: React.FC = () => {
             </span>
 
             <div className="space-y-2">
-              {STRATEGY_PERFORMANCE_DATA.map((strat) => (
+              {dynamicStrategyPerformance.map((strat) => (
                 <div
                   key={strat.id}
                   className="p-3 rounded-xl bg-[#0c0e15] border border-zinc-800 hover:border-zinc-700 transition space-y-2 font-mono-num"
@@ -248,7 +279,7 @@ export const AiLearningBacktestView: React.FC = () => {
           </div>
 
           <div className="space-y-3">
-            {STRATEGY_PERFORMANCE_DATA.map((strat) => (
+            {dynamicStrategyPerformance.map((strat) => (
               <div
                 key={strat.id}
                 className="p-4 rounded-2xl bg-[#0c0e15] border border-zinc-800 hover:border-amber-500/30 transition space-y-3 shadow-md"

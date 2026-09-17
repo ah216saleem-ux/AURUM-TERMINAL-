@@ -263,7 +263,11 @@ export const AssetCard: React.FC<AssetCardProps> = ({
               </span>
               {ASSET_PROVIDER_CONFIGS[market.id] && (
                 <span className="text-[9px] font-mono-num px-1.5 py-0.5 rounded bg-zinc-900 border border-amber-500/20 text-amber-300/80">
-                  {ASSET_PROVIDER_CONFIGS[market.id].primaryProvider === 'BINANCE' ? 'Binance API' : 'Yahoo Finance'}
+                  {ASSET_PROVIDER_CONFIGS[market.id].primaryProvider === 'BINANCE' 
+                    ? 'Binance API' 
+                    : ASSET_PROVIDER_CONFIGS[market.id].primaryProvider === 'BIQUOTE'
+                    ? 'BIQUOTE'
+                    : 'Yahoo Finance'}
                 </span>
               )}
             </div>

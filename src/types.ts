@@ -274,6 +274,10 @@ export interface AiTradeSignal {
   };
   status: 'ACTIVE' | 'EXECUTED' | 'TARGET_REACHED' | 'WAITING_TRIGGER';
   generatedAt: string;
+  newsRisk?: 'LOW' | 'MEDIUM' | 'HIGH' | 'EXTREME';
+  newsImpactSummary?: string;
+  strategyNameUsed?: string;
+  learningFeedbackBonus?: number;
 }
 
 export interface TelegramLogItem {
@@ -839,6 +843,20 @@ export interface AuthSession {
   user: UserProfile | null;
   token: string | null;
   isAuthenticated: boolean;
+}
+
+export interface NewsArticle {
+  id: string;
+  headline: string;
+  summary: string;
+  source: string;
+  url: string;
+  publishedAt: string;
+  sentiment: 'Bullish' | 'Bearish' | 'Neutral';
+  impactLevel: 'Low' | 'Medium' | 'High';
+  riskScore: number;
+  relevantAssets: string[];
+  eventKeywords: string[];
 }
 
 

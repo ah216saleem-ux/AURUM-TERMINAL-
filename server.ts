@@ -2,10 +2,16 @@ import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { handleMarketDataRequest } from './server/marketDataRouter';
+import { handleNewsRequest } from './server/newsRouter';
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
+
+  // News API route
+  app.get('/api/news', async (req, res) => {
+    await handleNewsRequest(req, res);
+  });
 
   // Market Data API routes
   app.all('/api/market-data*', async (req, res) => {

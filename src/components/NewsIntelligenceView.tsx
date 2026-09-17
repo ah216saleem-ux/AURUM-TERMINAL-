@@ -29,17 +29,19 @@ import {
   fontSources 
 } from '../data/newsIntelligenceData';
 import { EventCategory, ImpactLevel, MarketReactionType } from '../types';
+import { useMarket } from '../context/MarketContext';
 
 export const NewsIntelligenceView: React.FC = () => {
+  const { newsStatus, economicEvents, newsArticles } = useMarket();
   const [activeSubTab, setActiveSubTab] = useState<'CALENDAR' | 'PREDICTION' | 'HISTORICAL'>('CALENDAR');
   const [calendarFilter, setCalendarFilter] = useState<'ALL' | 'HIGH_IMPACT' | 'UPCOMING'>('ALL');
   const [historicalCategory, setHistoricalCategory] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  const newsStatus = getNewsTradingStatus();
+  const activeEvents = economicEvents && economicEvents.length > 0 ? economicEvents : UPCOMING_ECONOMIC_EVENTS;
 
   // Filtered economic calendar events
-  const filteredEvents = UPCOMING_ECONOMIC_EVENTS.filter((evt) => {
+  const filteredEvents = activeEvents.filter((evt) => {
     if (calendarFilter === 'HIGH_IMPACT' && evt.impact !== 'HIGH') return false;
     if (calendarFilter === 'UPCOMING' && !evt.isUpcoming) return false;
     if (searchQuery) {
@@ -401,6 +403,66 @@ export const NewsIntelligenceView: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* Live Financial News & Sentiment Feed */}
+          {newsArticles && newsArticles.length > 0 && (
+            <div className="space-y-3">
+              <span className="text-xs font-mono-num font-bold text-zinc-300 uppercase tracking-wider block">
+                LIVE FINANCIAL NEWS & SENTIMENT FEED
+              </span>
+              <div className="space-y-2">
+                {newsArticles.map((art) => {
+                  const isBullish = art.sentiment === 'Bullish';
+                  const isBearish = art.sentiment === 'Bearish';
+                  return (
+                    <div 
+                      key={art.id} 
+                      className="p-3.5 rounded-2xl bg-[#0c0e15] border border-zinc-800 hover:border-zinc-700 transition space-y-2 shadow-sm"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-mono-num text-zinc-500">
+                          {art.source} • {new Date(art.publishedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                        
+                        <div className="flex items-center gap-1.5">
+                          <span className={`px-2 py-0.5 rounded-md text-[9.5px] font-mono-num font-bold border ${
+                            isBullish 
+                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+                              : isBearish 
+                                ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' 
+                                : 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                          }`}>
+                            {art.sentiment.toUpperCase()}
+                          </span>
+                          <span className="text-[9.5px] font-mono-num font-bold text-zinc-400 bg-neutral-950 px-2 py-0.5 rounded border border-zinc-800">
+                            RISK: {art.riskScore}%
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div className="text-xs font-bold text-white leading-snug">
+                        {art.headline}
+                      </div>
+                      
+                      <p className="text-[11px] text-zinc-400 font-sans leading-relaxed">
+                        {art.summary}
+                      </p>
+                      
+                      {art.relevantAssets && art.relevantAssets.length > 0 && (
+                        <div className="flex flex-wrap gap-1 pt-1">
+                          {art.relevantAssets.map(asset => (
+                            <span key={asset} className="px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[9px] font-mono-num font-semibold">
+                              {asset}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

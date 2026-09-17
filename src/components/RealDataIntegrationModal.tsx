@@ -134,7 +134,7 @@ export const RealDataIntegrationModal: React.FC<RealDataIntegrationModalProps> =
                   All Real-Time Data Pipelines Operational & Verified
                 </span>
                 <span className="text-[10.5px] text-zinc-400">
-                  GoldAPI • Binance • Finnhub • Twelve Data • Yahoo Spot/Index Verified
+                  Biquote • Binance • Finnhub • Twelve Data • Yahoo Spot/Index Verified
                 </span>
               </div>
             </div>

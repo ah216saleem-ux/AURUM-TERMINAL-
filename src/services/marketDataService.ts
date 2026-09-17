@@ -49,9 +49,9 @@ export const ASSET_PROVIDER_CONFIGS: Record<string, AssetProviderConfig> = {
     symbol: 'XAG/USD',
     name: 'Silver',
     category: 'commodities',
-    primaryProvider: 'YAHOO_FINANCE',
-    providerSymbol: 'SI=F',
-    exchangeName: 'COMEX Metals Feed',
+    primaryProvider: 'BIQUOTE',
+    providerSymbol: 'XAGUSD',
+    exchangeName: 'Biquote Silver Spot Feed',
     decimals: 2
   },
   'crude-oil': {
@@ -89,9 +89,9 @@ export const ASSET_PROVIDER_CONFIGS: Record<string, AssetProviderConfig> = {
     symbol: 'EUR/USD',
     name: 'EUR/USD',
     category: 'forex',
-    primaryProvider: 'YAHOO_FINANCE',
-    providerSymbol: 'EURUSD=X',
-    exchangeName: 'Interbank Spot FX',
+    primaryProvider: 'BIQUOTE',
+    providerSymbol: 'EURUSD',
+    exchangeName: 'Biquote Spot FX',
     decimals: 4
   },
   'gbp-usd': {
@@ -99,9 +99,9 @@ export const ASSET_PROVIDER_CONFIGS: Record<string, AssetProviderConfig> = {
     symbol: 'GBP/USD',
     name: 'GBP/USD',
     category: 'forex',
-    primaryProvider: 'YAHOO_FINANCE',
-    providerSymbol: 'GBPUSD=X',
-    exchangeName: 'Interbank Spot FX',
+    primaryProvider: 'BIQUOTE',
+    providerSymbol: 'GBPUSD',
+    exchangeName: 'Biquote Spot FX',
     decimals: 4
   },
   'usd-jpy': {
@@ -109,9 +109,9 @@ export const ASSET_PROVIDER_CONFIGS: Record<string, AssetProviderConfig> = {
     symbol: 'USD/JPY',
     name: 'USD/JPY',
     category: 'forex',
-    primaryProvider: 'YAHOO_FINANCE',
-    providerSymbol: 'JPY=X',
-    exchangeName: 'Interbank Spot FX',
+    primaryProvider: 'BIQUOTE',
+    providerSymbol: 'USDJPY',
+    exchangeName: 'Biquote Spot FX',
     decimals: 2
   },
   'aud-usd': {
@@ -119,9 +119,9 @@ export const ASSET_PROVIDER_CONFIGS: Record<string, AssetProviderConfig> = {
     symbol: 'AUD/USD',
     name: 'AUD/USD',
     category: 'forex',
-    primaryProvider: 'YAHOO_FINANCE',
-    providerSymbol: 'AUDUSD=X',
-    exchangeName: 'Interbank Spot FX',
+    primaryProvider: 'BIQUOTE',
+    providerSymbol: 'AUDUSD',
+    exchangeName: 'Biquote Spot FX',
     decimals: 4
   },
   'usd-cad': {
@@ -129,9 +129,9 @@ export const ASSET_PROVIDER_CONFIGS: Record<string, AssetProviderConfig> = {
     symbol: 'USD/CAD',
     name: 'USD/CAD',
     category: 'forex',
-    primaryProvider: 'YAHOO_FINANCE',
-    providerSymbol: 'CAD=X',
-    exchangeName: 'Interbank Spot FX',
+    primaryProvider: 'BIQUOTE',
+    providerSymbol: 'USDCAD',
+    exchangeName: 'Biquote Spot FX',
     decimals: 4
   }
 };
@@ -151,6 +151,20 @@ class MarketDataService {
   private refreshIntervalTimer: any = null;
   private isFetching: boolean = false;
   private failureCount: number = 0;
+
+  public latestPrices: Record<string, number> = {
+    'btc-usd': 102450.00,
+    'xau-usd': 4302.50,
+    'xag-usd': 63.42,
+    'nasdaq-100': 28945.06,
+    'sp-500': 7551.81,
+    'crude-oil': 102.02,
+    'eur-usd': 1.1467,
+    'gbp-usd': 1.3381,
+    'usd-jpy': 155.98,
+    'aud-usd': 0.7088,
+    'usd-cad': 1.3992
+  };
 
   constructor() {
     // Initial status
@@ -216,6 +230,7 @@ class MarketDataService {
               volume24h: val.volume24h,
               lastTickTimestamp: val.timestamp || Date.now()
             };
+            this.latestPrices[id] = val.price;
           }
 
           this.notify(mapped);
@@ -255,28 +270,40 @@ class MarketDataService {
       console.warn('[MarketDataService] Direct Binance client fallback failed:', err);
     }
 
-    // 2b. Client-side direct fallback: Biquote API for Gold Spot (XAU/USD)
-    try {
-      const biquoteRes = await fetch('https://biquote.io/api/XAUUSD');
-      if (biquoteRes.ok) {
-        const d = await biquoteRes.json();
-        const rawPrice = d.mid || d.bid || d.ask || d.last;
-        if (rawPrice) {
-          const price = +rawPrice.toFixed(2);
-          const changePercent = d.dayDiffPercent != null ? +d.dayDiffPercent.toFixed(2) : 0;
-          fallbackResults['xau-usd'] = {
-            price,
-            changePercent,
-            high24h: d.high ? +d.high.toFixed(2) : price,
-            low24h: d.low ? +d.low.toFixed(2) : price,
-            lastTickTimestamp: Date.now()
-          };
-          this.status = 'DATA CONNECTED';
-          this.lastUpdateTimestamp = Date.now();
+    // 2b. Client-side direct fallback: Biquote API for Gold, Silver & Forex pairs
+    const biquoteAssets = [
+      ['xau-usd', 'XAUUSD', 2],
+      ['xag-usd', 'XAGUSD', 2],
+      ['eur-usd', 'EURUSD', 4],
+      ['gbp-usd', 'GBPUSD', 4],
+      ['usd-jpy', 'USDJPY', 2],
+      ['aud-usd', 'AUDUSD', 4],
+      ['usd-cad', 'USDCAD', 4]
+    ] as const;
+
+    for (const [id, symbol, decimals] of biquoteAssets) {
+      try {
+        const biquoteRes = await fetch(`https://biquote.io/api/${symbol}`);
+        if (biquoteRes.ok) {
+          const d = await biquoteRes.json();
+          const rawPrice = d.mid || d.bid || d.ask || d.last;
+          if (rawPrice) {
+            const price = +rawPrice.toFixed(decimals);
+            const changePercent = d.dayDiffPercent != null ? +d.dayDiffPercent.toFixed(2) : 0;
+            fallbackResults[id] = {
+              price,
+              changePercent,
+              high24h: d.high ? +d.high.toFixed(decimals) : price,
+              low24h: d.low ? +d.low.toFixed(decimals) : price,
+              lastTickTimestamp: Date.now()
+            };
+            this.status = 'DATA CONNECTED';
+            this.lastUpdateTimestamp = Date.now();
+          }
         }
+      } catch (err) {
+        console.warn(`[MarketDataService] Direct Biquote client fallback failed for ${symbol}:`, err);
       }
-    } catch (err) {
-      console.warn('[MarketDataService] Direct Biquote client fallback failed:', err);
     }
 
     // 3. Client-side direct fallback: Open Exchange Rates for Forex pairs
@@ -312,6 +339,11 @@ class MarketDataService {
     if (Object.keys(fallbackResults).length > 0) {
       this.status = 'DATA CONNECTED';
       this.lastUpdateTimestamp = Date.now();
+      for (const [id, val] of Object.entries(fallbackResults)) {
+        if (val.price != null) {
+          this.latestPrices[id] = val.price;
+        }
+      }
       this.notify(fallbackResults);
     } else {
       this.failureCount++;

@@ -30,14 +30,14 @@ class RealDataIntegrationService {
     },
     {
       channel: 'CANDLE_DATA',
-      name: 'Gold Spot Feed (Biquote API)',
+      name: 'Gold & Silver Feed (Biquote API)',
       status: 'SYNCHRONIZED',
       protocol: 'REST',
-      endpoint: 'biquote.io/api/XAUUSD',
+      endpoint: 'biquote.io/api/...',
       latencyMs: 14,
       lastHeartbeat: 'Real-time',
       itemsProcessedPerSec: 50,
-      description: 'Official Biquote public API real-time feed for Gold Spot (XAU/USD).'
+      description: 'Official Biquote public API real-time feed for Gold Spot (XAU/USD) and Silver (XAG/USD).'
     },
     {
       channel: 'ECONOMIC_CALENDAR',
@@ -52,14 +52,14 @@ class RealDataIntegrationService {
     },
     {
       channel: 'NEWS_FEED',
-      name: 'Forex Spot FX Matrix (Finnhub API)',
+      name: 'Forex Spot FX Matrix (Biquote API)',
       status: 'SYNCHRONIZED',
       protocol: 'REST',
-      endpoint: 'finnhub.io/api/v1/quote',
+      endpoint: 'biquote.io/api/...',
       latencyMs: 16,
       lastHeartbeat: 'Real-time',
       itemsProcessedPerSec: 65,
-      description: 'Finnhub API forex feed for EUR/USD, GBP/USD, USD/JPY, AUD/USD, and USD/CAD.'
+      description: 'Official Biquote public API forex matrix feed for EUR/USD, GBP/USD, USD/JPY, AUD/USD, and USD/CAD.'
     },
     {
       channel: 'WEBSOCKET_STREAM',

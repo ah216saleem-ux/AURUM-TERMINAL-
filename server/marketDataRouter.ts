@@ -45,9 +45,8 @@ export const ASSET_CONFIGS: AssetConfigItem[] = [
     symbol: 'XAG/USD',
     name: 'Silver',
     category: 'commodities',
-    primaryProvider: 'GOLD_API' as const,
-    providerSymbol: 'XAG',
-    fallbackSymbol: 'SI=F',
+    primaryProvider: 'BIQUOTE' as const,
+    providerSymbol: 'XAGUSD',
     decimals: 2
   },
   {
@@ -85,8 +84,8 @@ export const ASSET_CONFIGS: AssetConfigItem[] = [
     symbol: 'EUR/USD',
     name: 'EUR/USD',
     category: 'forex',
-    primaryProvider: 'FINNHUB' as const,
-    providerSymbol: 'OANDA:EUR_USD',
+    primaryProvider: 'BIQUOTE' as const,
+    providerSymbol: 'EURUSD',
     fallbackSymbol: 'EURUSD=X',
     decimals: 4
   },
@@ -95,8 +94,8 @@ export const ASSET_CONFIGS: AssetConfigItem[] = [
     symbol: 'GBP/USD',
     name: 'GBP/USD',
     category: 'forex',
-    primaryProvider: 'FINNHUB' as const,
-    providerSymbol: 'OANDA:GBP_USD',
+    primaryProvider: 'BIQUOTE' as const,
+    providerSymbol: 'GBPUSD',
     fallbackSymbol: 'GBPUSD=X',
     decimals: 4
   },
@@ -105,8 +104,8 @@ export const ASSET_CONFIGS: AssetConfigItem[] = [
     symbol: 'USD/JPY',
     name: 'USD/JPY',
     category: 'forex',
-    primaryProvider: 'FINNHUB' as const,
-    providerSymbol: 'OANDA:USD_JPY',
+    primaryProvider: 'BIQUOTE' as const,
+    providerSymbol: 'USDJPY',
     fallbackSymbol: 'JPY=X',
     decimals: 2
   },
@@ -115,8 +114,8 @@ export const ASSET_CONFIGS: AssetConfigItem[] = [
     symbol: 'AUD/USD',
     name: 'AUD/USD',
     category: 'forex',
-    primaryProvider: 'FINNHUB' as const,
-    providerSymbol: 'OANDA:AUD_USD',
+    primaryProvider: 'BIQUOTE' as const,
+    providerSymbol: 'AUDUSD',
     fallbackSymbol: 'AUDUSD=X',
     decimals: 4
   },
@@ -125,14 +124,14 @@ export const ASSET_CONFIGS: AssetConfigItem[] = [
     symbol: 'USD/CAD',
     name: 'USD/CAD',
     category: 'forex',
-    primaryProvider: 'FINNHUB' as const,
-    providerSymbol: 'OANDA:USD_CAD',
+    primaryProvider: 'BIQUOTE' as const,
+    providerSymbol: 'USDCAD',
     fallbackSymbol: 'CAD=X',
     decimals: 4
   }
 ];
 
-// Fetch Biquote public quote for Gold Spot (XAU/USD)
+// Fetch Biquote public quote for Gold Spot, Silver Spot & Forex pairs
 async function fetchBiquoteQuote(symbol: string = 'XAUUSD') {
   try {
     const res = await fetch(`https://biquote.io/api/${encodeURIComponent(symbol)}`, {
@@ -147,11 +146,14 @@ async function fetchBiquoteQuote(symbol: string = 'XAUUSD') {
     const rawPrice = d.mid || d.bid || d.ask || d.last;
     if (rawPrice == null || rawPrice === 0) return null;
 
-    const price = +rawPrice.toFixed(2);
+    const isJpyOrMetal = symbol.includes('JPY') || symbol.includes('XAU') || symbol.includes('XAG');
+    const decimals = isJpyOrMetal ? 2 : 4;
+
+    const price = +rawPrice.toFixed(decimals);
     const changePercent = d.dayDiffPercent != null ? +d.dayDiffPercent.toFixed(2) : 0;
-    const change = +(price * (changePercent / 100)).toFixed(2);
-    const high24h = d.high ? +d.high.toFixed(2) : price;
-    const low24h = d.low ? +d.low.toFixed(2) : price;
+    const change = +(price * (changePercent / 100)).toFixed(decimals);
+    const high24h = d.high ? +d.high.toFixed(decimals) : price;
+    const low24h = d.low ? +d.low.toFixed(decimals) : price;
     const timestamp = d.timestamp ? new Date(d.timestamp).getTime() : Date.now();
 
     return {
@@ -450,13 +452,25 @@ export async function fetchAllMarketData() {
   // Fetch Binance BTC
   const binancePromise = fetchBinanceTicker('BTCUSDT');
 
-  // Fetch Biquote for Gold Spot (XAU/USD)
+  // Fetch Biquote for Gold Spot (XAU/USD), Silver (XAG/USD) & Forex pairs
   const biquotePromises = ASSET_CONFIGS
     .filter(c => c.primaryProvider === 'BIQUOTE')
     .map(async (config) => {
       let quote = await fetchBiquoteQuote(config.providerSymbol);
-      if (!quote && process.env.GOLDAPI_KEY) {
-        quote = await fetchGoldApiQuote('XAU');
+      if (!quote) {
+        if (config.category === 'commodities') {
+          if (process.env.GOLDAPI_KEY) {
+            const metal = config.id === 'xag-usd' ? 'XAG' : 'XAU';
+            quote = await fetchGoldApiQuote(metal);
+          }
+        } else if (config.category === 'forex') {
+          if (process.env.FINNHUB_API_KEY) {
+            quote = await fetchFinnhubQuote(config.fallbackSymbol ? `OANDA:${config.fallbackSymbol.replace('=X', '').replace('USDJPY', 'USD_JPY').replace('EURUSD', 'EUR_USD').replace('GBPUSD', 'GBP_USD').replace('AUDUSD', 'AUD_USD').replace('USDCAD', 'USD_CAD')}` : config.providerSymbol);
+          }
+          if (!quote && config.fallbackSymbol) {
+            quote = await fetchYahooQuote(config.fallbackSymbol);
+          }
+        }
       }
       return { assetId: config.id, quote };
     });
@@ -628,7 +642,17 @@ export async function handleMarketDataRequest(req: IncomingMessage, res: ServerR
       const interval = parsedUrl.searchParams.get('interval') || '1h';
       const range = parsedUrl.searchParams.get('range') || '5d';
 
-      const candles = await fetchYahooCandles(symbol, interval, range);
+      // Map Biquote symbols back to Yahoo equivalents for historical candles
+      let yahooSymbol = symbol;
+      if (symbol === 'XAUUSD') yahooSymbol = 'GC=F';
+      else if (symbol === 'XAGUSD') yahooSymbol = 'SI=F';
+      else if (symbol === 'EURUSD') yahooSymbol = 'EURUSD=X';
+      else if (symbol === 'GBPUSD') yahooSymbol = 'GBPUSD=X';
+      else if (symbol === 'USDJPY') yahooSymbol = 'JPY=X';
+      else if (symbol === 'AUDUSD') yahooSymbol = 'AUDUSD=X';
+      else if (symbol === 'USDCAD') yahooSymbol = 'CAD=X';
+
+      const candles = await fetchYahooCandles(yahooSymbol, interval, range);
       res.statusCode = 200;
       res.end(JSON.stringify({
         status: 'DATA CONNECTED',
