@@ -403,7 +403,7 @@ export interface TelegramSettings {
   history: TelegramLogItem[];
 }
 
-export type EventCategory = 'CPI' | 'NFP' | 'FOMC' | 'RATES' | 'GDP' | 'PPI' | 'RETAIL';
+export type EventCategory = 'CPI' | 'NFP' | 'FOMC' | 'RATES' | 'GDP' | 'PMI' | 'RETAIL' | 'UNEMPLOYMENT' | 'SPEECH' | 'PPI';
 export type ImpactLevel = 'HIGH' | 'MEDIUM' | 'LOW';
 export type MarketReactionType = 'Bullish' | 'Bearish' | 'Neutral';
 export type RiskLevel = 'HIGH' | 'MEDIUM' | 'LOW';
@@ -412,17 +412,167 @@ export interface EconomicEvent {
   id: string;
   eventName: string;
   category: EventCategory;
+  country: string;
   currency: string;
   impact: ImpactLevel;
+  exactDate: string;
+  exactTimeUtc: string;
   dateTime: string;
   formattedTime: string;
-  source: 'Forex Factory' | 'Investing.com' | 'Trading Economics';
+  source: string;
   forecast: string;
   previous: string;
   actual: string | null;
   isUpcoming: boolean;
   minutesUntil: number;
   tradingBlocked: boolean;
+  lastUpdated?: string;
+  dataFreshness?: 'LIVE_FEED' | 'UPDATED' | 'UNAVAILABLE';
+  status?: string;
+}
+
+export interface AiNewsCouncilOpinion {
+  aurumOpinion: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+  aurumConfidence: number;
+  aurumReasoning: string;
+  aurumImpacts: {
+    gold: { direction: 'Bullish' | 'Bearish' | 'Neutral'; target: string; rationale: string };
+    usd: { direction: 'Bullish' | 'Bearish' | 'Neutral'; target: string; rationale: string };
+    sp500: { direction: 'Bullish' | 'Bearish' | 'Neutral'; target: string; rationale: string };
+    nasdaq: { direction: 'Bullish' | 'Bearish' | 'Neutral'; target: string; rationale: string };
+    volatilityRisk: 'HIGH' | 'MEDIUM' | 'LOW';
+  };
+  qwenOpinion: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+  qwenConfidence: number;
+  qwenSurpriseProbability: number;
+  qwenInterpretation: string;
+  qwenSurpriseScenario: string;
+  qwenMarketRisk: string;
+  finalConsensus: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+  agreementStatus: '2/2 Confirmed' | 'Split Opinion';
+  councilRiskLevel: 'HIGH' | 'MEDIUM' | 'LOW';
+  recommendedAction: string;
+}
+
+export interface UpcomingNewsIntelligence {
+  id: string;
+  eventName: string;
+  category: EventCategory;
+  country: string;
+  currency: string;
+  exactDate: string;
+  exactTimeUtc: string;
+  impactLevel: ImpactLevel;
+  remainingTimeFormatted: string;
+  minutesRemaining: number;
+  forecast?: string;
+  previous?: string;
+  actual?: string | null;
+  affectedAssets: string[];
+  expectedImpacts: {
+    gold: { direction: 'Bullish' | 'Bearish' | 'Neutral'; badge: string };
+    usd: { direction: 'Bullish' | 'Bearish' | 'Neutral'; badge: string };
+    equities: { direction: 'Bullish' | 'Bearish' | 'Neutral'; badge: string };
+    risk: 'HIGH' | 'MEDIUM' | 'LOW';
+  };
+  council: AiNewsCouncilOpinion;
+  source: string;
+  lastUpdated: string;
+  dataFreshness: 'LIVE_FEED' | 'UPDATED' | 'UNAVAILABLE';
+}
+
+export interface NewsPredictionRecord {
+  id: string;
+  eventName: string;
+  category: EventCategory;
+  currency: string;
+  releaseDate: string;
+  releaseTimeUtc?: string;
+  forecast: string;
+  previous?: string;
+  actual: string;
+  aurumPrediction?: 'Bullish' | 'Bearish' | 'Neutral';
+  qwenPrediction?: 'Bullish' | 'Bearish' | 'Neutral';
+  consensusDirection?: 'Bullish' | 'Bearish' | 'Neutral';
+  predictedDirection: 'Bullish' | 'Bearish' | 'Neutral';
+  actualReaction: 'Bullish' | 'Bearish' | 'Neutral';
+  marketReaction?: 'Bullish' | 'Bearish' | 'Neutral';
+  goldReaction?: string;
+  usdReaction?: string;
+  indexReaction?: string;
+  goldMovement: string;
+  usdMovement: string;
+  confidence: number;
+  riskLevel: 'HIGH' | 'MEDIUM' | 'LOW';
+  outcomeMatched: boolean;
+  aurumAccurate?: boolean;
+  qwenAccurate?: boolean;
+  consensusAccurate?: boolean;
+  source?: string;
+  lastUpdated?: string;
+  status?: string;
+  keyLearning: string;
+}
+
+export interface NewsPredictionLearning {
+  accuracyPercent: number;
+  aurumAccuracyPercent?: number;
+  qwenAccuracyPercent?: number;
+  consensusAccuracyPercent?: number;
+  totalEvaluated: number;
+  successfulPredictions: number;
+  historicalRecords: NewsPredictionRecord[];
+}
+
+export interface BreakingNewsItem {
+  id: string;
+  headline: string;
+  summary: string;
+  category: 'GEOPOLITICAL' | 'CENTRAL_BANK' | 'MARKET_SHOCK' | 'FINANCIAL';
+  source: string;
+  publishedAt: string;
+  publishedTimeUtc?: string;
+  sentiment?: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+  timeAgo: string;
+  riskLevel: 'HIGH' | 'MEDIUM' | 'LOW';
+  affectedAssets: string[];
+  impactedAssets?: string[];
+  marketImpactAnalysis: string;
+}
+
+export interface DailyMarketIntelligenceBrief {
+  date: string;
+  marketRegime?: 'Inflation Driven' | 'Fed Hawkish' | 'Risk On' | 'Risk Off' | 'Geopolitical Hedging';
+  goldBias: 'Bullish Bias' | 'Bearish Bias' | 'Neutral';
+  usdBias: 'Bullish Bias' | 'Bearish Bias' | 'Neutral';
+  equitiesBias: 'Bullish Bias' | 'Bearish Bias' | 'Neutral';
+  goldMacroBias?: {
+    bias: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+    keyNewsLevel: string;
+    rationale: string;
+  };
+  usdMacroBias?: {
+    bias: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+    keyNewsLevel: string;
+    rationale: string;
+  };
+  indicesMacroBias?: {
+    sp500Bias: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+    nasdaqBias: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+    rationale: string;
+  };
+  volatilityWarningLevel?: 'NORMAL' | 'HIGH' | 'EXTREME';
+  safeTradingHoursUtc?: string[];
+  highRiskWindowsUtc?: string[];
+  keyRiskEvents?: Array<{
+    name: string;
+    timeUtc: string;
+    impact: 'HIGH' | 'MEDIUM' | 'LOW';
+  }>;
+  majorRisk: string;
+  aiRecommendation: string;
+  sessionNotes: string;
+  lastUpdated: string;
 }
 
 export interface HistoricalEventAnalysis {
