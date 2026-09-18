@@ -145,13 +145,23 @@ export const ValidationMonitoringDashboardView: React.FC = () => {
             <span className="text-emerald-400 font-bold">READY ✅</span>
           </div>
           <div className="p-2.5 rounded-xl bg-neutral-950 border border-zinc-800 flex items-center justify-between">
-            <span className="text-zinc-400 font-medium">Paper Trading:</span>
+            <span className="text-zinc-400 font-medium">News Engine:</span>
             <span className="text-emerald-400 font-bold">READY ✅</span>
           </div>
           <div className="p-2.5 rounded-xl bg-neutral-950 border border-zinc-800 flex items-center justify-between">
             <span className="text-zinc-400 font-medium">Signal Lock:</span>
             <span className="text-emerald-400 font-bold">ACTIVE ✅</span>
           </div>
+        </div>
+
+        <div className="pt-2 border-t border-zinc-800/80 flex items-center justify-between text-[11px] font-mono-num text-zinc-400">
+          <span className="flex items-center gap-1.5 text-amber-400">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+            Execution Policy:
+          </span>
+          <span className="text-zinc-300 font-medium">
+            No auto trading. Keep all execution in paper simulation only.
+          </span>
         </div>
       </div>
 

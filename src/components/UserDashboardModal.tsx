@@ -18,29 +18,32 @@ import {
   Smartphone,
   Volume2,
   Copy,
-  Check
+  Check,
+  Lock,
+  AlertTriangle,
+  Clock
 } from 'lucide-react';
 import { userService } from '../services/userService';
 import { databaseService } from '../services/databaseService';
 import { useMarket } from '../context/MarketContext';
-import { UserProfile, UserAlertSettings, UserAccountTier } from '../types';
+import { UserProfile, UserAlertSettings, UserAccountTier, UserRole } from '../types';
 
 interface UserDashboardModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onLogout?: () => void;
 }
 
-export const UserDashboardModal: React.FC<UserDashboardModalProps> = ({ isOpen, onClose }) => {
+export const UserDashboardModal: React.FC<UserDashboardModalProps> = ({ isOpen, onClose, onLogout }) => {
   const { markets, watchlistAssetIds, toggleWatchlist } = useMarket();
   const [activeTab, setActiveTab] = useState<'PROFILE' | 'WATCHLIST' | 'SETTINGS' | 'DATABASE' | 'API_KEYS'>('PROFILE');
   const [user, setUser] = useState<UserProfile | null>(userService.getUser());
   const [settings, setSettings] = useState<UserAlertSettings>(userService.getSettings());
   const [isCopiedKey, setIsCopiedKey] = useState(false);
   const [isCopiedWebhook, setIsCopiedWebhook] = useState(false);
-  const [emailInput, setEmailInput] = useState('a.h216saleem@gmail.com');
-  const [nameInput, setNameInput] = useState('Institutional Trader');
+  const [usernameInput, setUsernameInput] = useState('admin');
+  const [roleInput, setRoleInput] = useState<UserRole>('ADMIN');
   const [loginMode, setLoginMode] = useState<boolean>(false);
-  const [selectedTier, setSelectedTier] = useState<UserAccountTier>('INSTITUTIONAL_PRO');
 
   useEffect(() => {
     const unsub = userService.subscribe(() => {
@@ -51,6 +54,9 @@ export const UserDashboardModal: React.FC<UserDashboardModalProps> = ({ isOpen, 
   }, []);
 
   if (!isOpen) return null;
+
+  const isAdmin = user?.role === 'ADMIN';
+  const remainingTime = userService.getRemainingSessionTime();
 
   const handleCopy = (text: string, isKey: boolean) => {
     navigator.clipboard.writeText(text);
@@ -65,8 +71,19 @@ export const UserDashboardModal: React.FC<UserDashboardModalProps> = ({ isOpen, 
 
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    userService.signup(emailInput, nameInput, selectedTier);
-    setLoginMode(false);
+    const cleanUser = usernameInput.trim();
+    let pass = 'aurum2026';
+    if (cleanUser.toLowerCase() === 'ahmadf7') {
+      pass = '9663059aA@';
+    } else if (cleanUser.toLowerCase() === 'gmcf7') {
+      pass = 'whynotmerijaan';
+    }
+    try {
+      userService.login(cleanUser, pass, roleInput, true);
+      setLoginMode(false);
+    } catch (err: any) {
+      alert(err?.message || 'Login failed');
+    }
   };
 
   const handleExportDb = () => {
@@ -142,7 +159,7 @@ export const UserDashboardModal: React.FC<UserDashboardModalProps> = ({ isOpen, 
             }`}
           >
             <User className="w-3.5 h-3.5" />
-            <span>Profile & Account</span>
+            <span>Profile & Role</span>
           </button>
 
           <button
@@ -167,6 +184,7 @@ export const UserDashboardModal: React.FC<UserDashboardModalProps> = ({ isOpen, 
           >
             <Sliders className="w-3.5 h-3.5" />
             <span>Alert Settings</span>
+            {!isAdmin && <Lock className="w-3 h-3 text-zinc-500 ml-0.5" />}
           </button>
 
           <button
@@ -179,6 +197,7 @@ export const UserDashboardModal: React.FC<UserDashboardModalProps> = ({ isOpen, 
           >
             <Database className="w-3.5 h-3.5" />
             <span>Database Records</span>
+            {!isAdmin && <Lock className="w-3 h-3 text-zinc-500 ml-0.5" />}
           </button>
 
           <button
@@ -191,6 +210,7 @@ export const UserDashboardModal: React.FC<UserDashboardModalProps> = ({ isOpen, 
           >
             <Key className="w-3.5 h-3.5" />
             <span>API & Webhooks</span>
+            {!isAdmin && <Lock className="w-3 h-3 text-zinc-500 ml-0.5" />}
           </button>
         </div>
 
@@ -202,37 +222,27 @@ export const UserDashboardModal: React.FC<UserDashboardModalProps> = ({ isOpen, 
             <div className="space-y-4">
               {loginMode ? (
                 <form onSubmit={handleLoginSubmit} className="p-4 rounded-xl bg-[#131625] border border-amber-500/30 space-y-3">
-                  <h3 className="text-sm font-bold text-amber-400">Switch / Login Account</h3>
+                  <h3 className="text-sm font-bold text-amber-400">Switch Account / Role</h3>
                   <div>
-                    <label className="text-xs text-zinc-400">Email Address</label>
-                    <input
-                      type="email"
-                      value={emailInput}
-                      onChange={e => setEmailInput(e.target.value)}
-                      required
-                      className="w-full mt-1 px-3 py-2 rounded-lg bg-black/50 border border-zinc-700 text-xs text-zinc-100 focus:border-amber-400 outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-zinc-400">Trader Name / Alias</label>
+                    <label className="text-xs text-zinc-400">Username</label>
                     <input
                       type="text"
-                      value={nameInput}
-                      onChange={e => setNameInput(e.target.value)}
+                      value={usernameInput}
+                      onChange={e => setUsernameInput(e.target.value)}
                       required
-                      className="w-full mt-1 px-3 py-2 rounded-lg bg-black/50 border border-zinc-700 text-xs text-zinc-100 focus:border-amber-400 outline-none"
+                      placeholder="admin or trader"
+                      className="w-full mt-1 px-3 py-2 rounded-lg bg-black/50 border border-zinc-700 text-xs text-zinc-100 focus:border-amber-400 outline-none font-mono"
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-zinc-400">Account Tier</label>
+                    <label className="text-xs text-zinc-400">Account Role</label>
                     <select
-                      value={selectedTier}
-                      onChange={e => setSelectedTier(e.target.value as UserAccountTier)}
-                      className="w-full mt-1 px-3 py-2 rounded-lg bg-black/50 border border-zinc-700 text-xs text-amber-400 outline-none"
+                      value={roleInput}
+                      onChange={e => setRoleInput(e.target.value as UserRole)}
+                      className="w-full mt-1 px-3 py-2 rounded-lg bg-black/50 border border-zinc-700 text-xs text-amber-400 outline-none font-mono"
                     >
-                      <option value="INSTITUTIONAL_PRO">INSTITUTIONAL PRO (Full Access)</option>
-                      <option value="VIP_ELITE">VIP ELITE (Priority Signals)</option>
-                      <option value="FREE">FREE TIER (Standard)</option>
+                      <option value="ADMIN">ADMIN ROLE (Full Access: Dashboard, AI, Risk, Paper, Controls)</option>
+                      <option value="USER">USER ROLE (Limited: Live Terminal, Markets, News, Signals)</option>
                     </select>
                   </div>
                   <div className="flex justify-end gap-2 pt-2">
@@ -245,7 +255,7 @@ export const UserDashboardModal: React.FC<UserDashboardModalProps> = ({ isOpen, 
                     </button>
                     <button
                       type="submit"
-                      className="px-4 py-1.5 rounded-lg bg-amber-500 text-black font-bold text-xs hover:bg-amber-400"
+                      className="px-4 py-1.5 rounded-lg bg-amber-500 text-black font-bold text-xs hover:bg-amber-400 cursor-pointer"
                     >
                       Save Account Session
                     </button>
@@ -261,30 +271,94 @@ export const UserDashboardModal: React.FC<UserDashboardModalProps> = ({ isOpen, 
                         className="w-12 h-12 rounded-xl object-cover border-2 border-amber-400 shadow-md"
                       />
                       <div>
-                        <h3 className="text-base font-bold text-zinc-100 flex items-center gap-2">
-                          {user?.name || 'Institutional Trader'}
-                          <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 text-[10px] font-bold border border-amber-500/40">
-                            {user?.accountTier || 'INSTITUTIONAL PRO'}
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-base font-bold text-zinc-100">
+                            {user?.name || 'Institutional Trader'}
+                          </h3>
+                          {/* Role Badge */}
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-extrabold border flex items-center gap-1 ${
+                            isAdmin 
+                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' 
+                              : 'bg-sky-500/20 text-sky-300 border-sky-500/40'
+                          }`}>
+                            {isAdmin ? <ShieldCheck className="w-3 h-3 text-amber-400" /> : <User className="w-3 h-3 text-sky-400" />}
+                            {user?.role || 'USER'}
                           </span>
-                        </h3>
-                        <p className="text-xs text-zinc-400">{user?.email}</p>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-zinc-400 mt-0.5">
+                          <span className="font-mono text-amber-300/80">@{user?.username || 'user'}</span>
+                          <span>•</span>
+                          <span>{user?.email}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[10px] font-mono text-emerald-400 mt-1">
+                          <Clock className="w-3 h-3" />
+                          <span>7-Day Persistent Session Active ({remainingTime.days}d {remainingTime.hours}h remaining)</span>
+                        </div>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => setLoginMode(true)}
-                        className="px-3 py-1.5 rounded-lg bg-zinc-800 text-zinc-200 text-xs font-semibold hover:bg-zinc-700 transition"
+                        className="px-3 py-1.5 rounded-lg bg-zinc-800 text-zinc-200 text-xs font-semibold hover:bg-zinc-700 transition cursor-pointer"
                       >
-                        Switch Account
+                        Switch Account / Role
                       </button>
                       <button
-                        onClick={() => userService.logout()}
-                        className="px-3 py-1.5 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-400 text-xs font-semibold hover:bg-rose-500/25 transition flex items-center gap-1.5"
+                        onClick={() => {
+                          userService.logout();
+                          onLogout?.();
+                          onClose();
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-400 text-xs font-semibold hover:bg-rose-500/25 transition flex items-center gap-1.5 cursor-pointer"
                       >
                         <LogOut className="w-3.5 h-3.5" />
                         <span>Logout</span>
                       </button>
+                    </div>
+                  </div>
+
+                  {/* Role Permissions Matrix Card */}
+                  <div className="p-4 rounded-xl bg-[#101322] border border-zinc-800 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-zinc-200 font-mono">
+                        ROLE PERMISSIONS: {user?.role}
+                      </span>
+                      <span className={`text-[10px] font-mono font-semibold ${isAdmin ? 'text-amber-400' : 'text-sky-400'}`}>
+                        {isAdmin ? 'UNRESTRICTED ACCESS' : 'STANDARD TRADING ACCESS'}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono text-zinc-300">
+                      <div className="flex items-center gap-1.5 text-emerald-400">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Live Terminal Dashboard & Monitoring</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-emerald-400">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>News Intelligence & Sentiment Analysis</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-emerald-400">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>AI Market Analysis & Signal View</span>
+                      </div>
+                      <div className={`flex items-center gap-1.5 ${isAdmin ? 'text-emerald-400' : 'text-zinc-500'}`}>
+                        {isAdmin ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Lock className="w-3.5 h-3.5 text-rose-400" />}
+                        <span className={isAdmin ? '' : 'text-zinc-500'}>
+                          System Settings & QA Controls {isAdmin ? '✓' : '(Admin Only)'}
+                        </span>
+                      </div>
+                      <div className={`flex items-center gap-1.5 ${isAdmin ? 'text-emerald-400' : 'text-zinc-500'}`}>
+                        {isAdmin ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Lock className="w-3.5 h-3.5 text-rose-400" />}
+                        <span className={isAdmin ? '' : 'text-zinc-500'}>
+                          Live API Key Management {isAdmin ? '✓' : '(Admin Only)'}
+                        </span>
+                      </div>
+                      <div className={`flex items-center gap-1.5 ${isAdmin ? 'text-emerald-400' : 'text-zinc-500'}`}>
+                        {isAdmin ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Lock className="w-3.5 h-3.5 text-rose-400" />}
+                        <span className={isAdmin ? '' : 'text-zinc-500'}>
+                          Database Records & Export {isAdmin ? '✓' : '(Admin Only)'}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
@@ -362,8 +436,56 @@ export const UserDashboardModal: React.FC<UserDashboardModalProps> = ({ isOpen, 
             </div>
           )}
 
+          {/* ADMIN RESTRICTION SCREEN FOR USER ROLE */}
+          {!isAdmin && (activeTab === 'SETTINGS' || activeTab === 'DATABASE' || activeTab === 'API_KEYS') && (
+            <div className="p-8 rounded-2xl bg-[#0f121e] border border-amber-500/30 text-center space-y-4">
+              <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-500/10 border border-amber-500/40 flex items-center justify-center text-amber-400">
+                <Lock className="w-7 h-7" />
+              </div>
+              <div className="max-w-md mx-auto">
+                <h3 className="text-base font-bold text-white font-cinzel tracking-wider">
+                  ADMINISTRATIVE ACCESS RESTRICTED
+                </h3>
+                <p className="text-xs text-zinc-400 mt-1.5 leading-relaxed">
+                  The <span className="text-amber-300 font-semibold">{activeTab}</span> configuration module is reserved for accounts with the <span className="font-mono text-amber-400 font-bold">ADMIN</span> role.
+                </p>
+                <p className="text-xs text-zinc-500 mt-1">
+                  Your active session is logged in as <span className="text-sky-400 font-mono font-bold">@{user?.username || 'user'} (USER ROLE)</span>.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-zinc-900/80 border border-zinc-800 text-[11px] font-mono text-zinc-400 max-w-md mx-auto text-left space-y-1.5">
+                <div className="text-amber-400 font-bold flex items-center justify-between">
+                  <span>ACCESS RESTRICTION POLICY:</span>
+                  <span className="text-rose-400">ENFORCED</span>
+                </div>
+                <div className="text-zinc-300">✓ Market monitoring & live price streams (Active)</div>
+                <div className="text-zinc-300">✓ News intelligence & economic catalyst feeds (Active)</div>
+                <div className="text-zinc-300">✓ Signal evaluation & analysis view (Active)</div>
+                <div className="text-rose-400 font-semibold">✗ System Settings, Webhook keys & DB export (Locked)</div>
+              </div>
+
+              <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
+                <button
+                  onClick={() => setActiveTab('PROFILE')}
+                  className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold transition cursor-pointer"
+                >
+                  Return to Profile
+                </button>
+                <button
+                  onClick={() => {
+                    userService.switchRole('ADMIN');
+                  }}
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:brightness-110 text-black text-xs font-bold transition cursor-pointer shadow-md"
+                >
+                  Elevate to ADMIN Role
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* TAB 3: ALERT SETTINGS */}
-          {activeTab === 'SETTINGS' && (
+          {activeTab === 'SETTINGS' && isAdmin && (
             <div className="space-y-4">
               <div className="p-4 rounded-xl bg-[#131625] border border-zinc-800 space-y-3">
                 <h3 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">
@@ -452,7 +574,7 @@ export const UserDashboardModal: React.FC<UserDashboardModalProps> = ({ isOpen, 
           )}
 
           {/* TAB 4: DATABASE RECORDS & EXPORT */}
-          {activeTab === 'DATABASE' && (
+          {activeTab === 'DATABASE' && isAdmin && (
             <div className="space-y-4">
               <div className="p-4 rounded-xl bg-[#131625] border border-zinc-800 space-y-3">
                 <div className="flex items-center justify-between">
@@ -466,7 +588,7 @@ export const UserDashboardModal: React.FC<UserDashboardModalProps> = ({ isOpen, 
 
                   <button
                     onClick={handleExportDb}
-                    className="px-3.5 py-2 rounded-xl bg-amber-500 text-black font-bold text-xs hover:bg-amber-400 transition flex items-center gap-2 shadow-lg"
+                    className="px-3.5 py-2 rounded-xl bg-amber-500 text-black font-bold text-xs hover:bg-amber-400 transition flex items-center gap-2 shadow-lg cursor-pointer"
                   >
                     <Download className="w-4 h-4" />
                     <span>Export JSON</span>
@@ -512,7 +634,7 @@ export const UserDashboardModal: React.FC<UserDashboardModalProps> = ({ isOpen, 
           )}
 
           {/* TAB 5: API KEYS & WEBHOOKS */}
-          {activeTab === 'API_KEYS' && (
+          {activeTab === 'API_KEYS' && isAdmin && (
             <div className="space-y-4">
               <div className="p-4 rounded-xl bg-[#131625] border border-amber-500/30 space-y-3">
                 <h3 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">

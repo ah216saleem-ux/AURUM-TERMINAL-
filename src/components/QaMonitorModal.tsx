@@ -22,11 +22,15 @@ import {
   Send,
   Sliders,
   CheckSquare,
-  Square
+  Square,
+  Lock,
+  ShieldCheck,
+  User
 } from 'lucide-react';
 import { useMarket } from '../context/MarketContext';
 import { getAurumRiskEvaluation } from '../data/riskQualityData';
 import { getSmartTradeApprovalChecklist } from '../data/aiValidationData';
+import { userService } from '../services/userService';
 
 type QaTab = 'telegram' | 'validation' | 'health' | 'errors' | 'deployment';
 
@@ -132,6 +136,61 @@ export const QaMonitorModal: React.FC = () => {
   }, [telegramSettings.isConnected]);
 
   if (!isQaModalOpen) return null;
+
+  const isAdmin = userService.isAdmin();
+  const currentUser = userService.getUser();
+
+  if (!isAdmin) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
+        <div className="relative w-full max-w-md bg-[#0b0e17] border border-amber-500/40 rounded-2xl shadow-2xl p-6 text-center space-y-4">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-500/10 border border-amber-500/40 flex items-center justify-center text-amber-400">
+            <Lock className="w-7 h-7" />
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-white font-cinzel tracking-wider">
+              ADMINISTRATOR PRIVILEGES REQUIRED
+            </h2>
+            <p className="text-xs text-zinc-400 mt-1.5 leading-relaxed">
+              The QA & Live Monitoring Control Center provides internal configuration, telemetry controls, and live health diagnostics. This area is strictly restricted to accounts with the <span className="font-mono font-bold text-amber-400">ADMIN</span> role.
+            </p>
+          </div>
+          <div className="p-3.5 rounded-xl bg-zinc-900/80 border border-zinc-800 text-left text-xs font-mono text-zinc-300 space-y-1.5">
+            <div className="text-[10px] text-zinc-500 uppercase font-bold">Active Account Profile:</div>
+            <div className="flex justify-between items-center">
+              <span className="text-zinc-400">Username:</span>
+              <span className="text-zinc-200 font-bold">@{currentUser?.username || 'user'}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-zinc-400">Assigned Role:</span>
+              <span className="text-sky-400 font-bold px-1.5 py-0.5 rounded bg-sky-500/10 border border-sky-500/30 text-[10px]">
+                USER (Standard Trading View)
+              </span>
+            </div>
+            <div className="pt-1 text-[10px] text-rose-400 border-t border-zinc-800">
+              ✗ Internal Configuration & QA Control Center is locked for this role.
+            </div>
+          </div>
+          <div className="flex items-center justify-center gap-3 pt-2">
+            <button
+              onClick={() => setIsQaModalOpen(false)}
+              className="px-4 py-2 rounded-xl bg-zinc-800 text-zinc-300 text-xs font-semibold hover:bg-zinc-700 transition cursor-pointer"
+            >
+              Close
+            </button>
+            <button
+              onClick={() => {
+                userService.switchRole('ADMIN');
+              }}
+              className="px-4 py-2 rounded-xl bg-amber-500 text-black text-xs font-bold hover:bg-amber-400 transition cursor-pointer"
+            >
+              Elevate to ADMIN Role
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // --- ACTIONS ---
   const toggleHealthState = (key: keyof typeof healthStates) => {

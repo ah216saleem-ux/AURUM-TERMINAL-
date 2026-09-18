@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { MarketProvider, useMarket } from './context/MarketContext';
 import { MobileAppHeader } from './components/MobileAppHeader';
 import { TradingStyleSelector } from './components/TradingStyleSelector';
@@ -48,8 +48,15 @@ import {
   Star,
   Bell,
   BookOpen,
-  BarChart3
+  BarChart3,
+  Globe,
+  User,
+  LogOut,
+  Lock
 } from 'lucide-react';
+import { InstitutionalLandingPage } from './components/InstitutionalLandingPage';
+import { SecureLoginPage } from './components/SecureLoginPage';
+import { userService } from './services/userService';
 
 function MainApp() {
   const { 
@@ -71,6 +78,40 @@ function MainApp() {
   const [isScannerOpen, setIsScannerOpen] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'SIGNALS' | 'PAPER' | 'VALIDATION' | 'SCANNER' | 'NEWS' | 'RISK' | 'LEARNING' | 'HISTORY'>('DASHBOARD');
   const [categoryFilter, setCategoryFilter] = useState<MarketCategory | 'all'>('all');
+  
+  // Persistent Login & Direct Access Protection State
+  const [viewMode, setViewMode] = useState<'LANDING' | 'LOGIN' | 'TERMINAL'>(() => {
+    if (userService.isAuthenticated()) {
+      return 'TERMINAL'; // Valid 7-day session: skip login screen and open terminal directly
+    }
+    if (userService.getExpiredNotice()) {
+      return 'LOGIN'; // Show session expired notice
+    }
+    return 'LANDING';
+  });
+
+  const [currentUser, setCurrentUser] = useState(userService.getUser());
+  const [currentRole, setCurrentRole] = useState(userService.getRole());
+
+  // Listen to session changes & enforce direct route access protection
+  useEffect(() => {
+    const unsub = userService.subscribe(() => {
+      const isAuth = userService.isAuthenticated();
+      setCurrentUser(userService.getUser());
+      setCurrentRole(userService.getRole());
+      if (!isAuth && viewMode === 'TERMINAL') {
+        setViewMode('LOGIN');
+      }
+    });
+    return unsub;
+  }, [viewMode]);
+
+  useEffect(() => {
+    // Direct URL protection: Block direct terminal access without valid session
+    if (viewMode === 'TERMINAL' && !userService.isAuthenticated()) {
+      setViewMode('LOGIN');
+    }
+  }, [viewMode]);
 
   const [selectedAssetId, setSelectedAssetId] = useState<string>('xau-usd');
   const [selectedForexId, setSelectedForexId] = useState<string>('eur-usd');
@@ -92,10 +133,80 @@ function MainApp() {
     return markets.filter(m => m.category === categoryFilter);
   }, [markets, categoryFilter]);
 
+  if (viewMode === 'LANDING') {
+    return (
+      <InstitutionalLandingPage
+        onAccessTerminal={() => {
+          if (userService.isAuthenticated()) {
+            setViewMode('TERMINAL');
+          } else {
+            setViewMode('LOGIN');
+          }
+        }}
+        onOpenLogin={() => setViewMode('LOGIN')}
+        markets={markets}
+      />
+    );
+  }
+
+  if (viewMode === 'LOGIN') {
+    return (
+      <SecureLoginPage
+        onLoginSuccess={() => setViewMode('TERMINAL')}
+        onBackToLanding={() => setViewMode('LANDING')}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#07080c] text-zinc-100 flex flex-col font-sans selection:bg-amber-500/20 selection:text-amber-200">
+      {/* Institutional Top Switcher Bar */}
+      <div className="sticky top-0 z-30 bg-[#090b14]/95 backdrop-blur-md border-b border-amber-500/30 px-3 sm:px-4 py-2 flex items-center justify-between text-xs font-mono">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="font-bold text-amber-300">AURUM LIVE TERMINAL</span>
+          <span className="hidden sm:inline text-zinc-400 text-[11px]">• 7-Day Session Active</span>
+        </div>
+
+        {/* User Profile, Role Badge & Logout Controls */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-700/80">
+            <User className="w-3.5 h-3.5 text-amber-400" />
+            <span className="text-zinc-200 font-bold hidden sm:inline">@{currentUser?.username || 'user'}</span>
+            <span
+              className={`px-1.5 py-0.2 rounded text-[10px] font-extrabold uppercase border flex items-center gap-1 ${
+                currentRole === 'ADMIN'
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                  : 'bg-sky-500/20 text-sky-300 border-sky-500/40'
+              }`}
+            >
+              {currentRole === 'ADMIN' ? <ShieldCheck className="w-2.5 h-2.5 text-amber-400" /> : null}
+              {currentRole}
+            </span>
+          </div>
+
+          <button
+            onClick={() => userService.logout()}
+            className="px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-rose-500/20 border border-zinc-700 hover:border-rose-500/40 text-zinc-300 hover:text-rose-400 transition flex items-center gap-1 cursor-pointer"
+            title="Logout from Terminal"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Logout</span>
+          </button>
+
+          <button
+            onClick={() => setViewMode('LANDING')}
+            className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-700 hover:border-amber-500/50 text-zinc-300 hover:text-amber-300 transition flex items-center gap-1 cursor-pointer"
+            title="Return to Public Landing Page"
+          >
+            <Globe className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden md:inline">Public Portal</span>
+          </button>
+        </div>
+      </div>
+
       {/* Centered Mobile-First Container */}
-      <div className="w-full max-w-lg mx-auto flex-1 flex flex-col px-4 py-5 sm:py-6 pb-24 space-y-4">
+      <div className="w-full max-w-lg mx-auto flex-1 flex flex-col px-4 py-4 sm:py-5 pb-24 space-y-4">
         {/* Mobile App Header with Subtle 3D Globe */}
         <MobileAppHeader />
 
@@ -116,18 +227,20 @@ function MainApp() {
             {/* 9 Core Navigation Tabs */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-none text-[10.5px] font-mono-num font-bold">
               {[
-                { id: 'DASHBOARD', label: 'Dashboard', icon: Zap },
-                { id: 'SIGNALS', label: 'Signals', icon: Sparkles },
-                { id: 'PAPER', label: 'Paper Trading', icon: BarChart3 },
-                { id: 'VALIDATION', label: 'Validation & Health', icon: ShieldAlert },
-                { id: 'SCANNER', label: 'Scanner', icon: Radar },
-                { id: 'NEWS', label: 'News', icon: Newspaper },
-                { id: 'RISK', label: 'Risk Management', icon: ShieldCheck },
-                { id: 'LEARNING', label: 'AI Learning', icon: BrainCircuit },
-                { id: 'HISTORY', label: 'Trade History', icon: History }
+                { id: 'DASHBOARD', label: 'Dashboard', icon: Zap, adminOnly: false },
+                { id: 'SIGNALS', label: 'Signals', icon: Sparkles, adminOnly: false },
+                { id: 'PAPER', label: 'Paper Trading', icon: BarChart3, adminOnly: true },
+                { id: 'VALIDATION', label: 'Validation & Health', icon: ShieldAlert, adminOnly: true },
+                { id: 'SCANNER', label: 'Scanner', icon: Radar, adminOnly: false },
+                { id: 'NEWS', label: 'News', icon: Newspaper, adminOnly: false },
+                { id: 'RISK', label: 'Risk Management', icon: ShieldCheck, adminOnly: true },
+                { id: 'LEARNING', label: 'AI Learning', icon: BrainCircuit, adminOnly: true },
+                { id: 'HISTORY', label: 'Trade History', icon: History, adminOnly: true }
               ].map((tab) => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
+                const isLockedForUser = tab.adminOnly && currentRole === 'USER';
+
                 return (
                   <button
                     key={tab.id}
@@ -135,18 +248,73 @@ function MainApp() {
                     className={`py-2 px-3.5 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer text-center whitespace-nowrap border ${
                       isActive
                         ? 'bg-gradient-to-r from-[#D4AF37] to-[#B38728] text-black font-extrabold shadow-md shadow-amber-500/25 border-amber-300/40'
-                        : 'bg-zinc-950/80 text-zinc-400 border-zinc-900 hover:text-white hover:bg-zinc-900/50'
+                        : isLockedForUser
+                          ? 'bg-zinc-950/40 text-zinc-500 border-zinc-900/60 hover:text-zinc-400 hover:border-zinc-800'
+                          : 'bg-zinc-950/80 text-zinc-400 border-zinc-900 hover:text-white hover:bg-zinc-900/50'
                     }`}
                   >
                     <Icon className="w-3.5 h-3.5 shrink-0" />
                     <span>{tab.label}</span>
+                    {isLockedForUser && (
+                      <Lock className="w-2.5 h-2.5 text-amber-500/70 shrink-0" />
+                    )}
                   </button>
                 );
               })}
             </div>
 
-            {/* Tab Workspace Content */}
-            {activeTab === 'DASHBOARD' ? (
+            {/* Role-Based Guard for USER on Admin Tabs */}
+            {currentRole === 'USER' && ['PAPER', 'VALIDATION', 'RISK', 'LEARNING', 'HISTORY'].includes(activeTab) ? (
+              <div className="p-8 my-4 rounded-2xl bg-[#0b0e18] border border-amber-500/30 text-center space-y-4 max-w-xl mx-auto shadow-2xl">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/40 text-amber-400 flex items-center justify-center mx-auto shadow-lg shadow-amber-500/10">
+                  <Lock className="w-6 h-6 text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-bold text-white font-mono tracking-wide">
+                    ADMIN PRIVILEGES REQUIRED
+                  </h3>
+                  <p className="text-xs text-zinc-400 mt-1">
+                    Access to this module ({activeTab}) is restricted to institutional accounts with the <span className="font-mono font-bold text-amber-400">ADMIN</span> role.
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-zinc-900/80 border border-zinc-800 text-[11px] font-mono text-zinc-400 text-left space-y-1.5">
+                  <div className="flex justify-between items-center text-zinc-300 font-bold border-b border-zinc-800 pb-1.5">
+                    <span>Active Account: @{currentUser?.username || 'user'}</span>
+                    <span className="text-sky-400 px-1.5 py-0.5 rounded bg-sky-500/10 border border-sky-500/30 text-[10px]">
+                      USER ROLE
+                    </span>
+                  </div>
+                  <div className="text-emerald-400 font-semibold pt-1">✓ Allowed for USER:</div>
+                  <div className="pl-2 text-zinc-300">• Live Market Dashboard & Asset Monitoring</div>
+                  <div className="pl-2 text-zinc-300">• Market Intelligence (Radar Scanner)</div>
+                  <div className="pl-2 text-zinc-300">• News Intelligence & Macro Feed</div>
+                  <div className="pl-2 text-zinc-300">• AI Signal View & Confluence Checks</div>
+                  <div className="text-rose-400 font-semibold pt-1.5">✗ Blocked for USER:</div>
+                  <div className="pl-2 text-zinc-400">• Internal Controls & System QA Health</div>
+                  <div className="pl-2 text-zinc-400">• Paper Trading Execution & Simulated Fills</div>
+                  <div className="pl-2 text-zinc-400">• Dynamic Risk Management Parameters</div>
+                  <div className="pl-2 text-zinc-400">• AI Model Learning Weights & Historical Audits</div>
+                </div>
+
+                <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
+                  <button
+                    onClick={() => setActiveTab('DASHBOARD')}
+                    className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold transition cursor-pointer"
+                  >
+                    Return to Live Market Dashboard
+                  </button>
+                  <button
+                    onClick={() => {
+                      userService.switchRole('ADMIN');
+                    }}
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:brightness-110 text-black text-xs font-bold transition cursor-pointer shadow-md"
+                  >
+                    Switch to ADMIN Account (Ahmadf7)
+                  </button>
+                </div>
+              </div>
+            ) : activeTab === 'DASHBOARD' ? (
               /* MAIN DASHBOARD: SIMPLIFIED TARGET 9 ASSET LIST */
               <div className="space-y-4">
                 <div className="flex items-center justify-between px-1">
@@ -306,6 +474,7 @@ function MainApp() {
       <UserDashboardModal
         isOpen={isUserDashboardOpen}
         onClose={() => setIsUserDashboardOpen(false)}
+        onLogout={() => setViewMode('LANDING')}
       />
 
       {/* QA & Monitoring Control Center Modal */}

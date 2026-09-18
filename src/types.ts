@@ -1074,13 +1074,16 @@ export interface DatabaseExportSchema {
 
 // 3. User System & Auth Types
 export type UserAccountTier = 'FREE' | 'VIP_ELITE' | 'INSTITUTIONAL_PRO';
+export type UserRole = 'ADMIN' | 'USER';
 
 export interface UserProfile {
   id: string;
   email: string;
+  username: string;
   name: string;
   avatarUrl: string;
   accountTier: UserAccountTier;
+  role: UserRole;
   createdAt: string;
   apiKey: string;
   webhookSecret: string;
@@ -1101,6 +1104,10 @@ export interface AuthSession {
   user: UserProfile | null;
   token: string | null;
   isAuthenticated: boolean;
+  role: UserRole;
+  loginTimestamp: number;
+  expiresAt: number;
+  rememberMe: boolean;
 }
 
 export interface NewsArticle {
