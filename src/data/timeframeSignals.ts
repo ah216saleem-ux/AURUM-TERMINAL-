@@ -2071,8 +2071,8 @@ Reasoning:
   return setup;
 }
 
-export function getTimeframeSetup(marketId: string, timeframe: Timeframe): DetailedTimeframeSetup {
-  const livePrice = marketDataService.latestPrices[marketId];
+export function getTimeframeSetup(marketId: string, timeframe: Timeframe, livePriceOverride?: number): DetailedTimeframeSetup {
+  const livePrice = (livePriceOverride !== undefined && livePriceOverride > 0) ? livePriceOverride : marketDataService.latestPrices[marketId];
   
   if (livePrice) {
     const hasStatic = ASSET_TIMEFRAME_SETUPS[marketId];

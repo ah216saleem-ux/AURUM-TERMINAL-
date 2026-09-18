@@ -239,6 +239,101 @@ export interface SignalHistoryStats {
   netPips: number;
 }
 
+export type MarketRegimeType = 
+  | 'Trending Market'
+  | 'Range Market'
+  | 'High Volatility'
+  | 'Low Volatility'
+  | 'Breakout Conditions';
+
+export type StrategyTypeKey = 
+  | 'Order Block Mitigation'
+  | 'Liquidity Sweep'
+  | 'FVG Retest'
+  | 'Breakout Retest'
+  | 'Trend Pullback'
+  | 'Range Reversal';
+
+export interface SetupQualityScoreBreakdown {
+  totalScore: number;
+  grade: 'A+' | 'A' | 'B+' | 'B';
+  aiConsensus: number;
+  marketStructure: number;
+  smcConfirmation: number;
+  riskReward: number;
+  newsSafety: number;
+  trendAlignment: number;
+  volatilityCondition: number;
+  details: {
+    aiConsensusText: string;
+    marketStructureText: string;
+    riskText: string;
+    newsText: string;
+    trendText: string;
+    volatilityText: string;
+    smcText: string;
+  };
+}
+
+export interface StrategyPerformanceMetrics {
+  strategy: StrategyTypeKey;
+  winRate: number;
+  profitFactor: number;
+  totalTrades: number;
+  bestAssets: string[];
+  bestTimeframe: string;
+  bestSession: string;
+  netPnlR: number;
+  avgRR: string;
+  description: string;
+}
+
+export type PipelinePhase = 
+  | 'AURUM_ANALYSIS' 
+  | 'QWEN_ANALYSIS' 
+  | 'CONSENSUS_DECISION' 
+  | 'RISK_VALIDATION' 
+  | 'FINAL_SIGNAL' 
+  | 'ASSET_LOCKED' 
+  | 'DISPATCHED';
+
+export interface AssetLockState {
+  isLocked: boolean;
+  assetId: string;
+  symbol: string;
+  direction: 'BUY' | 'SELL';
+  entryPrice: number;
+  stopLoss: number;
+  takeProfit: number;
+  takeProfit2?: number;
+  timeframe: string;
+  confidenceScore: number;
+  grade: string;
+  lockedAt: number;
+  expiryTimestamp: number;
+  tradeStatus: 'ACTIVE' | 'TP_HIT' | 'SL_HIT' | 'EXPIRED' | 'CANCELLED';
+  signalId: string;
+  paperTradeId?: string;
+  lockReason?: string;
+}
+
+export interface SignalPipelineStatus {
+  assetId: string;
+  symbol: string;
+  phase: PipelinePhase;
+  aurumStatus: 'COMPLETE' | 'WAITING';
+  qwenStatus: 'ANALYZING' | 'COMPLETE' | 'FAILED';
+  consensusStatus: 'WAITING' | 'CONFIRMED' | 'DIVERGENT';
+  riskStatus: 'PENDING' | 'VALIDATED' | 'BLOCKED';
+  isSynchronizing: boolean;
+  activeLock: AssetLockState | null;
+  qwenOpinion?: {
+    direction: 'BUY' | 'SELL' | 'WAIT';
+    confidence: number;
+    reasoning: string;
+  };
+}
+
 export interface AiTradeSignal {
   id: string;
   marketId: string;
@@ -280,6 +375,10 @@ export interface AiTradeSignal {
   newsImpactSummary?: string;
   strategyNameUsed?: string;
   learningFeedbackBonus?: number;
+  isLocked?: boolean;
+  isExpired?: boolean;
+  expiryTimestamp?: number;
+  qwenSyncState?: 'AURUM_COMPLETE' | 'QWEN_ANALYZING' | 'DECISION_WAITING' | 'CONFIRMED' | 'DIVERGENT';
 }
 
 export interface TelegramLogItem {
@@ -533,6 +632,11 @@ export interface MarketRankingItem {
   bestSession: string;
   keyCatalyst: string;
   badge: string;
+  aiAgreementScore?: number;
+  riskRewardRatio?: number;
+  newsSafetyScore?: number;
+  marketStructureScore?: number;
+  compositeScore?: number;
 }
 
 // 1. AI Alert Center Types
@@ -769,7 +873,9 @@ export interface AiSignalRecord {
   confidenceScore: number;
   timeframe: Timeframe;
   tradingMode: TradingStyleMode;
-  status: 'ACTIVE' | 'CLOSED' | 'CANCELLED';
+  status: 'ACTIVE' | 'TP HIT' | 'SL HIT' | 'EXPIRED' | 'CANCELLED' | 'CLOSED';
+  candleId: string;
+  expiryTimestamp: string;
   result?: 'TP1_HIT' | 'TP2_HIT' | 'TP3_HIT' | 'SL_HIT' | 'EXPIRED';
   netR?: number;
   timestamp: string;
@@ -860,6 +966,154 @@ export interface NewsArticle {
   relevantAssets: string[];
   eventKeywords: string[];
 }
+
+export interface QwenReviewRecord {
+  id: string;
+  asset: string;
+  assetId: string;
+  timestamp: string;
+  aurumDirection: 'BUY' | 'SELL' | 'WAIT';
+  qwenDirection: 'BUY' | 'SELL' | 'WAIT';
+  agreementStatus: 'AGREED' | 'DISAGREED' | 'WAIT_REJECT';
+  aurumConfidence: number;
+  qwenConfidence: number;
+  confidenceDiff: number;
+  finalSignal: 'BUY' | 'SELL' | 'WAIT';
+  tradeResult: 'TP' | 'SL' | 'WAIT';
+  marketCondition?: string;
+  trendDirection?: 'BULLISH' | 'BEARISH' | 'RANGING';
+}
+
+export interface QwenAssetReliability {
+  symbol: string;
+  assetId: string;
+  totalReviews: number;
+  agreementRate: number;
+  winRate: number;
+  reliabilityScore: number;
+}
+
+export interface QwenMarketConditionStat {
+  conditionName: string;
+  totalEvaluations: number;
+  qwenAccuracy: number;
+  avgConfidenceBoost: number;
+}
+
+export interface QwenAnalyticsData {
+  totalReviews: number;
+  agreementCount: number;
+  disagreementCount: number;
+  waitRejectCount: number;
+  agreementRate: number;
+  tpCountWhenAgreed: number;
+  slCountWhenAgreed: number;
+  accuracyWhenAgreed: number;
+  accuracyWhenDisagreed: number;
+  mostReliableAssets: QwenAssetReliability[];
+  bestMarketConditions: QwenMarketConditionStat[];
+}
+
+export interface PaperTradeRecord {
+  id: string;
+  asset: string;
+  assetId: string;
+  timestamp: string;
+  timeframe: string;
+  strategy: string;
+  strategyType?: StrategyTypeKey;
+  marketRegime?: MarketRegimeType;
+  setupGrade?: string;
+  session?: 'London' | 'New York' | 'Asian' | 'Sydney';
+  direction: 'BUY' | 'SELL' | 'WAIT';
+  entry: number;
+  stopLoss: number;
+  tp1: number;
+  tp2: number;
+  riskReward: string;
+  confidence: number;
+  aurumDecision: 'BUY' | 'SELL' | 'WAIT';
+  qwenConfirmation: 'AGREED' | 'DISAGREED' | 'WAIT_REJECT';
+  qwenDecision?: 'BUY' | 'SELL' | 'WAIT';
+  newsRiskStatus: 'CLEAR' | 'BLOCKED' | 'WARNING';
+  result: 'TP HIT' | 'SL HIT' | 'ACTIVE' | 'CANCELLED';
+  pnlR?: number;
+  currentPrice?: number;
+  closePrice?: number;
+  closeTimestamp?: string;
+}
+
+export interface EquityPoint {
+  tradeIndex: number;
+  date: string;
+  asset: string;
+  pnlR: number;
+  cumulativeR: number;
+  equity: number;
+}
+
+export interface ValidationMilestone {
+  target: 50 | 100;
+  reached: boolean;
+  tradeCount: number;
+  winRate: number;
+  profitFactor: number;
+  avgRR: string;
+  status: 'QUALIFIED' | 'IN_PROGRESS' | 'EXCEEDED';
+  readinessScore: number;
+  grade: string;
+  reportDate?: string;
+}
+
+export interface DailyPaperReport {
+  date: string;
+  formattedDate: string;
+  totalSignals: number;
+  approvedTrades: number;
+  tpHits: number;
+  slHits: number;
+  activeCount: number;
+  cancelledCount: number;
+  winRate: number;
+  netPnlR: number;
+  profitFactor: number;
+  bestAsset: { symbol: string; winRate: number; netPnlR: number; tradesCount: number };
+  worstAsset: { symbol: string; winRate: number; netPnlR: number; tradesCount: number };
+  bestStrategy: { strategy: string; winRate: number; tradesCount: number };
+  qwenContribution: {
+    agreedCount: number;
+    disagreedCount: number;
+    savedCount: number;
+    winRateWhenAgreed: number;
+    summary: string;
+  };
+  executiveSummary: string;
+}
+
+export interface PaperTradeAnalytics {
+  totalTrades: number;
+  winRate: number;
+  lossRate: number;
+  activeTradesCount: number;
+  avgRiskReward: string;
+  profitFactor: number;
+  netPnlR: number;
+  bestPerformingAsset: { symbol: string; winRate: number; totalTrades: number; netPnlR: number };
+  bestTimeframe: { timeframe: string; winRate: number; totalTrades: number };
+  bestStrategy: { strategy: string; winRate: number; totalTrades: number };
+  bestSession: { session: string; winRate: number; totalTrades: number; netPnlR: number };
+  qwenImpact: {
+    winRateWhenAgreed: number;
+    winRateWhenDisagreed: number;
+    tradesSavedByQwen: number;
+    extraAccuracyGained: number;
+    accuracyBoost: number;
+  };
+  equityCurve: EquityPoint[];
+  milestone50: ValidationMilestone;
+  milestone100: ValidationMilestone;
+}
+
 
 
 

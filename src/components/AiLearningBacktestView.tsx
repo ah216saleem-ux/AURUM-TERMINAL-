@@ -25,11 +25,12 @@ import {
   AI_LEARNING_STATUS 
 } from '../data/backtestLearningData';
 import { AiBacktestPerformanceReport } from './AiBacktestPerformanceReport';
+import { QwenPerformanceAnalyticsView } from './QwenPerformanceAnalyticsView';
 import { useMarket } from '../context/MarketContext';
 
 export const AiLearningBacktestView: React.FC = () => {
   const { strategyLearning, signalHistory } = useMarket();
-  const [activeSubTab, setActiveSubTab] = useState<'LEARNING' | 'STRATEGIES' | 'BACKTEST'>('LEARNING');
+  const [activeSubTab, setActiveSubTab] = useState<'QWEN_TRACKER' | 'LEARNING' | 'STRATEGIES' | 'BACKTEST'>('QWEN_TRACKER');
   const [selectedAssetId, setSelectedAssetId] = useState<string>('xau-usd');
 
   // Dynamically map strategy performance using live strategyLearning context
@@ -163,7 +164,19 @@ export const AiLearningBacktestView: React.FC = () => {
       </div>
 
       {/* SUB-VIEW NAVIGATION TABS */}
-      <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-neutral-950 border border-zinc-800 text-xs font-mono-num font-bold">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 p-1 rounded-xl bg-neutral-950 border border-zinc-800 text-xs font-mono-num font-bold">
+        <button
+          onClick={() => setActiveSubTab('QWEN_TRACKER')}
+          className={`py-2 px-2 rounded-lg flex items-center justify-center gap-1.5 transition cursor-pointer text-center ${
+            activeSubTab === 'QWEN_TRACKER'
+              ? 'bg-sky-500 text-black shadow-md shadow-sky-500/25'
+              : 'text-zinc-400 hover:text-white hover:bg-zinc-900/50'
+          }`}
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          <span>Qwen Tracker</span>
+        </button>
+
         <button
           onClick={() => setActiveSubTab('LEARNING')}
           className={`py-2 px-2 rounded-lg flex items-center justify-center gap-1.5 transition cursor-pointer text-center ${
@@ -200,6 +213,11 @@ export const AiLearningBacktestView: React.FC = () => {
           <span>Backtest Data</span>
         </button>
       </div>
+
+      {/* 2.5 QWEN AI PERFORMANCE TRACKER SUB-TAB CONTENT */}
+      {activeSubTab === 'QWEN_TRACKER' && (
+        <QwenPerformanceAnalyticsView />
+      )}
 
       {/* 3. AI LEARNING PANEL TAB CONTENT */}
       {activeSubTab === 'LEARNING' && (

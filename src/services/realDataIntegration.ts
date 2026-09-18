@@ -97,7 +97,7 @@ class RealDataIntegrationService {
   public getChannels(): RealDataChannelStatus[] {
     return this.channels.map(ch => ({
       ...ch,
-      status: (marketDataService.getStatus() === 'DATA CONNECTED' ? 'SYNCHRONIZED' : 'CONNECTED') as 'SYNCHRONIZED' | 'CONNECTED',
+      status: (marketDataService.getStatus() === 'LIVE' ? 'SYNCHRONIZED' : 'CONNECTED') as 'SYNCHRONIZED' | 'CONNECTED',
       latencyMs: ch.channel === 'WEBSOCKET_STREAM' ? 4 : this.latency + (ch.protocol === 'WSS' ? 2 : 8)
     }));
   }

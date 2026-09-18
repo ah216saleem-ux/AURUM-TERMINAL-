@@ -3,11 +3,23 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { handleMarketDataRequest } from './server/marketDataRouter';
 import { handleNewsRequest } from './server/newsRouter';
+import { handleQwenRequest, handleQwenStatus } from './server/qwenRouter';
 import { initWebSocketServer } from './server/websocketServer';
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
+
+  // Middleware for body parsing
+  app.use(express.json());
+
+  // Qwen AI analysis routes
+  app.get('/api/qwen-status', async (req, res) => {
+    await handleQwenStatus(req, res);
+  });
+  app.post('/api/qwen-analysis', async (req, res) => {
+    await handleQwenRequest(req, res);
+  });
 
   // News API route
   app.get('/api/news', async (req, res) => {

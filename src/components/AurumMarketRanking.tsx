@@ -190,8 +190,9 @@ export function AurumMarketRanking({
                 </div>
               </div>
 
-              {/* Middle Metric Bar: Confidence & Best Mode */}
-              <div className="mt-2.5 pt-2 border-t border-zinc-800/60 grid grid-cols-3 gap-2 text-[10.5px] font-mono-num items-center">
+              {/* Middle Metric Bar: 5-Factor Ranking Metrics */}
+              <div className="mt-2.5 pt-2 border-t border-zinc-800/60 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10.5px] font-mono-num items-center">
+                {/* 1. Confidence */}
                 <div>
                   <div className="flex justify-between text-zinc-400 text-[10px] mb-0.5">
                     <span>Confidence</span>
@@ -211,16 +212,27 @@ export function AurumMarketRanking({
                   </div>
                 </div>
 
+                {/* 2. AI Agreement */}
                 <div className="text-center">
-                  <span className="text-[10px] text-zinc-500 block uppercase">Best Mode</span>
-                  <span className="font-extrabold text-amber-300 text-[10px] bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20 inline-block">
-                    {item.bestTradingMode}
+                  <span className="text-[10px] text-zinc-500 block uppercase">AI Agreement</span>
+                  <span className="font-bold text-emerald-400 text-[10px] flex items-center justify-center gap-1">
+                    <ShieldCheck className="w-3 h-3" />
+                    <span>{item.aiAgreementScore && item.aiAgreementScore >= 95 ? '2/2 Confirmed' : 'Synchronized'}</span>
                   </span>
                 </div>
 
-                <div className="text-right">
-                  <span className="text-[10px] text-zinc-500 block uppercase">R:R Ratio</span>
-                  <span className="font-bold text-emerald-400 text-xs">{item.riskReward}</span>
+                {/* 3. Risk Reward */}
+                <div className="text-center sm:text-right">
+                  <span className="text-[10px] text-zinc-500 block uppercase">Risk Reward</span>
+                  <span className="font-bold text-amber-300 text-xs">{item.riskReward}</span>
+                </div>
+
+                {/* 4. News Safety & Quality */}
+                <div className="text-right hidden sm:block">
+                  <span className="text-[10px] text-zinc-500 block uppercase">News & Structure</span>
+                  <span className="font-bold text-sky-400 text-[10px]">
+                    Grade {item.setupGrade} • Safe
+                  </span>
                 </div>
               </div>
 
@@ -234,6 +246,11 @@ export function AurumMarketRanking({
                 <div className="flex items-center gap-1.5 text-zinc-400">
                   <Activity className="w-3 h-3 text-amber-400" />
                   <span>{item.bestSession}</span>
+                  {item.rank <= 2 && (
+                    <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-extrabold ml-1.5 uppercase">
+                      ⭐ TOP OPPORTUNITY
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2">

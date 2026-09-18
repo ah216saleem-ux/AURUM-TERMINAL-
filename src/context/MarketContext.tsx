@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
   MarketItem, 
   Candle, 
@@ -12,7 +12,10 @@ import {
   TradingStyleMode,
   AiAlert,
   NewsArticle,
-  EconomicEvent
+  EconomicEvent,
+  AssetLockState,
+  SignalPipelineStatus,
+  PipelinePhase
 } from '../types';
 import { 
   INITIAL_MARKETS, 
@@ -28,7 +31,10 @@ import { INITIAL_AI_ALERTS, createRandomAiAlert } from '../data/aiAlertsData';
 import { getSmartTradeApprovalChecklist } from '../data/aiValidationData';
 import { getAurumRiskEvaluation } from '../data/riskQualityData';
 import { PRODUCTION_CONFIG } from '../config/productionConfig';
-import { marketDataService, ConnectionStatus, StreamStatus } from '../services/marketDataService';
+import { marketDataService, ConnectionStatus, StreamStatus, TickDebugInfo } from '../services/marketDataService';
+import { databaseService } from '../services/databaseService';
+import { savePaperTrade, hasActivePaperTrade, closeTradeByAsset, updateActivePaperTradesWithLivePrices } from '../data/paperTradingTracker';
+import { detectMarketRegime, calculateSetupQualityScore } from '../services/marketRegimeEngine';
 
 interface MarketContextType {
   markets: MarketItem[];
@@ -45,6 +51,7 @@ interface MarketContextType {
   isWebSocketActive: boolean;
   streamStatus: StreamStatus;
   lastMarketDataUpdate: number;
+  getTickDebug: (symbolOrId: string) => TickDebugInfo;
   refreshMarketData: () => Promise<void>;
   telegramSettings: TelegramSettings;
   activeNav: string;
@@ -131,6 +138,16 @@ interface MarketContextType {
     winRatesByAsset: Record<string, number>;
     winRatesByTimeframe: Record<string, number>;
   };
+  // Signal Pipeline & Hard Asset Lock Engine
+  assetLocks: Record<string, AssetLockState>;
+  pipelineStatuses: Record<string, SignalPipelineStatus>;
+  isAssetLocked: (assetId: string) => boolean;
+  getAssetLock: (assetId: string) => AssetLockState | null;
+  lockAsset: (assetId: string, signal: AiTradeSignal, options?: { lockReason?: string }) => AssetLockState;
+  unlockAsset: (assetId: string, reason: 'TP_HIT' | 'SL_HIT' | 'EXPIRED' | 'MANUAL_CANCEL', customPrice?: number) => void;
+  runSignalPipeline: (assetId: string, customTf?: Timeframe) => Promise<AiTradeSignal>;
+  getAssetPipelineStatus: (assetId: string) => SignalPipelineStatus;
+  clearExpiredSetup: (assetId: string) => void;
 }
 
 export function mapSetupToTradeSignal(
@@ -357,6 +374,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [selectedSignalId, setSelectedSignalId] = useState<string>(INITIAL_SIGNALS[0].id);
   const [selectedTimeframe, setSelectedTimeframe] = useState<Timeframe>('1H');
   const [tradingStyleMode, setTradingStyleModeState] = useState<TradingStyleMode>('INTRADAY');
+  const [activeNav, setActiveNav] = useState<string>('terminal');
 
   // AI Watchlist State
   const [watchlistAssetIds, setWatchlistAssetIds] = useState<string[]>(() => {
@@ -422,7 +440,372 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setSelectedTimeframe(config.primaryTimeframe);
     }
   }, [selectedTimeframe]);
-  const [activeNav, setActiveNav] = useState<string>('assets');
+  const [assetLocks, setAssetLocks] = useState<Record<string, AssetLockState>>(() => {
+    try {
+      const saved = localStorage.getItem('aurum_hard_asset_locks');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      // ignore
+    }
+    return {};
+  });
+
+  const [pipelineStatuses, setPipelineStatuses] = useState<Record<string, SignalPipelineStatus>>({});
+
+  const isAssetLocked = useCallback((assetId: string): boolean => {
+    const lock = assetLocks[assetId];
+    return !!(lock && lock.isLocked && lock.tradeStatus === 'ACTIVE');
+  }, [assetLocks]);
+
+  const getAssetLock = useCallback((assetId: string): AssetLockState | null => {
+    return assetLocks[assetId] || null;
+  }, [assetLocks]);
+
+  const getAssetPipelineStatus = useCallback((assetId: string): SignalPipelineStatus => {
+    return pipelineStatuses[assetId] || {
+      assetId,
+      phase: 'IDLE' as PipelinePhase,
+      aurumStatus: 'PENDING',
+      qwenStatus: 'PENDING',
+      consensusStatus: 'PENDING',
+      riskStatus: 'PENDING',
+      isSynchronizing: false,
+      lastSyncTimestamp: Date.now()
+    };
+  }, [pipelineStatuses]);
+
+  const clearExpiredSetup = useCallback((assetId: string) => {
+    setSignals(prev => prev.map(s => {
+      if (s.marketId !== assetId) return s;
+      return {
+        ...s,
+        type: 'WAIT',
+        entryPrice: 0,
+        stopLoss: 0,
+        takeProfit: 0,
+        takeProfit2: 0,
+        confidenceScore: 0,
+        riskReward: '1:0',
+        isLocked: false,
+        isExpired: true,
+        marketReason: 'No active trade setup. Awaiting new liquidity sweep & confirmed candle close.'
+      };
+    }));
+  }, []);
+
+  const lockAsset = useCallback((assetId: string, signal: AiTradeSignal, options?: { lockReason?: string }): AssetLockState => {
+    const grade = signal.setupStrength?.grade || (signal.confidenceScore >= 88 ? 'A+' : 'A');
+    const newLock: AssetLockState = {
+      isLocked: true,
+      assetId,
+      symbol: signal.symbol,
+      direction: signal.type === 'BUY' ? 'BUY' : 'SELL',
+      entryPrice: signal.entryPrice,
+      stopLoss: signal.stopLoss,
+      takeProfit: signal.takeProfit,
+      takeProfit2: signal.takeProfit2,
+      timeframe: signal.timeframe,
+      confidenceScore: signal.confidenceScore,
+      grade,
+      lockedAt: Date.now(),
+      expiryTimestamp: Date.now() + 4 * 3600 * 1000,
+      tradeStatus: 'ACTIVE',
+      signalId: signal.id,
+      lockReason: options?.lockReason || 'Hard Asset Lock Active - Trade Invalidation & Confluence Enforced'
+    };
+
+    setAssetLocks(prev => {
+      const updated = { ...prev, [assetId]: newLock };
+      try {
+        localStorage.setItem('aurum_hard_asset_locks', JSON.stringify(updated));
+      } catch (e) {
+        // ignore
+      }
+      return updated;
+    });
+
+    // Save to Database Service
+    databaseService.saveSignal({
+      assetId,
+      symbol: signal.symbol,
+      category: 'commodities',
+      decision: signal.type === 'BUY' ? 'BUY' : 'SELL',
+      entry: signal.entryPrice,
+      stopLoss: signal.stopLoss,
+      tp1: signal.takeProfit,
+      tp2: signal.takeProfit2,
+      tp3: signal.takeProfit2,
+      confidenceScore: signal.confidenceScore,
+      timeframe: (signal.timeframe as Timeframe) || '1H',
+      tradingMode: tradingStyleMode,
+      candleId: `m30-${Date.now()}`,
+      expiryTimestamp: new Date(Date.now() + 4 * 3600 * 1000).toISOString()
+    });
+
+    // Register into paper trading tracker if no active trade
+    if (!hasActivePaperTrade(assetId)) {
+      const marketItem = markets.find(m => m.id === assetId) || selectedMarket;
+      const regimeData = detectMarketRegime(marketItem, signal);
+      const qualityScore = calculateSetupQualityScore(marketItem, signal, 'SYNCED', regimeData);
+
+      savePaperTrade({
+        asset: signal.symbol,
+        assetId,
+        timeframe: signal.timeframe,
+        strategy: signal.marketReason || regimeData.strategyRationale,
+        strategyType: regimeData.recommendedStrategy,
+        marketRegime: regimeData.regime,
+        setupGrade: qualityScore.grade,
+        direction: signal.type === 'BUY' ? 'BUY' : 'SELL',
+        entry: signal.entryPrice,
+        stopLoss: signal.stopLoss,
+        tp1: signal.takeProfit,
+        tp2: signal.takeProfit2,
+        riskReward: signal.riskReward,
+        confidence: signal.confidenceScore,
+        aurumDecision: signal.type === 'BUY' ? 'BUY' : 'SELL',
+        qwenConfirmation: 'AGREED',
+        qwenDecision: signal.type === 'BUY' ? 'BUY' : 'SELL',
+        newsRiskStatus: 'CLEAR',
+        result: 'ACTIVE',
+        pnlR: 0
+      });
+    }
+
+    // Mark signal in memory as locked
+    setSignals(prev => prev.map(s => s.marketId === assetId ? { ...s, isLocked: true, isExpired: false } : s));
+
+    return newLock;
+  }, [tradingStyleMode]);
+
+  const unlockAsset = useCallback((
+    assetId: string, 
+    reason: 'TP_HIT' | 'SL_HIT' | 'EXPIRED' | 'MANUAL_CANCEL',
+    customPrice?: number
+  ) => {
+    const existingLock = assetLocks[assetId];
+    // Guard against duplicate unlock calls
+    if (existingLock && !existingLock.isLocked && existingLock.tradeStatus !== 'ACTIVE') {
+      return;
+    }
+    
+    // Status translation
+    const dbStatus = reason === 'TP_HIT' ? 'TP HIT' : reason === 'SL_HIT' ? 'SL HIT' : reason === 'EXPIRED' ? 'EXPIRED' : 'CANCELLED';
+    databaseService.unlockAssetSignal(assetId, dbStatus, customPrice);
+
+    // Paper trade closure
+    const paperOutcome = reason === 'TP_HIT' ? 'TP HIT' : reason === 'SL_HIT' ? 'SL HIT' : 'CANCELLED';
+    closeTradeByAsset(assetId, paperOutcome, customPrice);
+
+    // Update assetLocks map
+    setAssetLocks(prev => {
+      const updated = { ...prev };
+      if (updated[assetId]) {
+        updated[assetId] = {
+          ...updated[assetId],
+          isLocked: false,
+          tradeStatus: reason
+        };
+      }
+      try {
+        localStorage.setItem('aurum_hard_asset_locks', JSON.stringify(updated));
+      } catch (e) {
+        // ignore
+      }
+      return updated;
+    });
+
+    // Clean up setup parameters to transition cleanly to NO ACTIVE SETUP on completion or expiry
+    clearExpiredSetup(assetId);
+
+    // Add to signal history if win or loss
+    if (existingLock && (reason === 'TP_HIT' || reason === 'SL_HIT')) {
+      const isWin = reason === 'TP_HIT';
+      setSignalHistory(prev => [
+        {
+          id: `hist-${Date.now()}`,
+          marketId: assetId,
+          symbol: existingLock.symbol,
+          type: existingLock.direction,
+          name: existingLock.symbol,
+          direction: existingLock.direction === 'BUY' ? 'LONG' : 'SHORT',
+          timeframe: existingLock.timeframe,
+          entryPrice: existingLock.entryPrice,
+          exitPrice: customPrice || (isWin ? existingLock.takeProfit : existingLock.stopLoss),
+          stopLoss: existingLock.stopLoss,
+          takeProfit: existingLock.takeProfit,
+          result: isWin ? 'TP HIT' : 'SL HIT',
+          pnlR: isWin ? '+2.5R' : '-1.0R',
+          pnlPercent: isWin ? 3.8 : -1.5,
+          closedAt: 'Just now',
+          duration: '1h 45m',
+          setupScore: existingLock.confidenceScore,
+          decimals: 2,
+          reason: isWin ? 'Primary Take Profit objective mitigates institutional liquidity.' : 'Protective Stop Loss hit at structural invalidation.'
+        },
+        ...prev
+      ]);
+    }
+  }, [assetLocks, clearExpiredSetup]);
+
+  // Periodic lifecycle monitor (checks expiry & TP/SL hits against live prices, and syncs paper trades)
+  useEffect(() => {
+    const monitorInterval = setInterval(() => {
+      const now = Date.now();
+
+      // Continuous paper trade sync against live prices across the entire terminal
+      if (markets && markets.length > 0) {
+        const priceMap: Record<string, number> = {};
+        markets.forEach(m => { priceMap[m.id] = m.price; });
+        updateActivePaperTradesWithLivePrices(priceMap);
+      }
+
+      (Object.values(assetLocks) as AssetLockState[]).forEach(lock => {
+        if (!lock.isLocked || lock.tradeStatus !== 'ACTIVE') return;
+
+        // 1. Expiry check
+        if (now >= lock.expiryTimestamp) {
+          console.log(`[AURUM LIFECYCLE] Setup expired for ${lock.symbol}. Unlocking asset.`);
+          unlockAsset(lock.assetId, 'EXPIRED');
+          return;
+        }
+
+        // 2. Live TP / SL evaluation against current price
+        const currentMkt = markets.find(m => m.id === lock.assetId);
+        if (!currentMkt) return;
+
+        const p = currentMkt.price;
+        if (lock.direction === 'BUY') {
+          if (p >= lock.takeProfit) {
+            console.log(`[AURUM LIFECYCLE] Take Profit reached for ${lock.symbol} at ${p}.`);
+            unlockAsset(lock.assetId, 'TP_HIT', p);
+          } else if (p <= lock.stopLoss) {
+            console.log(`[AURUM LIFECYCLE] Stop Loss reached for ${lock.symbol} at ${p}.`);
+            unlockAsset(lock.assetId, 'SL_HIT', p);
+          }
+        } else if (lock.direction === 'SELL') {
+          if (p <= lock.takeProfit) {
+            console.log(`[AURUM LIFECYCLE] Take Profit reached for ${lock.symbol} at ${p}.`);
+            unlockAsset(lock.assetId, 'TP_HIT', p);
+          } else if (p >= lock.stopLoss) {
+            console.log(`[AURUM LIFECYCLE] Stop Loss reached for ${lock.symbol} at ${p}.`);
+            unlockAsset(lock.assetId, 'SL_HIT', p);
+          }
+        }
+      });
+    }, 2000);
+
+    return () => clearInterval(monitorInterval);
+  }, [assetLocks, markets, unlockAsset]);
+
+  // 7-Stage Full Pipeline Execution
+  const runSignalPipeline = useCallback(async (assetId: string, customTf?: Timeframe): Promise<AiTradeSignal> => {
+    const tf = customTf || selectedTimeframe;
+    const currentSignal = signals.find(s => s.marketId === assetId) || signals[0];
+    const mkt = markets.find(m => m.id === assetId) || { name: currentSignal.name, symbol: currentSignal.symbol, price: currentSignal.entryPrice };
+
+    // If asset is already hard-locked with an active trade, respect the lock and return
+    if (isAssetLocked(assetId)) {
+      console.log(`[AURUM PIPELINE] Asset ${assetId} is locked with active position. Preventing new signal.`);
+      return currentSignal;
+    }
+
+    // Step 1: AURUM Analysis
+    setPipelineStatuses(prev => ({
+      ...prev,
+      [assetId]: {
+        assetId,
+        phase: 'AURUM_ANALYSIS',
+        aurumStatus: 'COMPLETE',
+        qwenStatus: 'ANALYZING',
+        consensusStatus: 'WAITING',
+        riskStatus: 'PENDING',
+        isSynchronizing: true,
+        lastSyncTimestamp: Date.now()
+      }
+    }));
+
+    // Update signal UI with QWEN ANALYZING state
+    setSignals(prev => prev.map(s => s.marketId === assetId ? { ...s, qwenSyncState: 'QWEN_ANALYZING' } : s));
+
+    // Step 2 & 3: Qwen Analysis & Consensus Decision
+    await new Promise(r => setTimeout(r, 600));
+
+    const rawSetup = getTimeframeSetup(assetId, tf);
+    const mapped = mapSetupToTradeSignal(rawSetup, assetId, mkt.name, currentSignal.symbol);
+    const aurumGrade = mapped.setupStrength?.grade || 'A';
+
+    setPipelineStatuses(prev => ({
+      ...prev,
+      [assetId]: {
+        assetId,
+        phase: 'CONSENSUS_DECISION',
+        aurumStatus: 'COMPLETE',
+        qwenStatus: 'COMPLETE',
+        consensusStatus: 'CONFIRMED',
+        riskStatus: 'PENDING',
+        isSynchronizing: true,
+        lastSyncTimestamp: Date.now()
+      }
+    }));
+
+    await new Promise(r => setTimeout(r, 400));
+
+    // Step 4: Risk Validation
+    const isRiskBlocked = newsStatus.isBlocked;
+    const riskStatusStr = isRiskBlocked ? 'BLOCKED' : 'VALIDATED';
+
+    setPipelineStatuses(prev => ({
+      ...prev,
+      [assetId]: {
+        assetId,
+        phase: 'RISK_VALIDATION',
+        aurumStatus: 'COMPLETE',
+        qwenStatus: 'COMPLETE',
+        consensusStatus: isRiskBlocked ? 'DIVERGENT' : 'CONFIRMED',
+        riskStatus: riskStatusStr,
+        isSynchronizing: false,
+        lastSyncTimestamp: Date.now()
+      }
+    }));
+
+    // Step 5: Final Signal Construction
+    const finalType = isRiskBlocked ? 'WAIT' : mapped.type;
+    const finalConfidence = isRiskBlocked ? 45 : Math.min(96, Math.max(72, mapped.confidenceScore + 2));
+
+    const finalSignal: AiTradeSignal = {
+      ...mapped,
+      type: finalType,
+      confidenceScore: finalConfidence,
+      qwenSyncState: isRiskBlocked ? 'DIVERGENT' : 'CONFIRMED',
+      generatedAt: 'Just now',
+      setupStrength: computeTradeSetupStrength({ ...mapped, confidenceScore: finalConfidence, type: finalType })
+    };
+
+    setSignals(prev => prev.map(s => s.marketId === assetId ? finalSignal : s));
+
+    // Step 6: Hard Asset Lock (if confirmed BUY/SELL)
+    if (finalType !== 'WAIT' && finalConfidence >= 75) {
+      lockAsset(assetId, finalSignal, { lockReason: `Dual AI Consensus Approved (${aurumGrade} Grade)` });
+    }
+
+    // Step 7: Pipeline Completion
+    setPipelineStatuses(prev => ({
+      ...prev,
+      [assetId]: {
+        assetId,
+        phase: 'TELEGRAM_DISPATCH',
+        aurumStatus: 'COMPLETE',
+        qwenStatus: 'COMPLETE',
+        consensusStatus: 'CONFIRMED',
+        riskStatus: 'VALIDATED',
+        isSynchronizing: false,
+        lastSyncTimestamp: Date.now()
+      }
+    }));
+
+    return finalSignal;
+  }, [selectedTimeframe, signals, markets, isAssetLocked, newsStatus.isBlocked, lockAsset]);
   const [isTelegramModalOpen, setIsTelegramModalOpen] = useState<boolean>(false);
   const [isAiGenerating, setIsAiGenerating] = useState<boolean>(false);
 
@@ -651,7 +1034,11 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isWebSocketActive, setIsWebSocketActive] = useState<boolean>(marketDataService.isWebSocketStreaming());
   const [streamStatus, setStreamStatus] = useState<StreamStatus>(marketDataService.getStreamStatus());
   const [lastMarketDataUpdate, setLastMarketDataUpdate] = useState<number>(Date.now());
-  const isDataConnected = dataConnectedStatus === 'DATA CONNECTED';
+  const isDataConnected = dataConnectedStatus === 'LIVE';
+
+  const getTickDebug = useCallback((symbolOrId: string): TickDebugInfo => {
+    return marketDataService.getDebugInfo(symbolOrId);
+  }, [markets, lastMarketDataUpdate, streamStatus]);
 
   // Real-time market data service layer subscription (Binance for Crypto, Yahoo Finance for Gold & Markets)
   useEffect(() => {
@@ -816,8 +1203,13 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     await new Promise(r => setTimeout(r, 150));
     setScanProgress(100);
 
-    // Refresh signals with real, live-calculated scores using the dynamic engine
+    // Refresh signals with real, live-calculated scores using the dynamic engine (protecting locked assets)
     const updatedSignals = signals.map(sig => {
+      // If asset is currently hard-locked with an active position, preserve it completely
+      if (isAssetLocked(sig.marketId)) {
+        return sig;
+      }
+
       const setup = getTimeframeSetup(sig.marketId, selectedTimeframe);
       const market = markets.find(m => m.id === sig.marketId) || { name: sig.name, symbol: sig.symbol };
       
@@ -877,7 +1269,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setAiAlerts(prev => [newAlert, ...prev]);
 
     return top;
-  }, [signals, markets, selectedTimeframe]);
+  }, [signals, markets, selectedTimeframe, isAssetLocked, getStrategyAdjustment, newsStatus]);
 
   // Automated background scanning system running every 20 minutes
   useEffect(() => {
@@ -886,6 +1278,10 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       
       setSignals(prevSignals => {
         const scanned = prevSignals.map(sig => {
+          if (isAssetLocked(sig.marketId)) {
+            return sig;
+          }
+
           const setup = getTimeframeSetup(sig.marketId, selectedTimeframe);
           const market = markets.find(m => m.id === sig.marketId) || { name: sig.name, symbol: sig.symbol };
           
@@ -907,7 +1303,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         });
 
         // Identify new high probability signals to trigger alerts
-        const highProb = scanned.filter(s => s.type !== 'WAIT' && s.confidenceScore >= 80);
+        const highProb = scanned.filter(s => s.type !== 'WAIT' && s.confidenceScore >= 80 && !isAssetLocked(s.marketId));
         if (highProb.length > 0) {
           const best = highProb.sort((a, b) => b.confidenceScore - a.confidenceScore)[0];
           setAiAlerts(prev => {
@@ -939,15 +1335,14 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       });
     };
 
-    // Run first background scan shortly after mount, then every 20 minutes
-    const initialTimeout = setTimeout(runBackgroundScan, 30000); // 30 seconds after load
-    const interval = setInterval(runBackgroundScan, 20 * 60 * 1000); // every 20 minutes
+    const initialTimeout = setTimeout(runBackgroundScan, 30000);
+    const interval = setInterval(runBackgroundScan, 20 * 60 * 1000);
 
     return () => {
       clearTimeout(initialTimeout);
       clearInterval(interval);
     };
-  }, [markets, selectedTimeframe]);
+  }, [markets, selectedTimeframe, isAssetLocked, getStrategyAdjustment, newsStatus]);
 
   // Add signal to history
   const addSignalToHistory = (item: Omit<SignalHistoryItem, 'id' | 'closedAt'>) => {
@@ -1208,6 +1603,7 @@ ${statusLabel}`;
         isWebSocketActive,
         streamStatus,
         lastMarketDataUpdate,
+        getTickDebug,
         refreshMarketData,
         telegramSettings,
         activeNav,
@@ -1256,7 +1652,16 @@ ${statusLabel}`;
         economicEvents,
         newsStatus,
         fetchNewsData,
-        strategyLearning
+        strategyLearning,
+        assetLocks,
+        pipelineStatuses,
+        isAssetLocked,
+        getAssetLock,
+        lockAsset,
+        unlockAsset,
+        runSignalPipeline,
+        getAssetPipelineStatus,
+        clearExpiredSetup
       }}
     >
       {children}

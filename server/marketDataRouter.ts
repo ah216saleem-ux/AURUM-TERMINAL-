@@ -6,8 +6,12 @@ interface CachedData {
 }
 
 const memoryCache: Record<string, CachedData> = {};
-const CACHE_TTL_MS = 2500; // 2.5s TTL for quotes
+const CACHE_TTL_MS = 1000; // 1s TTL for batch quotes
 const CANDLE_CACHE_TTL_MS = 15000; // 15s TTL for candles
+
+// In-memory cache for Biquote quotes per symbol
+const biquoteSymbolCache: Record<string, { data: any; timestamp: number }> = {};
+const BIQUOTE_CACHE_TTL_MS = 1000;
 
 export interface AssetConfigItem {
   id: string;
@@ -135,43 +139,65 @@ export const ASSET_CONFIGS: AssetConfigItem[] = [
 
 // Fetch Biquote public quote for Gold Spot, Silver Spot & Forex pairs
 async function fetchBiquoteQuote(symbol: string = 'XAUUSD') {
-  try {
-    const res = await fetch(`https://biquote.io/api/${encodeURIComponent(symbol)}`, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
-    });
-    if (!res.ok) {
-      throw new Error(`Biquote status ${res.status}`);
-    }
-    const d = await res.json();
-    if (!d) return null;
-
-    const rawPrice = d.mid || d.bid || d.ask || d.last;
-    if (rawPrice == null || rawPrice === 0) return null;
-
-    const isJpyOrMetal = symbol.includes('JPY') || symbol.includes('XAU') || symbol.includes('XAG');
-    const decimals = isJpyOrMetal ? 2 : 4;
-
-    const price = +rawPrice.toFixed(decimals);
-    const changePercent = d.dayDiffPercent != null ? +d.dayDiffPercent.toFixed(2) : 0;
-    const change = +(price * (changePercent / 100)).toFixed(decimals);
-    const high24h = d.high ? +d.high.toFixed(decimals) : price;
-    const low24h = d.low ? +d.low.toFixed(decimals) : price;
-    const timestamp = d.timestamp ? new Date(d.timestamp).getTime() : Date.now();
-
-    return {
-      price,
-      change,
-      changePercent,
-      high24h,
-      low24h,
-      provider: 'BIQUOTE',
-      providerSymbol: symbol,
-      timestamp
-    };
-  } catch (err: any) {
-    console.warn(`[Biquote] Fetch failed for ${symbol}:`, err?.message || err);
-    return null;
+  const cached = biquoteSymbolCache[symbol];
+  const now = Date.now();
+  if (cached && now - cached.timestamp < BIQUOTE_CACHE_TTL_MS) {
+    return cached.data;
   }
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(`https://biquote.io/api/${encodeURIComponent(symbol)}`, {
+        headers: { 
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+          'Accept': 'application/json'
+        },
+        signal: AbortSignal.timeout(4000)
+      });
+      if (!res.ok) {
+        continue;
+      }
+      const d = await res.json();
+      if (!d) continue;
+
+      const rawPrice = d.mid || d.bid || d.ask || d.last;
+      if (rawPrice == null || rawPrice === 0) continue;
+
+      const isJpyOrMetal = symbol.includes('JPY') || symbol.includes('XAU') || symbol.includes('XAG');
+      const decimals = isJpyOrMetal ? 2 : 4;
+
+      const price = +rawPrice.toFixed(decimals);
+      const changePercent = d.dayDiffPercent != null ? +d.dayDiffPercent.toFixed(2) : 0;
+      const change = +(price * (changePercent / 100)).toFixed(decimals);
+      const high24h = d.high ? +d.high.toFixed(decimals) : price;
+      const low24h = d.low ? +d.low.toFixed(decimals) : price;
+      const timestamp = d.timestamp ? new Date(d.timestamp).getTime() : Date.now();
+
+      const quoteData = {
+        price,
+        change,
+        changePercent,
+        high24h,
+        low24h,
+        provider: 'BIQUOTE',
+        providerSymbol: symbol,
+        timestamp
+      };
+
+      biquoteSymbolCache[symbol] = { data: quoteData, timestamp: now };
+      return quoteData;
+    } catch {
+      if (attempt === 0) {
+        await new Promise(r => setTimeout(r, 200));
+      }
+    }
+  }
+
+  // Gracefully fallback to cached price if available, otherwise null
+  if (cached?.data) {
+    return cached.data;
+  }
+  return null;
 }
 
 // Fetch GoldAPI quote for precious metals (XAU, XAG) using x-access-token header
@@ -304,9 +330,11 @@ async function fetchTwelveDataQuote(symbol: string = 'WTI/USD') {
 // Fetch crypto ticker from Binance API
 async function fetchBinanceTicker(symbol: string = 'BTCUSDT') {
   try {
-    const res = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}`);
+    const res = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}`, {
+      signal: AbortSignal.timeout(4000)
+    });
     if (!res.ok) {
-      throw new Error(`Binance error status ${res.status}`);
+      return null;
     }
     const d = await res.json();
     const price = parseFloat(d.lastPrice);
@@ -333,8 +361,7 @@ async function fetchBinanceTicker(symbol: string = 'BTCUSDT') {
       providerSymbol: symbol,
       timestamp: Date.now()
     };
-  } catch (err: any) {
-    console.warn(`[Binance] Fetch failed for ${symbol}:`, err?.message || err);
+  } catch {
     return null;
   }
 }
@@ -345,15 +372,18 @@ async function fetchYahooQuote(symbol: string) {
     const encoded = encodeURIComponent(symbol);
     const res = await fetch(
       `https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=1d&range=2d`,
-      { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' } }
+      { 
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+        signal: AbortSignal.timeout(4500)
+      }
     );
     if (!res.ok) {
-      throw new Error(`Yahoo status ${res.status}`);
+      return null;
     }
     const d = await res.json();
     const meta = d.chart?.result?.[0]?.meta;
     if (!meta || meta.regularMarketPrice == null) {
-      throw new Error('Missing meta or regularMarketPrice');
+      return null;
     }
 
     const price = meta.regularMarketPrice;
@@ -376,8 +406,7 @@ async function fetchYahooQuote(symbol: string) {
       providerSymbol: symbol,
       timestamp: (meta.regularMarketTime ? meta.regularMarketTime * 1000 : Date.now())
     };
-  } catch (err: any) {
-    console.warn(`[YahooFinance] Fetch quote failed for ${symbol}:`, err?.message || err);
+  } catch {
     return null;
   }
 }
@@ -437,8 +466,7 @@ export async function fetchYahooCandles(symbol: string, interval: string = '1h',
     };
 
     return candles;
-  } catch (err: any) {
-    console.warn(`[YahooFinance] Failed to fetch candles for ${symbol}:`, err?.message || err);
+  } catch {
     return [];
   }
 }

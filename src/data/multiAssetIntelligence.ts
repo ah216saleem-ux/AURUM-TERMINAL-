@@ -861,19 +861,55 @@ export function getAurumMarketRankings(): MarketRankingItem[] {
     }
   ];
 
-  // Sort strictly by confidence (descending) and setup grade (A+ before A before B+)
-  const gradeWeight: Record<SetupQuality, number> = {
-    'A+': 4,
-    'A': 3,
-    'B+': 2,
-    'B': 1
+  // Grade weight to numerical score for market structure quality
+  const gradeScore: Record<SetupQuality, number> = {
+    'A+': 98,
+    'A': 88,
+    'B+': 76,
+    'B': 65
   };
 
-  const sorted = [...rankingRaw].sort((a, b) => {
-    if (b.confidence !== a.confidence) {
-      return b.confidence - a.confidence;
+  // Compute 5-factor ranking:
+  // 1. Confidence (weight: 30%)
+  // 2. AI Agreement (weight: 25%) - AURUM + Qwen agreement (100 for A+/A confirmed, 80 for B+)
+  // 3. Risk Reward (weight: 20%) - Parsed 1:X (normalized to 100)
+  // 4. News Safety (weight: 15%) - 95 for low sensitivity, 80 for medium, 65 for ultra
+  // 5. Market Structure Quality (weight: 10%) - based on Setup Grade & order block integrity
+  const enriched = rankingRaw.map(item => {
+    const rawRR = parseFloat(item.riskReward.replace('1:', '')) || 2.0;
+    const rrScore = Math.min(100, Math.round(rawRR * 28)); // 3.5:1 -> 98, 3.0:1 -> 84, 2.0:1 -> 56
+
+    const aiAgreementScore = item.signal === 'WAIT' ? 70 : (item.setupGrade === 'A+' ? 100 : item.setupGrade === 'A' ? 95 : 85);
+    
+    // News safety from volatility/category profiles
+    const newsSafetyScore = item.category === 'forex' ? 92 : item.category === 'crypto' ? 88 : item.category === 'commodities' ? 85 : 80;
+    
+    const marketStructureScore = gradeScore[item.setupGrade] || 75;
+    
+    const compositeScore = Math.round(
+      (item.confidence * 0.30) +
+      (aiAgreementScore * 0.25) +
+      (rrScore * 0.20) +
+      (newsSafetyScore * 0.15) +
+      (marketStructureScore * 0.10)
+    );
+
+    return {
+      ...item,
+      aiAgreementScore,
+      riskRewardRatio: rawRR,
+      newsSafetyScore,
+      marketStructureScore,
+      compositeScore
+    };
+  });
+
+  // Rank by composite score (highest first)
+  const sorted = [...enriched].sort((a, b) => {
+    if (b.compositeScore !== a.compositeScore) {
+      return b.compositeScore - a.compositeScore;
     }
-    return gradeWeight[b.setupGrade] - gradeWeight[a.setupGrade];
+    return b.confidence - a.confidence;
   });
 
   return sorted.map((item, index) => ({

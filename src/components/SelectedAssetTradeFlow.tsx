@@ -36,13 +36,16 @@ interface SelectedAssetTradeFlowProps {
 const ALL_TIMEFRAMES: Timeframe[] = ['1M', '5M', '15M', '30M', '1H', '4H', '1D', '1W'];
 
 export const SelectedAssetTradeFlow: React.FC<SelectedAssetTradeFlowProps> = ({ market: propMarket }) => {
-  const market: MarketItem = propMarket && propMarket.id ? propMarket : INITIAL_MARKETS[0];
   const { 
+    markets,
     tradingStyleMode, 
     isFavorite, 
     toggleWatchlist, 
     sendSignalToTelegram 
   } = useMarket();
+
+  const inputMarket: MarketItem = propMarket && propMarket.id ? propMarket : INITIAL_MARKETS[0];
+  const market: MarketItem = markets.find(m => m.id === inputMarket.id) || inputMarket;
 
   // Active selected timeframe - default based on style mode
   const defaultTf: Timeframe = tradingStyleMode === 'SCALPING' ? '5M' : tradingStyleMode === 'SWING' ? '4H' : '1H';

@@ -2,6 +2,7 @@ import React from 'react';
 import { Sparkles, Send, Radio, Zap, Bell, BookOpen, Activity } from 'lucide-react';
 import { SubtleGlobe } from './SubtleGlobe';
 import { useMarket } from '../context/MarketContext';
+import { ConnectionValidationCard } from './ConnectionValidationCard';
 
 export const MobileAppHeader: React.FC = () => {
   const { 
@@ -100,41 +101,10 @@ export const MobileAppHeader: React.FC = () => {
       {/* Subtle 3D Globe Animation (Compact & Interactive) */}
       <div className="relative mt-2 h-28 sm:h-32 w-full flex items-center justify-center">
         <SubtleGlobe />
-        {/* Subtle floating overlay badge with LIVE / RECONNECTING / FALLBACK status */}
-        <div className="absolute bottom-1 flex items-center gap-2 px-3 py-1 rounded-full bg-black/75 backdrop-blur-md border border-amber-500/30 text-[10px] font-mono-num text-zinc-300 shadow-lg">
-          <div className="flex items-center gap-1.5">
-            <span className={`w-2 h-2 rounded-full ${
-              streamStatus === 'LIVE' 
-                ? 'bg-cyan-400 animate-pulse' 
-                : streamStatus === 'RECONNECTING' 
-                ? 'bg-amber-400 animate-pulse' 
-                : 'bg-rose-400 animate-pulse'
-            }`} />
-            <span className={`font-bold tracking-wider uppercase ${
-              streamStatus === 'LIVE' 
-                ? 'text-cyan-400' 
-                : streamStatus === 'RECONNECTING' 
-                ? 'text-amber-400' 
-                : 'text-rose-400'
-            }`}>
-              {streamStatus}
-            </span>
-          </div>
-          <span className="text-zinc-600">•</span>
-          <span className="text-zinc-400">
-            {lastMarketDataUpdate 
-              ? `Synced ${new Date(lastMarketDataUpdate).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}` 
-              : 'Live'}
-          </span>
-          <button
-            onClick={() => refreshMarketData()}
-            className="ml-1 text-zinc-500 hover:text-amber-300 transition cursor-pointer"
-            title="Refresh Live Market Data"
-          >
-            <Radio className="w-2.5 h-2.5 text-amber-400" />
-          </button>
-        </div>
       </div>
+
+      {/* Live Market Price Connection Validation Card */}
+      <ConnectionValidationCard className="mt-2" />
     </div>
   );
 };

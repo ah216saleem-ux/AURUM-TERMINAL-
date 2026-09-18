@@ -10,13 +10,17 @@ import {
   Clock, 
   ShieldCheck,
   Zap,
-  Percent
+  Percent,
+  BarChart3,
+  History
 } from 'lucide-react';
 import { useMarket } from '../context/MarketContext';
 import { SignalHistoryItem } from '../types';
+import { PaperTradingDashboardView } from './PaperTradingDashboardView';
 
 export const SignalHistoryView: React.FC = () => {
   const { signalHistory, historyStats } = useMarket();
+  const [activeSubTab, setActiveSubTab] = useState<'PAPER_TRADING' | 'VERIFIED_SIGNALS'>('PAPER_TRADING');
   const [filterResult, setFilterResult] = useState<'ALL' | 'TP_HIT' | 'SL_HIT'>('ALL');
 
   const filteredSignals = useMemo(() => {
@@ -32,7 +36,38 @@ export const SignalHistoryView: React.FC = () => {
 
   return (
     <div className="space-y-3.5">
-      {/* Accuracy & Track Record Overview Banner */}
+      {/* Sub-tab Navigation */}
+      <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-neutral-950 border border-zinc-800 text-xs font-mono-num font-bold">
+        <button
+          onClick={() => setActiveSubTab('PAPER_TRADING')}
+          className={`py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 transition cursor-pointer text-center ${
+            activeSubTab === 'PAPER_TRADING'
+              ? 'bg-amber-500 text-black shadow-md shadow-amber-500/25'
+              : 'text-zinc-400 hover:text-white hover:bg-zinc-900/50'
+          }`}
+        >
+          <BarChart3 className="w-3.5 h-3.5" />
+          <span>Paper Trading Dashboard</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab('VERIFIED_SIGNALS')}
+          className={`py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 transition cursor-pointer text-center ${
+            activeSubTab === 'VERIFIED_SIGNALS'
+              ? 'bg-amber-500 text-black shadow-md shadow-amber-500/25'
+              : 'text-zinc-400 hover:text-white hover:bg-zinc-900/50'
+          }`}
+        >
+          <History className="w-3.5 h-3.5" />
+          <span>Verified Signals Track Record</span>
+        </button>
+      </div>
+
+      {activeSubTab === 'PAPER_TRADING' ? (
+        <PaperTradingDashboardView />
+      ) : (
+        <>
+          {/* Accuracy & Track Record Overview Banner */}
       <div className="p-4 rounded-2xl bg-gradient-to-br from-[#121522] via-[#0d0f18] to-[#08090d] border border-amber-500/30 shadow-lg space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -201,6 +236,8 @@ export const SignalHistoryView: React.FC = () => {
           );
         })}
       </div>
+        </>
+      )}
     </div>
   );
 };

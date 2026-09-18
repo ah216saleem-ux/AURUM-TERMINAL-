@@ -33,6 +33,8 @@ const INITIAL_SIGNALS: AiSignalRecord[] = [
     timeframe: '1H',
     tradingMode: 'INTRADAY',
     status: 'ACTIVE',
+    candleId: 'm30-candle-seed-01',
+    expiryTimestamp: new Date(Date.now() + 4 * 3600 * 1000).toISOString(),
     timestamp: new Date().toISOString()
   },
   {
@@ -50,6 +52,8 @@ const INITIAL_SIGNALS: AiSignalRecord[] = [
     timeframe: '15M',
     tradingMode: 'SCALPING',
     status: 'ACTIVE',
+    candleId: 'm30-candle-seed-02',
+    expiryTimestamp: new Date(Date.now() + 3 * 3600 * 1000).toISOString(),
     timestamp: new Date(Date.now() - 1800000).toISOString()
   },
   {
@@ -67,6 +71,8 @@ const INITIAL_SIGNALS: AiSignalRecord[] = [
     timeframe: '4H',
     tradingMode: 'SWING',
     status: 'ACTIVE',
+    candleId: 'm30-candle-seed-03',
+    expiryTimestamp: new Date(Date.now() + 6 * 3600 * 1000).toISOString(),
     timestamp: new Date(Date.now() - 3600000).toISOString()
   }
 ];
@@ -204,16 +210,81 @@ class DatabaseService {
     return this.signals.filter(s => s.status === 'ACTIVE');
   }
 
-  public saveSignal(signal: Omit<AiSignalRecord, 'id' | 'timestamp' | 'status'>): AiSignalRecord {
+  public hasActiveSignalForAsset(assetId: string): boolean {
+    return this.signals.some(s => s.assetId === assetId && s.status === 'ACTIVE');
+  }
+
+  public getActiveSignalForAsset(assetId: string): AiSignalRecord | null {
+    return this.signals.find(s => s.assetId === assetId && s.status === 'ACTIVE') || null;
+  }
+
+  public hasActiveSignalForCandle(assetId: string, candleId: string): boolean {
+    return this.signals.some(s => s.assetId === assetId && s.candleId === candleId && s.status === 'ACTIVE');
+  }
+
+  public saveSignal(signal: Omit<AiSignalRecord, 'id' | 'timestamp' | 'status' | 'candleId' | 'expiryTimestamp'> & { candleId?: string; expiryTimestamp?: string }): AiSignalRecord {
+    const assetId = signal.assetId;
+    const currentCandleId = signal.candleId || `m30-candle-${Math.floor(Date.now() / (30 * 60 * 1000))}`;
+
+    // Duplicate protection: prevent same asset or same candle duplicate signals while active
+    const existingActive = this.getActiveSignalForAsset(assetId);
+    if (existingActive) {
+      console.warn(`[DatabaseService] Active signal lock active for asset ${assetId}. Rejecting duplicate signal.`);
+      return existingActive;
+    }
+
+    if (this.hasActiveSignalForCandle(assetId, currentCandleId)) {
+      const candleMatch = this.signals.find(s => s.assetId === assetId && s.candleId === currentCandleId && s.status === 'ACTIVE');
+      if (candleMatch) return candleMatch;
+    }
+
     const newRecord: AiSignalRecord = {
       ...signal,
       id: `sig-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       status: 'ACTIVE',
+      candleId: currentCandleId,
+      expiryTimestamp: signal.expiryTimestamp || new Date(Date.now() + 4 * 3600 * 1000).toISOString(),
       timestamp: new Date().toISOString()
     };
     this.signals = [newRecord, ...this.signals];
     this.saveToStorage();
     return newRecord;
+  }
+
+  public updateSignalStatus(
+    signalId: string, 
+    status: 'ACTIVE' | 'TP HIT' | 'SL HIT' | 'EXPIRED' | 'CANCELLED' | 'CLOSED',
+    result?: 'TP1_HIT' | 'TP2_HIT' | 'TP3_HIT' | 'SL_HIT' | 'EXPIRED'
+  ): AiSignalRecord | null {
+    const idx = this.signals.findIndex(s => s.id === signalId);
+    if (idx === -1) return null;
+
+    const sig = this.signals[idx];
+    sig.status = status;
+    if (result) sig.result = result;
+    
+    this.saveToStorage();
+    return sig;
+  }
+
+  public unlockAssetSignal(
+    assetId: string,
+    status: 'TP HIT' | 'SL HIT' | 'EXPIRED' | 'CANCELLED',
+    exitPrice?: number
+  ): AiSignalRecord | null {
+    const activeSig = this.getActiveSignalForAsset(assetId);
+    if (!activeSig) return null;
+
+    let resultOutcome: 'TP1_HIT' | 'TP2_HIT' | 'TP3_HIT' | 'SL_HIT' | 'EXPIRED' = 'EXPIRED';
+    if (status === 'TP HIT') resultOutcome = 'TP1_HIT';
+    else if (status === 'SL HIT') resultOutcome = 'SL_HIT';
+    else if (status === 'EXPIRED') resultOutcome = 'EXPIRED';
+
+    if (exitPrice !== undefined && status !== 'CANCELLED') {
+      this.logSignalResult(activeSig.id, resultOutcome, exitPrice);
+    }
+
+    return this.updateSignalStatus(activeSig.id, status, resultOutcome);
   }
 
   // 2. SIGNAL RESULTS & OUTCOMES API

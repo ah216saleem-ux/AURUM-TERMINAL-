@@ -18,6 +18,7 @@ import { SignalDetailModal } from './components/SignalDetailModal';
 import { TelegramModal } from './components/TelegramModal';
 import { AiMarketScannerModal } from './components/AiMarketScannerModal';
 import { SignalHistoryView } from './components/SignalHistoryView';
+import { PaperTradingDashboardView } from './components/PaperTradingDashboardView';
 import { NewsIntelligenceView } from './components/NewsIntelligenceView';
 import { AiLearningBacktestView } from './components/AiLearningBacktestView';
 import { AiRiskControlView } from './components/AiRiskControlView';
@@ -28,6 +29,7 @@ import { RealDataIntegrationModal } from './components/RealDataIntegrationModal'
 import { UserDashboardModal } from './components/UserDashboardModal';
 import { QaMonitorModal } from './components/QaMonitorModal';
 import { SelectedAssetTradeFlow } from './components/SelectedAssetTradeFlow';
+import { ValidationMonitoringDashboardView } from './components/ValidationMonitoringDashboardView';
 import { BottomNavBar } from './components/BottomNavBar';
 import { MarketCategory, MarketItem } from './types';
 import { INITIAL_MARKETS } from './data/initialData';
@@ -45,7 +47,8 @@ import {
   Layers,
   Star,
   Bell,
-  BookOpen
+  BookOpen,
+  BarChart3
 } from 'lucide-react';
 
 function MainApp() {
@@ -66,7 +69,7 @@ function MainApp() {
   const [selectedAssetForSetup, setSelectedAssetForSetup] = useState<MarketItem | null>(null);
   const [selectedProfileAssetId, setSelectedProfileAssetId] = useState<string | null>(null);
   const [isScannerOpen, setIsScannerOpen] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'SIGNALS' | 'SCANNER' | 'NEWS' | 'RISK' | 'LEARNING' | 'HISTORY'>('DASHBOARD');
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'SIGNALS' | 'PAPER' | 'VALIDATION' | 'SCANNER' | 'NEWS' | 'RISK' | 'LEARNING' | 'HISTORY'>('DASHBOARD');
   const [categoryFilter, setCategoryFilter] = useState<MarketCategory | 'all'>('all');
 
   const [selectedAssetId, setSelectedAssetId] = useState<string>('xau-usd');
@@ -99,21 +102,24 @@ function MainApp() {
         {selectedAssetForSetup ? (
           /* SELECTED PAIR VIEW: DEDICATED TRADING VIEW FOR THE PAIR */
           <AssetDetailView
-            market={selectedAssetForSetup}
+            market={markets.find(m => m.id === selectedAssetForSetup.id) || selectedAssetForSetup}
             onBack={() => setSelectedAssetForSetup(null)}
             onSelectOtherMarket={(m) => {
-              setSelectedAssetForSetup(m);
-              setSelectedAssetId(m.id);
+              const liveM = markets.find(item => item.id === m.id) || m;
+              setSelectedAssetForSetup(liveM);
+              setSelectedAssetId(liveM.id);
             }}
           />
         ) : (
           /* MAIN TERMINAL WORKSPACE */
           <>
-            {/* 7 Core Navigation Tabs */}
+            {/* 9 Core Navigation Tabs */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-none text-[10.5px] font-mono-num font-bold">
               {[
                 { id: 'DASHBOARD', label: 'Dashboard', icon: Zap },
                 { id: 'SIGNALS', label: 'Signals', icon: Sparkles },
+                { id: 'PAPER', label: 'Paper Trading', icon: BarChart3 },
+                { id: 'VALIDATION', label: 'Validation & Health', icon: ShieldAlert },
                 { id: 'SCANNER', label: 'Scanner', icon: Radar },
                 { id: 'NEWS', label: 'News', icon: Newspaper },
                 { id: 'RISK', label: 'Risk Management', icon: ShieldCheck },
@@ -197,6 +203,12 @@ function MainApp() {
                   setSelectedAssetForSetup(market);
                 }}
               />
+            ) : activeTab === 'PAPER' ? (
+              /* PAPER TRADING TAB */
+              <PaperTradingDashboardView />
+            ) : activeTab === 'VALIDATION' ? (
+              /* VALIDATION & HEALTH MONITORING TAB */
+              <ValidationMonitoringDashboardView />
             ) : activeTab === 'NEWS' ? (
               /* NEWS TAB */
               <NewsIntelligenceView />

@@ -1,11 +1,9 @@
 /**
  * AURUM TERMINAL - UNIFIED MARKET DATA SERVICE LAYER
  * Multi-source architecture routing queries by asset class:
- * - Crypto (BTC/USD): Binance API (real-time price, 24h change, volume)
- * - Gold (XAU/USD): Yahoo Finance API (live price, daily change, OHLC candles)
- * - Commodities (Silver, Oil): Yahoo Finance API (COMEX/NYMEX futures)
- * - Indices (NASDAQ 100, S&P 500): Yahoo Finance API (CME/NASDAQ)
- * - Forex (EUR, GBP, JPY, AUD, CAD): Yahoo Finance API with Open Exchange Rates fallback
+ * - Gold (XAU/USD), Silver (XAG/USD), Forex (EUR, GBP, JPY, AUD, CAD): BIQUOTE Live API & WebSocket Feed
+ * - Crypto (BTC/USD): Binance Live Feed
+ * - Indices (NASDAQ 100, S&P 500) & Commodities (WTI Crude Oil): Yahoo Finance / CME Feed
  */
 
 import { MarketItem, Candle, Timeframe } from '../types';
@@ -15,136 +13,152 @@ export type ProviderType = 'BINANCE' | 'YAHOO_FINANCE' | 'OPEN_EXCHANGE' | 'BIQU
 export interface AssetProviderConfig {
   id: string;
   symbol: string;
+  providerSymbol: string;
   name: string;
   category: 'crypto' | 'commodities' | 'indices' | 'forex';
   primaryProvider: ProviderType;
-  providerSymbol: string;
   exchangeName: string;
   decimals: number;
 }
 
 export const ASSET_PROVIDER_CONFIGS: Record<string, AssetProviderConfig> = {
-  'btc-usd': {
-    id: 'btc-usd',
-    symbol: 'BTC/USD',
-    name: 'Bitcoin',
-    category: 'crypto',
-    primaryProvider: 'BINANCE',
-    providerSymbol: 'BTCUSDT',
-    exchangeName: 'Binance Live Ticker',
-    decimals: 2
-  },
   'xau-usd': {
     id: 'xau-usd',
     symbol: 'XAU/USD',
+    providerSymbol: 'XAUUSD',
     name: 'Gold Spot',
     category: 'commodities',
     primaryProvider: 'BIQUOTE',
-    providerSymbol: 'XAUUSD',
     exchangeName: 'Biquote Gold Spot Feed',
     decimals: 2
   },
   'xag-usd': {
     id: 'xag-usd',
     symbol: 'XAG/USD',
+    providerSymbol: 'XAGUSD',
     name: 'Silver',
     category: 'commodities',
     primaryProvider: 'BIQUOTE',
-    providerSymbol: 'XAGUSD',
     exchangeName: 'Biquote Silver Spot Feed',
-    decimals: 2
-  },
-  'crude-oil': {
-    id: 'crude-oil',
-    symbol: 'WTI Crude Oil',
-    name: 'WTI Crude Oil',
-    category: 'commodities',
-    primaryProvider: 'YAHOO_FINANCE',
-    providerSymbol: 'CL=F',
-    exchangeName: 'NYMEX Energy Feed',
-    decimals: 2
-  },
-  'nasdaq-100': {
-    id: 'nasdaq-100',
-    symbol: 'NASDAQ 100',
-    name: 'NASDAQ 100',
-    category: 'indices',
-    primaryProvider: 'YAHOO_FINANCE',
-    providerSymbol: '^NDX',
-    exchangeName: 'NASDAQ / CME Globex',
-    decimals: 2
-  },
-  'sp-500': {
-    id: 'sp-500',
-    symbol: 'S&P 500',
-    name: 'S&P 500',
-    category: 'indices',
-    primaryProvider: 'YAHOO_FINANCE',
-    providerSymbol: '^GSPC',
-    exchangeName: 'S&P / CME Globex',
     decimals: 2
   },
   'eur-usd': {
     id: 'eur-usd',
     symbol: 'EUR/USD',
+    providerSymbol: 'EURUSD',
     name: 'EUR/USD',
     category: 'forex',
     primaryProvider: 'BIQUOTE',
-    providerSymbol: 'EURUSD',
     exchangeName: 'Biquote Spot FX',
     decimals: 4
   },
   'gbp-usd': {
     id: 'gbp-usd',
     symbol: 'GBP/USD',
+    providerSymbol: 'GBPUSD',
     name: 'GBP/USD',
     category: 'forex',
     primaryProvider: 'BIQUOTE',
-    providerSymbol: 'GBPUSD',
     exchangeName: 'Biquote Spot FX',
     decimals: 4
   },
   'usd-jpy': {
     id: 'usd-jpy',
     symbol: 'USD/JPY',
+    providerSymbol: 'USDJPY',
     name: 'USD/JPY',
     category: 'forex',
     primaryProvider: 'BIQUOTE',
-    providerSymbol: 'USDJPY',
     exchangeName: 'Biquote Spot FX',
     decimals: 2
   },
   'aud-usd': {
     id: 'aud-usd',
     symbol: 'AUD/USD',
+    providerSymbol: 'AUDUSD',
     name: 'AUD/USD',
     category: 'forex',
     primaryProvider: 'BIQUOTE',
-    providerSymbol: 'AUDUSD',
     exchangeName: 'Biquote Spot FX',
     decimals: 4
   },
   'usd-cad': {
     id: 'usd-cad',
     symbol: 'USD/CAD',
+    providerSymbol: 'USDCAD',
     name: 'USD/CAD',
     category: 'forex',
     primaryProvider: 'BIQUOTE',
-    providerSymbol: 'USDCAD',
     exchangeName: 'Biquote Spot FX',
     decimals: 4
+  },
+  'sp-500': {
+    id: 'sp-500',
+    symbol: 'S&P 500',
+    providerSymbol: '^GSPC',
+    name: 'S&P 500',
+    category: 'indices',
+    primaryProvider: 'YAHOO_FINANCE',
+    exchangeName: 'S&P / CME Globex',
+    decimals: 2
+  },
+  'nasdaq-100': {
+    id: 'nasdaq-100',
+    symbol: 'NASDAQ 100',
+    providerSymbol: '^NDX',
+    name: 'NASDAQ 100',
+    category: 'indices',
+    primaryProvider: 'YAHOO_FINANCE',
+    exchangeName: 'NASDAQ / CME Globex',
+    decimals: 2
+  },
+  'btc-usd': {
+    id: 'btc-usd',
+    symbol: 'BTC/USD',
+    providerSymbol: 'BTCUSDT',
+    name: 'Bitcoin',
+    category: 'crypto',
+    primaryProvider: 'BINANCE',
+    exchangeName: 'Binance Live Ticker',
+    decimals: 2
+  },
+  'crude-oil': {
+    id: 'crude-oil',
+    symbol: 'WTI Crude Oil',
+    providerSymbol: 'CL=F',
+    name: 'WTI Crude Oil',
+    category: 'commodities',
+    primaryProvider: 'YAHOO_FINANCE',
+    exchangeName: 'NYMEX Energy Feed',
+    decimals: 2
   }
 };
 
-export type ConnectionStatus = 'DATA CONNECTED' | 'CONNECTING' | 'ERROR';
+export type ConnectionStatus = 'LIVE' | 'STALE' | 'CONNECTING' | 'RECONNECTING' | 'ERROR';
 
-export type StreamStatus = 'LIVE' | 'RECONNECTING' | 'FALLBACK';
+export type StreamStatus = 'LIVE' | 'STALE' | 'RECONNECTING' | 'FALLBACK';
+
+export interface TickDebugInfo {
+  symbol: string;
+  assetId: string;
+  lastTickTimestamp: number;
+  lastTickTimeFormatted: string;
+  previousPrice: number;
+  currentPrice: number;
+  priceDirection: 'up' | 'down' | 'flat';
+  messageReceived: 'YES' | 'NO';
+  totalTicksReceived: number;
+  ageSeconds: number;
+  source: string;
+  isLive: boolean;
+}
 
 export type MarketDataListener = (payload: {
   markets: Record<string, Partial<MarketItem>>;
   status: ConnectionStatus;
   lastUpdate: number;
   streamStatus: StreamStatus;
+  debugMap: Record<string, TickDebugInfo>;
 }) => void;
 
 class MarketDataService {
@@ -154,43 +168,134 @@ class MarketDataService {
   private listeners: Set<MarketDataListener> = new Set();
   private refreshIntervalTimer: any = null;
   private isFetching: boolean = false;
-  private failureCount: number = 0;
+  private totalMessagesReceived: number = 0;
+  private lastMessageTimestamp: number = 0;
+
+  // Tracking for live prices, previous prices, and ticks
+  public latestPrices: Record<string, number> = {
+    'xau-usd': 4358.50,
+    'xag-usd': 65.65,
+    'eur-usd': 1.1479,
+    'gbp-usd': 1.3358,
+    'usd-jpy': 156.20,
+    'aud-usd': 0.7114,
+    'usd-cad': 1.3991,
+    'sp-500': 7637.76,
+    'nasdaq-100': 29446.98,
+    'btc-usd': 76420.00,
+    'crude-oil': 100.86
+  };
+
+  public previousPrices: Record<string, number> = {
+    'xau-usd': 4358.50,
+    'xag-usd': 65.65,
+    'eur-usd': 1.1479,
+    'gbp-usd': 1.3358,
+    'usd-jpy': 156.20,
+    'aud-usd': 0.7114,
+    'usd-cad': 1.3991,
+    'sp-500': 7637.76,
+    'nasdaq-100': 29446.98,
+    'btc-usd': 76420.00,
+    'crude-oil': 100.86
+  };
+
+  public lastTickTimestamps: Record<string, number> = {};
+  public tickCounts: Record<string, number> = {};
+  public assetSources: Record<string, string> = {};
 
   // WebSocket Client support
   private ws: WebSocket | null = null;
   private wsConnected: boolean = false;
   private reconnectTimer: any = null;
-
-  public latestPrices: Record<string, number> = {
-    'btc-usd': 102450.00,
-    'xau-usd': 4302.50,
-    'xag-usd': 63.42,
-    'nasdaq-100': 28945.06,
-    'sp-500': 7551.81,
-    'crude-oil': 102.02,
-    'eur-usd': 1.1467,
-    'gbp-usd': 1.3381,
-    'usd-jpy': 155.98,
-    'aud-usd': 0.7088,
-    'usd-cad': 1.3992
-  };
+  private pingIntervalTimer: any = null;
 
   constructor() {
-    // Initial status
     this.status = 'CONNECTING';
     this.streamStatus = 'RECONNECTING';
   }
 
   public getStatus(): ConnectionStatus {
+    this.recalculateLiveStatus();
     return this.status;
   }
 
   public getStreamStatus(): StreamStatus {
+    this.recalculateLiveStatus();
     return this.streamStatus;
   }
 
   public isWebSocketStreaming(): boolean {
     return this.wsConnected;
+  }
+
+  public getTotalMessagesReceived(): number {
+    return this.totalMessagesReceived;
+  }
+
+  /**
+   * Recalculates LIVE vs STALE connection status strictly based on real received ticks
+   */
+  private recalculateLiveStatus() {
+    const now = Date.now();
+    const isRecent = this.lastMessageTimestamp > 0 && (now - this.lastMessageTimestamp) < 10000;
+    const hasTicks = this.totalMessagesReceived > 0;
+
+    if (this.wsConnected && hasTicks && isRecent) {
+      this.status = 'LIVE';
+      this.streamStatus = 'LIVE';
+    } else if (this.totalMessagesReceived === 0 || !isRecent) {
+      this.status = 'STALE';
+      this.streamStatus = 'STALE';
+    }
+  }
+
+  /**
+   * Generates debug metadata for a given symbol or assetId
+   */
+  public getDebugInfo(symbolOrId: string): TickDebugInfo {
+    const assetKey = Object.keys(ASSET_PROVIDER_CONFIGS).find(
+      key => key === symbolOrId || 
+             ASSET_PROVIDER_CONFIGS[key].symbol.toLowerCase().replace(/[^a-z0-9]/g, '') === symbolOrId.toLowerCase().replace(/[^a-z0-9]/g, '') ||
+             ASSET_PROVIDER_CONFIGS[key].providerSymbol.toLowerCase() === symbolOrId.toLowerCase()
+    ) || 'xau-usd';
+
+    const config = ASSET_PROVIDER_CONFIGS[assetKey];
+    const currPrice = this.latestPrices[assetKey] || 0;
+    const prevPrice = this.previousPrices[assetKey] || currPrice;
+    const lastTick = this.lastTickTimestamps[assetKey] || this.lastUpdateTimestamp || Date.now();
+    const count = this.tickCounts[assetKey] || 0;
+    const now = Date.now();
+    const ageSeconds = lastTick > 0 ? Math.max(0, Math.floor((now - lastTick) / 1000)) : 0;
+    const isLive = count > 0 && ageSeconds < 10;
+
+    const priceDirection: 'up' | 'down' | 'flat' = 
+      currPrice > prevPrice ? 'up' : currPrice < prevPrice ? 'down' : 'flat';
+
+    const formattedTime = lastTick > 0 ? new Date(lastTick).toLocaleTimeString([], { hour12: false }) : 'Waiting...';
+
+    return {
+      symbol: config?.providerSymbol || symbolOrId.toUpperCase(),
+      assetId: assetKey,
+      lastTickTimestamp: lastTick,
+      lastTickTimeFormatted: formattedTime,
+      previousPrice: prevPrice,
+      currentPrice: currPrice,
+      priceDirection,
+      messageReceived: count > 0 ? 'YES' : 'NO',
+      totalTicksReceived: count,
+      ageSeconds,
+      source: this.assetSources[assetKey] || config?.exchangeName || 'BIQUOTE Live Feed',
+      isLive
+    };
+  }
+
+  public getAllDebugInfo(): Record<string, TickDebugInfo> {
+    const result: Record<string, TickDebugInfo> = {};
+    for (const id of Object.keys(ASSET_PROVIDER_CONFIGS)) {
+      result[id] = this.getDebugInfo(id);
+    }
+    return result;
   }
 
   private connectWebSocket() {
@@ -203,71 +308,94 @@ class MarketDataService {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/api/streaming`;
 
-    // Actively trying to connect
     this.streamStatus = 'RECONNECTING';
-    this.notify({});
 
     try {
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
         this.wsConnected = true;
-        this.status = 'DATA CONNECTED';
-        this.streamStatus = 'LIVE';
-        this.lastUpdateTimestamp = Date.now();
-        this.failureCount = 0;
         if (this.reconnectTimer) {
           clearTimeout(this.reconnectTimer);
           this.reconnectTimer = null;
         }
-        
-        // Push initial status update immediately
-        this.notify({});
+
+        // Start ping heartbeat every 15s to keep connection alive
+        if (this.pingIntervalTimer) clearInterval(this.pingIntervalTimer);
+        this.pingIntervalTimer = setInterval(() => {
+          if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            try {
+              this.ws.send(JSON.stringify({ type: 'ping' }));
+            } catch (e) {}
+          }
+        }, 15000);
       };
 
       this.ws.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
+          const now = Date.now();
+          this.totalMessagesReceived++;
+          this.lastMessageTimestamp = now;
+
           if (payload.type === 'init' && payload.data) {
             const mapped: Record<string, Partial<MarketItem>> = {};
             for (const [id, val] of Object.entries(payload.data as Record<string, any>)) {
-              mapped[id] = {
-                price: val.price,
-                change: val.change,
-                changePercent: val.changePercent,
-                high24h: val.high24h,
-                low24h: val.low24h,
-                volume24h: val.volume24h,
-                lastTickTimestamp: val.timestamp || Date.now(),
-                bid: val.bid,
-                ask: val.ask
-              };
-              this.latestPrices[id] = val.price;
+              if (val && val.price != null) {
+                const oldPrice = this.latestPrices[id] || val.price;
+                this.previousPrices[id] = oldPrice;
+                this.latestPrices[id] = val.price;
+                this.lastTickTimestamps[id] = val.timestamp || now;
+                this.tickCounts[id] = (this.tickCounts[id] || 0) + 1;
+                if (val.source) this.assetSources[id] = val.source;
+
+                mapped[id] = {
+                  price: val.price,
+                  change: val.change,
+                  changePercent: val.changePercent,
+                  high24h: val.high24h,
+                  low24h: val.low24h,
+                  volume24h: val.volume24h,
+                  lastTickTimestamp: val.timestamp || now,
+                  bid: val.bid,
+                  ask: val.ask
+                };
+              }
             }
-            this.status = 'DATA CONNECTED';
+            this.status = 'LIVE';
             this.streamStatus = 'LIVE';
-            this.lastUpdateTimestamp = Date.now();
+            this.lastUpdateTimestamp = now;
             this.notify(mapped);
           } else if (payload.type === 'tick' && payload.data) {
             const val = payload.data;
-            const mapped: Record<string, Partial<MarketItem>> = {
-              [val.assetId]: {
-                price: val.price,
-                change: val.change,
-                changePercent: val.changePercent,
-                high24h: val.high24h,
-                low24h: val.low24h,
-                volume24h: val.volume24h,
-                lastTickTimestamp: val.timestamp || Date.now(),
-                bid: val.bid,
-                ask: val.ask
-              }
-            };
-            this.latestPrices[val.assetId] = val.price;
-            this.status = 'DATA CONNECTED';
-            this.streamStatus = 'LIVE';
-            this.lastUpdateTimestamp = Date.now();
-            this.notify(mapped);
+            const id = val.assetId;
+            if (id && val.price != null) {
+              const oldPrice = this.latestPrices[id] || val.price;
+              this.previousPrices[id] = val.previousPrice != null ? val.previousPrice : oldPrice;
+              this.latestPrices[id] = val.price;
+              this.lastTickTimestamps[id] = val.timestamp || now;
+              this.tickCounts[id] = (this.tickCounts[id] || 0) + 1;
+              if (val.source) this.assetSources[id] = val.source;
+
+              const mapped: Record<string, Partial<MarketItem>> = {
+                [id]: {
+                  price: val.price,
+                  change: val.change,
+                  changePercent: val.changePercent,
+                  high24h: val.high24h,
+                  low24h: val.low24h,
+                  volume24h: val.volume24h,
+                  lastTickTimestamp: val.timestamp || now,
+                  bid: val.bid,
+                  ask: val.ask
+                }
+              };
+
+              this.status = 'LIVE';
+              this.streamStatus = 'LIVE';
+              this.lastUpdateTimestamp = now;
+              this.notify(mapped);
+            }
           }
         } catch (e) {
           console.warn('[MarketDataService] Error parsing WebSocket frame:', e);
@@ -277,22 +405,24 @@ class MarketDataService {
       this.ws.onclose = () => {
         this.wsConnected = false;
         this.ws = null;
-        this.streamStatus = 'FALLBACK';
+        this.streamStatus = 'RECONNECTING';
+        if (this.pingIntervalTimer) clearInterval(this.pingIntervalTimer);
         this.triggerWSReconnect();
         this.notify({});
       };
 
       this.ws.onerror = (err) => {
-        console.warn('[MarketDataService] WebSocket connection alert (will fallback to REST polling):', err);
+        console.warn('[MarketDataService] WebSocket connection notification (reconnecting):', err);
         this.wsConnected = false;
         this.ws = null;
-        this.streamStatus = 'FALLBACK';
+        this.streamStatus = 'RECONNECTING';
+        if (this.pingIntervalTimer) clearInterval(this.pingIntervalTimer);
         this.triggerWSReconnect();
         this.notify({});
       };
     } catch (err) {
-      console.warn('[MarketDataService] Failed to establish WebSocket connection (falling back to REST):', err);
-      this.streamStatus = 'FALLBACK';
+      console.warn('[MarketDataService] WebSocket instantiation error:', err);
+      this.streamStatus = 'RECONNECTING';
       this.triggerWSReconnect();
       this.notify({});
     }
@@ -303,7 +433,7 @@ class MarketDataService {
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.connectWebSocket();
-    }, 5000);
+    }, 2000);
   }
 
   public disconnectWebSocket() {
@@ -314,10 +444,14 @@ class MarketDataService {
       this.ws = null;
     }
     this.wsConnected = false;
-    this.streamStatus = 'FALLBACK';
+    this.streamStatus = 'STALE';
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
+    }
+    if (this.pingIntervalTimer) {
+      clearInterval(this.pingIntervalTimer);
+      this.pingIntervalTimer = null;
     }
   }
 
@@ -333,13 +467,17 @@ class MarketDataService {
   }
 
   private notify(markets: Record<string, Partial<MarketItem>>) {
+    this.recalculateLiveStatus();
+    const debugMap = this.getAllDebugInfo();
+
     this.listeners.forEach(fn => {
       try {
         fn({
           markets,
           status: this.status,
           lastUpdate: this.lastUpdateTimestamp,
-          streamStatus: this.streamStatus
+          streamStatus: this.streamStatus,
+          debugMap
         });
       } catch (e) {
         console.error('[MarketDataService] Listener error:', e);
@@ -348,36 +486,47 @@ class MarketDataService {
   }
 
   /**
-   * Primary unified fetch orchestrator:
-   * 1. Attempts local high-speed backend route `/api/market-data/all`
-   * 2. Fallbacks directly to public Binance API and Open Exchange Rates in case of backend isolation
+   * Primary fallback REST poll if WebSocket is ever disconnected
    */
   public async fetchAllMarketPrices(): Promise<Record<string, Partial<MarketItem>>> {
     if (this.isFetching) return {};
     this.isFetching = true;
 
     try {
-      // 1. Try local API route
-      const res = await fetch('/api/market-data/all');
+      const res = await fetch('/api/market-data/all', {
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(4000)
+      });
       if (res.ok) {
         const payload = await res.json();
         if (payload && payload.data && Object.keys(payload.data).length > 0) {
-          this.status = 'DATA CONNECTED';
-          this.lastUpdateTimestamp = Date.now();
-          this.failureCount = 0;
+          const now = Date.now();
+          this.totalMessagesReceived++;
+          this.lastMessageTimestamp = now;
+          this.status = 'LIVE';
+          this.streamStatus = 'LIVE';
+          this.lastUpdateTimestamp = now;
 
           const mapped: Record<string, Partial<MarketItem>> = {};
           for (const [id, val] of Object.entries(payload.data as Record<string, any>)) {
-            mapped[id] = {
-              price: val.price,
-              change: val.change,
-              changePercent: val.changePercent,
-              high24h: val.high24h,
-              low24h: val.low24h,
-              volume24h: val.volume24h,
-              lastTickTimestamp: val.timestamp || Date.now()
-            };
-            this.latestPrices[id] = val.price;
+            if (val && val.price != null) {
+              const oldPrice = this.latestPrices[id] || val.price;
+              this.previousPrices[id] = oldPrice;
+              this.latestPrices[id] = val.price;
+              this.lastTickTimestamps[id] = val.timestamp || now;
+              this.tickCounts[id] = (this.tickCounts[id] || 0) + 1;
+              if (val.provider) this.assetSources[id] = val.provider;
+
+              mapped[id] = {
+                price: val.price,
+                change: val.change,
+                changePercent: val.changePercent,
+                high24h: val.high24h,
+                low24h: val.low24h,
+                volume24h: val.volume24h,
+                lastTickTimestamp: val.timestamp || now
+              };
+            }
           }
 
           this.notify(mapped);
@@ -385,122 +534,12 @@ class MarketDataService {
           return mapped;
         }
       }
-    } catch (err) {
-      // Local backend route unavailable, proceed to direct client fallback
-    }
-
-    // 2. Client-side direct fallback: Binance API directly for BTC/USD
-    const fallbackResults: Record<string, Partial<MarketItem>> = {};
-    try {
-      const btcRes = await fetch('https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT');
-      if (btcRes.ok) {
-        const btcData = await btcRes.json();
-        const price = parseFloat(btcData.lastPrice);
-        const change = parseFloat(btcData.priceChange);
-        const changePercent = parseFloat(btcData.priceChangePercent);
-        const quoteVol = parseFloat(btcData.quoteVolume);
-        const volume24h = '$' + (quoteVol / 1e9).toFixed(2) + 'B';
-
-        fallbackResults['btc-usd'] = {
-          price,
-          change,
-          changePercent,
-          high24h: parseFloat(btcData.highPrice),
-          low24h: parseFloat(btcData.lowPrice),
-          volume24h,
-          lastTickTimestamp: Date.now()
-        };
-        this.status = 'DATA CONNECTED';
-        this.lastUpdateTimestamp = Date.now();
-      }
-    } catch (err) {
-      console.warn('[MarketDataService] Direct Binance client fallback failed:', err);
-    }
-
-    // 2b. Client-side direct fallback: Biquote API for Gold, Silver & Forex pairs
-    const biquoteAssets = [
-      ['xau-usd', 'XAUUSD', 2],
-      ['xag-usd', 'XAGUSD', 2],
-      ['eur-usd', 'EURUSD', 4],
-      ['gbp-usd', 'GBPUSD', 4],
-      ['usd-jpy', 'USDJPY', 2],
-      ['aud-usd', 'AUDUSD', 4],
-      ['usd-cad', 'USDCAD', 4]
-    ] as const;
-
-    for (const [id, symbol, decimals] of biquoteAssets) {
-      try {
-        const biquoteRes = await fetch(`https://biquote.io/api/${symbol}`);
-        if (biquoteRes.ok) {
-          const d = await biquoteRes.json();
-          const rawPrice = d.mid || d.bid || d.ask || d.last;
-          if (rawPrice) {
-            const price = +rawPrice.toFixed(decimals);
-            const changePercent = d.dayDiffPercent != null ? +d.dayDiffPercent.toFixed(2) : 0;
-            fallbackResults[id] = {
-              price,
-              changePercent,
-              high24h: d.high ? +d.high.toFixed(decimals) : price,
-              low24h: d.low ? +d.low.toFixed(decimals) : price,
-              lastTickTimestamp: Date.now()
-            };
-            this.status = 'DATA CONNECTED';
-            this.lastUpdateTimestamp = Date.now();
-          }
-        }
-      } catch (err) {
-        console.warn(`[MarketDataService] Direct Biquote client fallback failed for ${symbol}:`, err);
-      }
-    }
-
-    // 3. Client-side direct fallback: Open Exchange Rates for Forex pairs
-    try {
-      const fxRes = await fetch('https://open.er-api.com/v6/latest/USD');
-      if (fxRes.ok) {
-        const fxData = await fxRes.json();
-        const rates = fxData.rates || {};
-
-        if (rates.EUR) {
-          const eurPrice = +(1 / rates.EUR).toFixed(4);
-          fallbackResults['eur-usd'] = { price: eurPrice, lastTickTimestamp: Date.now() };
-        }
-        if (rates.GBP) {
-          const gbpPrice = +(1 / rates.GBP).toFixed(4);
-          fallbackResults['gbp-usd'] = { price: gbpPrice, lastTickTimestamp: Date.now() };
-        }
-        if (rates.JPY) {
-          fallbackResults['usd-jpy'] = { price: +rates.JPY.toFixed(2), lastTickTimestamp: Date.now() };
-        }
-        if (rates.AUD) {
-          const audPrice = +(1 / rates.AUD).toFixed(4);
-          fallbackResults['aud-usd'] = { price: audPrice, lastTickTimestamp: Date.now() };
-        }
-        if (rates.CAD) {
-          fallbackResults['usd-cad'] = { price: +rates.CAD.toFixed(4), lastTickTimestamp: Date.now() };
-        }
-      }
-    } catch (err) {
-      console.warn('[MarketDataService] Direct FX client fallback failed:', err);
-    }
-
-    if (Object.keys(fallbackResults).length > 0) {
-      this.status = 'DATA CONNECTED';
-      this.lastUpdateTimestamp = Date.now();
-      for (const [id, val] of Object.entries(fallbackResults)) {
-        if (val.price != null) {
-          this.latestPrices[id] = val.price;
-        }
-      }
-      this.notify(fallbackResults);
-    } else {
-      this.failureCount++;
-      if (this.failureCount > 3) {
-        this.status = 'ERROR';
-      }
+    } catch {
+      // Endpoint fallback
     }
 
     this.isFetching = false;
-    return fallbackResults;
+    return {};
   }
 
   /**
@@ -536,25 +575,24 @@ class MarketDataService {
   }
 
   /**
-   * Start automatic polling refresh
+   * Start automatic streaming and refresh
    */
-  public startAutoRefresh(intervalMs: number = 4000) {
-    // Start WebSocket Live price streaming first
+  public startAutoRefresh(intervalMs: number = 3000) {
     this.connectWebSocket();
 
     if (this.refreshIntervalTimer) return;
     this.fetchAllMarketPrices();
     
     this.refreshIntervalTimer = setInterval(() => {
-      // Use polling ONLY as a fallback when WebSocket is offline
-      if (!this.wsConnected) {
+      // Use REST fetch as active sync / fallback
+      if (!this.wsConnected || (Date.now() - this.lastMessageTimestamp > 5000)) {
         this.fetchAllMarketPrices();
       }
     }, intervalMs);
   }
 
   /**
-   * Stop automatic polling refresh
+   * Stop automatic streaming
    */
   public stopAutoRefresh() {
     this.disconnectWebSocket();
