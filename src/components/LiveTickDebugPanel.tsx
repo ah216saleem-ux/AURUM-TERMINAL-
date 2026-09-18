@@ -118,14 +118,23 @@ export const LiveTickDebugPanel: React.FC<LiveTickDebugPanelProps> = ({
 
             {/* 2. Last Tick Timestamp */}
             <div className="space-y-0.5">
-              <div className="text-[9.5px] uppercase tracking-wider text-zinc-500 font-bold">
-                Last Tick:
+              <div className="text-[9.5px] uppercase tracking-wider text-zinc-500 font-bold flex items-center justify-between">
+                <span>Last Tick:</span>
+                {debug.totalTicksReceived > 0 && secondsAgo <= 3 && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse" />
+                )}
               </div>
               <div className="text-xs font-bold text-zinc-200">
-                {debug.lastTickTimeFormatted}
-                <span className="text-[10px] text-zinc-400 block font-normal">
-                  ({secondsAgo}s ago)
-                </span>
+                {debug.totalTicksReceived > 0 ? (
+                  <>
+                    <span className="font-mono text-zinc-100">{debug.lastTickTimeFormatted}</span>
+                    <span className={`text-[10px] block font-medium ${secondsAgo <= 3 ? 'text-emerald-400' : 'text-zinc-400'}`}>
+                      ({secondsAgo === 0 ? 'Just now' : `${secondsAgo}s ago`})
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-zinc-500 italic text-[11px]">Waiting for tick...</span>
+                )}
               </div>
             </div>
 

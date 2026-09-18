@@ -93,14 +93,21 @@ export const ConnectionValidationCard: React.FC<ConnectionValidationCardProps> =
 
         {/* Col 2: Last Tick Timestamp */}
         <div className="space-y-0.5 border-x border-zinc-900 px-2">
-          <div className="text-[9.5px] uppercase tracking-wider text-zinc-400 font-bold">
-            LAST TICK:
+          <div className="text-[9.5px] uppercase tracking-wider text-zinc-400 font-bold flex items-center justify-between">
+            <span>LAST TICK:</span>
+            {debug.totalTicksReceived > 0 && secondsAgo <= 3 && (
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-ping" />
+            )}
           </div>
           <div className="text-xs sm:text-sm font-black text-zinc-200">
-            {secondsAgo} {secondsAgo === 1 ? 'second' : 'seconds'} ago
+            {debug.totalTicksReceived > 0 
+              ? (secondsAgo === 0 ? 'Just now' : `${secondsAgo}s ago`) 
+              : 'Waiting for tick...'}
           </div>
-          <div className="text-[9px] text-zinc-500 truncate">
-            {debug.source || 'BIQUOTE FEED'}
+          <div className="text-[9px] text-zinc-400 flex items-center gap-1">
+            <span className="font-mono text-zinc-300 font-bold">{debug.lastTickTimeFormatted}</span>
+            <span className="text-zinc-600">•</span>
+            <span className="truncate text-zinc-500">{debug.source || 'BIQUOTE FEED'}</span>
           </div>
         </div>
 

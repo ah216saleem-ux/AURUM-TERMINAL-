@@ -342,7 +342,7 @@ async function pollBiquoteTicks() {
         const change = +(newPrice * (changePercent / 100)).toFixed(decimals);
         const high24h = d.high ? +d.high.toFixed(decimals) : (existing?.high24h || newPrice);
         const low24h = d.low ? +d.low.toFixed(decimals) : (existing?.low24h || newPrice);
-        const timestamp = d.timestamp ? new Date(d.timestamp).getTime() : Date.now();
+        const timestamp = Date.now();
 
         const bid = d.bid ? +d.bid.toFixed(decimals) : +(newPrice - 0.0001).toFixed(decimals);
         const ask = d.ask ? +d.ask.toFixed(decimals) : +(newPrice + 0.0001).toFixed(decimals);

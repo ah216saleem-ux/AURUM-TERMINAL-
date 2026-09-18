@@ -263,16 +263,18 @@ class MarketDataService {
     const config = ASSET_PROVIDER_CONFIGS[assetKey];
     const currPrice = this.latestPrices[assetKey] || 0;
     const prevPrice = this.previousPrices[assetKey] || currPrice;
-    const lastTick = this.lastTickTimestamps[assetKey] || this.lastUpdateTimestamp || Date.now();
+    const lastTick = this.lastTickTimestamps[assetKey] || 0;
     const count = this.tickCounts[assetKey] || 0;
     const now = Date.now();
     const ageSeconds = lastTick > 0 ? Math.max(0, Math.floor((now - lastTick) / 1000)) : 0;
-    const isLive = count > 0 && ageSeconds < 10;
+    const isLive = count > 0 && lastTick > 0 && ageSeconds < 10;
 
     const priceDirection: 'up' | 'down' | 'flat' = 
       currPrice > prevPrice ? 'up' : currPrice < prevPrice ? 'down' : 'flat';
 
-    const formattedTime = lastTick > 0 ? new Date(lastTick).toLocaleTimeString([], { hour12: false }) : 'Waiting...';
+    const formattedTime = lastTick > 0 
+      ? new Date(lastTick).toLocaleTimeString([], { hour12: false }) 
+      : 'Waiting for tick...';
 
     return {
       symbol: config?.providerSymbol || symbolOrId.toUpperCase(),
