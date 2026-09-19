@@ -52,8 +52,10 @@ import {
   Globe,
   User,
   LogOut,
-  Lock
+  Lock,
+  Compass
 } from 'lucide-react';
+import { GannIntradayEnginePanel } from './components/GannIntradayEnginePanel';
 import { InstitutionalLandingPage } from './components/InstitutionalLandingPage';
 import { SecureLoginPage } from './components/SecureLoginPage';
 import { AdminManagementPanel } from './components/AdminManagementPanel';
@@ -78,7 +80,7 @@ function MainApp() {
   const [selectedProfileAssetId, setSelectedProfileAssetId] = useState<string | null>(null);
   const [isScannerOpen, setIsScannerOpen] = useState<boolean>(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'SIGNALS' | 'PAPER' | 'VALIDATION' | 'SCANNER' | 'NEWS' | 'RISK' | 'LEARNING' | 'HISTORY'>('DASHBOARD');
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'SIGNALS' | 'GANN' | 'PAPER' | 'VALIDATION' | 'SCANNER' | 'NEWS' | 'RISK' | 'LEARNING' | 'HISTORY'>('DASHBOARD');
   const [categoryFilter, setCategoryFilter] = useState<MarketCategory | 'all'>('all');
   
   // Persistent Login & Direct Access Protection State
@@ -237,11 +239,12 @@ function MainApp() {
         ) : (
           /* MAIN TERMINAL WORKSPACE */
           <>
-            {/* 9 Core Navigation Tabs */}
+            {/* Core Navigation Tabs */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-none text-[10.5px] font-mono-num font-bold">
               {[
                 { id: 'DASHBOARD', label: 'Dashboard', icon: Zap, adminOnly: false },
                 { id: 'SIGNALS', label: 'Signals', icon: Sparkles, adminOnly: false },
+                { id: 'GANN', label: 'Gann Intraday', icon: Compass, adminOnly: false },
                 { id: 'PAPER', label: 'Paper Trading', icon: BarChart3, adminOnly: true },
                 { id: 'VALIDATION', label: 'Validation & Health', icon: ShieldAlert, adminOnly: true },
                 { id: 'SCANNER', label: 'Scanner', icon: Radar, adminOnly: false },
@@ -374,6 +377,16 @@ function MainApp() {
                   </div>
                 </div>
                 <AiSignalCenter />
+              </div>
+            ) : activeTab === 'GANN' ? (
+              /* GANN INTRADAY TIMING & PRICE ENGINE TAB */
+              <div className="space-y-4">
+                <GannIntradayEnginePanel
+                  onOpenAssetDetail={(assetId) => {
+                    const m = markets.find(item => item.id === assetId);
+                    if (m) setSelectedAssetForSetup(m);
+                  }}
+                />
               </div>
             ) : activeTab === 'SCANNER' ? (
               /* SCANNER TAB: AUTOMATED INLINE RADAR */

@@ -37,10 +37,10 @@ export const TRADING_STYLES: Record<TradingStyleMode, TradingStyleConfig> = {
     timeframes: ['15M', '30M', '1H', '4H'],
     primaryTimeframe: '1H',
     focus: [
-      'Trend direction',
-      'SMC confirmation',
-      'Breakout Retest',
-      'Intraday liquidity'
+      'Gann Timing & Price (Fan/Square/Box)',
+      'Trend direction (4H/1H/15M)',
+      'SMC confirmation & Order Blocks',
+      'Intraday Asian Liquidity Sweep'
     ],
     description: 'Standard session trading framework tracking London & NY liquidity, H1 Order Blocks, trend continuation, and key intraday retests.',
     strategyWeights: {

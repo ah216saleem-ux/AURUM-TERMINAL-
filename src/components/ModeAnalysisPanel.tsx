@@ -16,11 +16,13 @@ import {
   ArrowUpRight, 
   ArrowDownRight, 
   AlertTriangle,
-  Info
+  Info,
+  Compass
 } from 'lucide-react';
 import { TradingStyleMode, SignalType } from '../types';
 import { useMarket } from '../context/MarketContext';
 import { computeModeDecision, ModeDecisionResult } from '../data/modeDecisionEngine';
+import { gannIntradayEngine } from '../services/gannIntradayEngine';
 
 interface ModeAnalysisPanelProps {
   initialAssetId?: string;
@@ -56,6 +58,12 @@ export const ModeAnalysisPanel: React.FC<ModeAnalysisPanelProps> = ({
 
   // Compute decision result for the selected asset and active mode
   const decision: ModeDecisionResult = computeModeDecision(activeAssetId, tradingStyleMode);
+
+  // Compute Gann Intraday analysis for this asset
+  const livePrice = markets.find(m => m.id === activeAssetId)?.price;
+  const gannOpp = React.useMemo(() => {
+    return gannIntradayEngine.analyzeAsset(activeAssetId, livePrice);
+  }, [activeAssetId, livePrice]);
 
   // Signal color styling
   const signalBadgeConfig: Record<SignalType, {
@@ -348,6 +356,83 @@ export const ModeAnalysisPanel: React.FC<ModeAnalysisPanelProps> = ({
                   ))}
                 </div>
               </div>
+
+              {/* GANN INTRADAY TIMING & PRICE ENGINE (FAN / SQUARE / BOX) CONFLUENCE BLOCK */}
+              {decision.mode === 'INTRADAY' && (
+                <div className="p-3 rounded-xl bg-gradient-to-br from-[#101423] to-[#0a0d18] border border-amber-500/40 space-y-2 font-mono-num">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-white font-extrabold uppercase tracking-wider text-[11px] flex items-center gap-1.5 font-mono">
+                      <Compass className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Gann Intraday Engine (Institutional Confluence)</span>
+                    </span>
+                    <span className={`px-2 py-0.5 rounded text-[9.5px] font-bold border ${gannOpp.confluence.isConfluenceMet ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : 'bg-amber-500/20 text-amber-300 border-amber-500/40'}`}>
+                      {gannOpp.confluence.alignedToolsCount}/3 Tools Aligned
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                    {/* Fan */}
+                    <div className="p-2 rounded-lg bg-black/60 border border-zinc-800 space-y-0.5">
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-amber-400 font-bold">Gann Fan</span>
+                        <span className={gannOpp.confluence.fanAligned ? 'text-emerald-400' : 'text-zinc-500'}>
+                          {gannOpp.confluence.fanAligned ? '✓ Aligned' : 'Off'}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-zinc-200 font-bold">1x1: {gannOpp.fan.oneByOnePrice}</div>
+                      <div className="text-[9.5px] text-zinc-400 truncate">{gannOpp.fan.fanStructure}</div>
+                    </div>
+
+                    {/* Square of 9 */}
+                    <div className="p-2 rounded-lg bg-black/60 border border-zinc-800 space-y-0.5">
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-amber-400 font-bold">Square of 9</span>
+                        <span className={gannOpp.confluence.squareAligned ? 'text-emerald-400' : 'text-zinc-500'}>
+                          {gannOpp.confluence.squareAligned ? '✓ Aligned' : 'Off'}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-zinc-200 font-bold">Ref Open: {gannOpp.squareOf9.fixedReferencePrice}</div>
+                      <div className="text-[9.5px] text-zinc-400 truncate">180° Target: {gannOpp.squareOf9.targetZone.formattedPrice}</div>
+                    </div>
+
+                    {/* Gann Box */}
+                    <div className="p-2 rounded-lg bg-black/60 border border-zinc-800 space-y-0.5">
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-amber-400 font-bold">Gann Box</span>
+                        <span className={gannOpp.confluence.boxAligned ? 'text-emerald-400' : 'text-zinc-500'}>
+                          {gannOpp.confluence.boxAligned ? '✓ Aligned' : 'Off'}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-zinc-200 font-bold">Ratio: {gannOpp.box.nearestPriceRatio.ratio}</div>
+                      <div className="text-[9.5px] text-zinc-400 truncate">Time: {gannOpp.box.timeWindows[0]?.ratioLabel}</div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1 border-t border-zinc-800/80 text-[10.5px]">
+                    <span className="text-zinc-400">
+                      Confluence Checklist: <strong className="text-amber-300">{gannOpp.confirmationsAligned} Aligned</strong>
+                    </span>
+                    <span className="text-zinc-400">
+                      Opportunity State: <strong className={gannOpp.direction === 'BUY' ? 'text-emerald-400' : gannOpp.direction === 'SELL' ? 'text-rose-400' : 'text-amber-400'}>{gannOpp.direction}</strong>
+                    </span>
+                  </div>
+
+                  {/* Gann Time Cycle & Lunar Confirmation Strip */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-zinc-900 text-[10px] font-mono">
+                    <span className="text-zinc-400 flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-amber-400" />
+                      <span>Cycle: <strong className="text-amber-300">{gannOpp.timeCycles.primaryCycle.cycleName}</strong> ({gannOpp.timeCycles.timingWindow})</span>
+                    </span>
+                    <span className="text-zinc-400 flex items-center gap-1">
+                      <span>{gannOpp.lunarIntelligence.phaseSymbol}</span>
+                      <span>Lunar: <strong className="text-sky-300">{gannOpp.lunarIntelligence.phaseDisplayName}</strong></span>
+                      <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${gannOpp.lunarIntelligence.statusBadge === 'CONFIRMED' ? 'text-emerald-400 bg-emerald-500/10' : gannOpp.lunarIntelligence.statusBadge === 'IGNORED' ? 'text-rose-400 bg-rose-500/10' : 'text-zinc-400 bg-zinc-800'}`}>
+                        {gannOpp.lunarIntelligence.statusBadge}
+                      </span>
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {/* Signal Requirements & Execution Matrix */}
               <div className="p-3 rounded-xl bg-[#090b11] border border-amber-500/20 space-y-2 font-mono-num">
