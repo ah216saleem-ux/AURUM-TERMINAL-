@@ -1,0 +1,85 @@
+{
+  "entities": {
+    "users": {
+      "fields": {
+        "id": { "type": "string", "description": "Unique user ID" },
+        "username": { "type": "string", "description": "Login identifier" },
+        "password_hash": { "type": "string", "description": "Cryptographic hash of user password" },
+        "role": { "type": "string", "description": "ADMIN or USER" },
+        "name": { "type": "string", "description": "Display name" },
+        "email": { "type": "string", "description": "Email address" },
+        "account_tier": { "type": "string", "description": "INSTITUTIONAL_PRO, VIP_ELITE, etc." },
+        "created_at": { "type": "string", "description": "ISO timestamp" },
+        "last_login": { "type": "string", "description": "ISO timestamp of last authentication" },
+        "status": { "type": "string", "description": "ACTIVE, SUSPENDED, PENDING" }
+      }
+    },
+    "sessions": {
+      "fields": {
+        "user_id": { "type": "string", "description": "Associated user ID" },
+        "session_token": { "type": "string", "description": "Cryptographic session token" },
+        "created_at": { "type": "string", "description": "Creation timestamp" },
+        "expires_at": { "type": "number", "description": "Expiration epoch timestamp in ms" },
+        "active_status": { "type": "string", "description": "ACTIVE, EXPIRED, TERMINATED" },
+        "role": { "type": "string", "description": "ADMIN or USER" }
+      }
+    },
+    "paper_trades": {
+      "fields": {
+        "asset": { "type": "string", "description": "Asset symbol (e.g. XAU/USD)" },
+        "direction": { "type": "string", "description": "BUY or SELL" },
+        "entry": { "type": "number", "description": "Entry price" },
+        "stop_loss": { "type": "number", "description": "Stop loss price" },
+        "take_profit": { "type": "number", "description": "Take profit price" },
+        "result": { "type": "string", "description": "TP_HIT, SL_HIT, OPEN, CLOSED" },
+        "pnl": { "type": "number", "description": "Profit/Loss amount in R or USD" },
+        "timestamp": { "type": "string", "description": "Trade execution ISO timestamp" }
+      }
+    },
+    "ai_analysis_history": {
+      "fields": {
+        "asset": { "type": "string", "description": "Asset symbol" },
+        "aurum_decision": { "type": "string", "description": "Primary AI verdict" },
+        "second_opinion_decision": { "type": "string", "description": "Secondary AI verification" },
+        "confidence": { "type": "number", "description": "Confidence percentage" },
+        "reasoning": { "type": "string", "description": "Structured AI market thesis" },
+        "timestamp": { "type": "string", "description": "Analysis ISO timestamp" }
+      }
+    },
+    "news_intelligence_history": {
+      "fields": {
+        "event": { "type": "string", "description": "Macro economic event name" },
+        "impact": { "type": "string", "description": "HIGH, MEDIUM, LOW" },
+        "forecast": { "type": "string", "description": "Forecasted value" },
+        "actual": { "type": "string", "description": "Actual released value" },
+        "market_reaction": { "type": "string", "description": "Observed market movement" },
+        "timestamp": { "type": "string", "description": "Release ISO timestamp" }
+      }
+    },
+    "system_logs": {
+      "fields": {
+        "timestamp": { "type": "string", "description": "Log timestamp" },
+        "category": { "type": "string", "description": "AUTH, API, WEBSOCKET, AI, SYSTEM" },
+        "level": { "type": "string", "description": "INFO, WARN, ERROR, CRITICAL" },
+        "message": { "type": "string", "description": "Log summary message" },
+        "details": { "type": "string", "description": "Diagnostic metadata and stack trace" }
+      }
+    },
+    "system_health_metrics": {
+      "fields": {
+        "service_name": { "type": "string", "description": "Database, API, WebSocket, AI, Auth" },
+        "status": { "type": "string", "description": "CONNECTED, READY, ACTIVE, DEGRADED, OFFLINE" },
+        "latency_ms": { "type": "number", "description": "Response latency in milliseconds" },
+        "last_checked": { "type": "string", "description": "Last ping timestamp" }
+      }
+    },
+    "backup_snapshots": {
+      "fields": {
+        "snapshot_type": { "type": "string", "description": "FULL_DB, TRADE_HISTORY, CONFIG" },
+        "timestamp": { "type": "string", "description": "Backup generation timestamp" },
+        "record_count": { "type": "number", "description": "Total records included" },
+        "data_json": { "type": "string", "description": "Serialized backup payload" }
+      }
+    }
+  }
+}

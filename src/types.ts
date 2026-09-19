@@ -1193,7 +1193,7 @@ export interface PaperTradeRecord {
   qwenConfirmation: 'AGREED' | 'DISAGREED' | 'WAIT_REJECT';
   qwenDecision?: 'BUY' | 'SELL' | 'WAIT';
   newsRiskStatus: 'CLEAR' | 'BLOCKED' | 'WARNING';
-  result: 'TP HIT' | 'SL HIT' | 'ACTIVE' | 'CANCELLED';
+  result: 'TP HIT' | 'SL HIT' | 'ACTIVE' | 'CANCELLED' | 'TP1 HIT' | 'TP2 HIT' | 'EXPIRED';
   pnlR?: number;
   currentPrice?: number;
   closePrice?: number;
@@ -1247,6 +1247,63 @@ export interface DailyPaperReport {
   executiveSummary: string;
 }
 
+export interface StrategyPerformanceDetails {
+  strategyType: string;
+  totalTrades: number;
+  winRate: number;
+  avgPnlR: number;
+  bestAsset: string;
+  bestSession: string;
+  status?: string;
+}
+
+export interface AssetPerformanceDetails {
+  symbol: string;
+  totalTrades: number;
+  winRate: number;
+  avgPnlR: number;
+  signalFrequency?: number;
+  bestConditions?: string;
+}
+
+export interface TradeQualityDetails {
+  winningPatterns: {
+    pattern: string;
+    description: string;
+    efficiency: string;
+    count: number;
+  }[];
+  losingPatterns: {
+    pattern: string;
+    description: string;
+    hazardLevel: string;
+    count: number;
+  }[];
+  failureReasons: {
+    reason: string;
+    percentage: number;
+    description: string;
+    remedy: string;
+  }[];
+}
+
+export interface AiComparisonDetails {
+  aurumOnly: {
+    signals: number;
+    winRate: number;
+    avgR: number;
+    confidenceAccuracy: number;
+  };
+  dualConsensus: {
+    signals: number;
+    winRate: number;
+    avgR: number;
+    avoidedLosses: number;
+    rejectedSetups: number;
+    confidenceAccuracy: number;
+  };
+}
+
 export interface PaperTradeAnalytics {
   totalTrades: number;
   winRate: number;
@@ -1265,10 +1322,49 @@ export interface PaperTradeAnalytics {
     tradesSavedByQwen: number;
     extraAccuracyGained: number;
     accuracyBoost: number;
+    bothAgreeCount: number;
+    rejectedCount: number;
+    winRateDifference: number;
+    riskAvoidedR: number;
   };
   equityCurve: EquityPoint[];
   milestone50: ValidationMilestone;
   milestone100: ValidationMilestone;
+  strategyPerformance?: StrategyPerformanceDetails[];
+  assetPerformance?: AssetPerformanceDetails[];
+  tradeQuality?: TradeQualityDetails;
+  aiComparison?: AiComparisonDetails;
+  winningStreak?: number;
+  losingStreak?: number;
+  maxDrawdownR?: number;
+  avgLossSizeR?: number;
+  avgWinSizeR?: number;
+  riskConsistencyScore?: number;
+  slEfficiency?: number;
+  confidenceCalibration?: {
+    highConfWinRate: number;
+    highConfTrades: number;
+    highConfWins: number;
+    highConfLosses: number;
+    midConfWinRate: number;
+    midConfTrades: number;
+    lowConfWinRate: number;
+    lowConfTrades: number;
+  };
+  marketConditionsPerformance?: {
+    trendingWinRate: number;
+    trendingTrades: number;
+    trendingR: number;
+    rangeWinRate: number;
+    rangeTrades: number;
+    rangeR: number;
+    volatileWinRate: number;
+    volatileTrades: number;
+    volatileR: number;
+    lowVolWinRate: number;
+    lowVolTrades: number;
+    lowVolR: number;
+  };
 }
 
 

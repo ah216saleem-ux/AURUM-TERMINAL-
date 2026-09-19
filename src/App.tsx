@@ -56,6 +56,7 @@ import {
 } from 'lucide-react';
 import { InstitutionalLandingPage } from './components/InstitutionalLandingPage';
 import { SecureLoginPage } from './components/SecureLoginPage';
+import { AdminManagementPanel } from './components/AdminManagementPanel';
 import { userService } from './services/userService';
 
 function MainApp() {
@@ -76,6 +77,7 @@ function MainApp() {
   const [selectedAssetForSetup, setSelectedAssetForSetup] = useState<MarketItem | null>(null);
   const [selectedProfileAssetId, setSelectedProfileAssetId] = useState<string | null>(null);
   const [isScannerOpen, setIsScannerOpen] = useState<boolean>(false);
+  const [isAdminPanelOpen, setIsAdminPanelOpen] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'SIGNALS' | 'PAPER' | 'VALIDATION' | 'SCANNER' | 'NEWS' | 'RISK' | 'LEARNING' | 'HISTORY'>('DASHBOARD');
   const [categoryFilter, setCategoryFilter] = useState<MarketCategory | 'all'>('all');
   
@@ -170,6 +172,17 @@ function MainApp() {
 
         {/* User Profile, Role Badge & Logout Controls */}
         <div className="flex items-center gap-2">
+          {currentRole === 'ADMIN' && (
+            <button
+              onClick={() => setIsAdminPanelOpen(true)}
+              className="px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 transition flex items-center gap-1.5 font-bold cursor-pointer shadow-sm"
+              title="Open Production Database & Health Admin Panel"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden sm:inline">Prod Admin</span>
+            </button>
+          )}
+
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-700/80">
             <User className="w-3.5 h-3.5 text-amber-400" />
             <span className="text-zinc-200 font-bold hidden sm:inline">@{currentUser?.username || 'user'}</span>
@@ -479,6 +492,12 @@ function MainApp() {
 
       {/* QA & Monitoring Control Center Modal */}
       <QaMonitorModal />
+
+      {/* Production Admin Infrastructure & Health Panel Modal */}
+      <AdminManagementPanel
+        isOpen={isAdminPanelOpen}
+        onClose={() => setIsAdminPanelOpen(false)}
+      />
 
       {/* Sticky Bottom Navigation Bar */}
       <BottomNavBar

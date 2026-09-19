@@ -6,6 +6,7 @@ import {
   UserRole,
   TradingStyleMode 
 } from '../types';
+import { productionDbService } from './productionDbService';
 
 const AUTH_STORAGE_KEY = 'aurum_session_v2';
 const SETTINGS_STORAGE_KEY = 'aurum_user_settings_v1';
@@ -339,6 +340,22 @@ class UserService {
     this.saveSessionToStorage();
     this.notifyListeners();
 
+    // Sync session to production database
+    productionDbService.recordSession({
+      id: `sess_${now}_${Math.random().toString(36).substring(2, 6)}`,
+      user_id: userProfile.id,
+      username: userProfile.username,
+      session_token: secureToken,
+      created_at: new Date(now).toISOString(),
+      expires_at: expiresAt,
+      active_status: 'ACTIVE',
+      role,
+      user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : 'Server Client',
+      ip_simulated: '192.168.1.104'
+    }).catch(console.warn);
+
+    productionDbService.recordSystemLog('AUTH', 'INFO', `User logged in: ${userProfile.username} [${role}]`, 'Session stored in Firestore');
+
     return this.getSession();
   }
 
@@ -346,11 +363,16 @@ class UserService {
     if (this.currentSession.isAuthenticated) {
       console.warn('[UserService] Simulating 7-Day Session Expiration');
       this.sessionExpiredNotice = 'SESSION EXPIRED: Please login again.';
+      productionDbService.recordSystemLog('AUTH', 'WARN', `Session expired for user: ${this.currentSession.user?.username}`, 'Token invalidated');
       this.logout(true);
     }
   }
 
   public logout(isExpired: boolean = false) {
+    if (this.currentSession.user) {
+      productionDbService.recordSystemLog('AUTH', 'INFO', `User logged out: ${this.currentSession.user.username}`, isExpired ? 'Session expired' : 'Manual logout');
+    }
+
     this.currentSession = {
       user: null,
       token: null,

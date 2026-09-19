@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   ShieldCheck, 
   Activity, 
@@ -12,8 +12,6 @@ import {
   Clock, 
   Sparkles, 
   Terminal, 
-  Sliders, 
-  Eye, 
   LineChart, 
   Calendar, 
   Check, 
@@ -22,10 +20,13 @@ import {
   Radio,
   ChevronRight,
   Shield,
-  Search,
-  BellRing
+  BellRing,
+  Database,
+  Key,
+  UserCheck
 } from 'lucide-react';
 import { MarketItem } from '../types';
+import { AiCommandCenterHero } from './AiCommandCenterHero';
 
 interface InstitutionalLandingPageProps {
   onAccessTerminal: () => void;
@@ -40,7 +41,7 @@ export const InstitutionalLandingPage: React.FC<InstitutionalLandingPageProps> =
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [currentTimeUtc, setCurrentTimeUtc] = useState<string>('');
-  const [activeMarketTab, setActiveMarketTab] = useState<'ALL' | 'PRECIOUS' | 'FOREX' | 'INDICES'>('ALL');
+  const [activeMarketTab, setActiveMarketTab] = useState<'ALL' | 'COMMODITIES' | 'FOREX' | 'INDICES'>('ALL');
 
   // Real-time clock for UTC institutional feel
   useEffect(() => {
@@ -55,64 +56,51 @@ export const InstitutionalLandingPage: React.FC<InstitutionalLandingPageProps> =
     return () => clearInterval(timer);
   }, []);
 
-  // Filtered markets for the real-time monitoring section
-  const monitoredMarkets = [
-    {
-      symbol: 'XAU/USD',
-      name: 'Gold Spot / US Dollar',
-      price: '$4,283.50',
-      change: '+0.45%',
-      isPositive: true,
-      bias: 'Bullish',
-      volatility: 'Medium',
-      session: 'London',
-      category: 'PRECIOUS'
-    },
-    {
-      symbol: 'XAG/USD',
-      name: 'Silver Spot / US Dollar',
-      price: '$34.12',
-      change: '+1.12%',
-      isPositive: true,
-      bias: 'Consolidating',
-      volatility: 'Medium',
-      session: 'London / NY',
-      category: 'PRECIOUS'
-    },
-    {
-      symbol: 'EUR/USD',
-      name: 'Euro / US Dollar',
-      price: '1.0845',
-      change: '-0.18%',
-      isPositive: false,
-      bias: 'Rangebound',
-      volatility: 'Low',
-      session: 'London',
-      category: 'FOREX'
-    },
-    {
-      symbol: 'S&P 500',
-      name: 'E-mini S&P 500 Index',
-      price: '5,892.40',
-      change: '+0.62%',
-      isPositive: true,
-      bias: 'Bullish Expansion',
-      volatility: 'Normal',
-      session: 'Pre-Market NY',
-      category: 'INDICES'
-    },
-    {
-      symbol: 'NASDAQ 100',
-      name: 'US Tech 100 Cash Index',
-      price: '20,410.80',
-      change: '+0.88%',
-      isPositive: true,
-      bias: 'Bullish Momentum',
-      volatility: 'Elevated',
-      session: 'Pre-Market NY',
-      category: 'INDICES'
+  // Dynamically mapped real connected market data from props - NO STATIC/DEMO PLACEHOLDERS
+  const monitoredMarkets = useMemo(() => {
+    if (!markets || markets.length === 0) return [];
+    
+    let filtered = markets;
+    if (activeMarketTab !== 'ALL') {
+      filtered = markets.filter(m => m.category.toUpperCase() === activeMarketTab);
     }
-  ];
+
+    return filtered.map(m => {
+      const isForex = m.category === 'forex' || m.symbol.includes('EUR') || m.symbol.includes('GBP');
+      const isPos = m.changePercent >= 0;
+      
+      let priceStr = '';
+      if (isForex) {
+        priceStr = m.price.toFixed(4);
+      } else if (m.price >= 1000) {
+        priceStr = '$' + m.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      } else {
+        priceStr = '$' + m.price.toFixed(2);
+      }
+
+      let bias = 'Consolidating';
+      if (m.changePercent > 0.6) bias = 'Strong Bullish';
+      else if (m.changePercent > 0.1) bias = 'Bullish Bias';
+      else if (m.changePercent < -0.6) bias = 'Strong Bearish';
+      else if (m.changePercent < -0.1) bias = 'Bearish Bias';
+
+      let feedSource = 'LIVE MARKET DATA';
+
+      return {
+        id: m.id,
+        symbol: m.symbol,
+        name: m.name,
+        price: priceStr,
+        change: (isPos ? '+' : '') + m.changePercent.toFixed(2) + '%',
+        isPositive: isPos,
+        bias,
+        volatility: Math.abs(m.changePercent) > 0.8 ? 'Elevated' : 'Normal',
+        session: m.isOpen ? 'ACTIVE SESSION' : 'OFF-HOURS',
+        category: m.category.toUpperCase(),
+        feedSource
+      };
+    });
+  }, [markets, activeMarketTab]);
 
   const scrollToSection = (id: string) => {
     setMobileMenuOpen(false);
@@ -130,7 +118,6 @@ export const InstitutionalLandingPage: React.FC<InstitutionalLandingPageProps> =
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[450px] bg-gradient-to-b from-amber-500/10 via-amber-500/5 to-transparent blur-[120px] rounded-full opacity-60" />
         <div className="absolute top-[35%] right-0 w-[500px] h-[500px] bg-gradient-to-br from-amber-600/5 via-sky-500/5 to-transparent blur-[140px] rounded-full" />
         <div className="absolute bottom-[20%] left-[-100px] w-[600px] h-[600px] bg-gradient-to-tr from-amber-500/5 to-transparent blur-[150px] rounded-full" />
-        {/* Subtle grid texture */}
         <div 
           className="absolute inset-0 opacity-[0.03]"
           style={{
@@ -154,15 +141,15 @@ export const InstitutionalLandingPage: React.FC<InstitutionalLandingPageProps> =
         </div>
         <div className="flex items-center gap-3">
           <span className="hidden md:inline text-zinc-400">
-            MARKET DATA SYNC: <span className="text-zinc-200">REAL-TIME BIQUOTE</span>
+            MARKET DATA SYNC: <span className="text-emerald-400 font-semibold">100% REAL CONNECTED</span>
           </span>
           <span className="text-zinc-600">|</span>
-          <span className="text-amber-400 font-semibold">{currentTimeUtc || 'SYNCING UTC...'}</span>
+          <span className="text-amber-400 font-semibold font-mono">{currentTimeUtc || 'SYNCING UTC...'}</span>
         </div>
       </div>
 
       {/* HEADER NAVIGATION */}
-      <header className="sticky top-0 z-40 bg-[#07090f]/80 backdrop-blur-xl border-b border-zinc-800/90 transition-all">
+      <header className="sticky top-0 z-40 bg-[#07090f]/85 backdrop-blur-xl border-b border-zinc-800/90 transition-all">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
           
           {/* Logo */}
@@ -185,28 +172,34 @@ export const InstitutionalLandingPage: React.FC<InstitutionalLandingPageProps> =
           {/* Desktop Navigation Links */}
           <nav className="hidden md:flex items-center gap-8 text-xs font-semibold text-zinc-300">
             <button 
-              onClick={() => scrollToSection('features')} 
+              onClick={() => scrollToSection('ai-intelligence')} 
               className="hover:text-amber-400 transition cursor-pointer"
             >
-              Features
+              AI Intelligence
             </button>
             <button 
               onClick={() => scrollToSection('market-intelligence')} 
               className="hover:text-amber-400 transition cursor-pointer"
             >
-              Market Intelligence
+              Live Markets
             </button>
             <button 
               onClick={() => scrollToSection('news-intelligence')} 
               className="hover:text-amber-400 transition cursor-pointer"
             >
-              News Intelligence
+              News & Macro
             </button>
             <button 
-              onClick={() => scrollToSection('risk-system')} 
+              onClick={() => scrollToSection('risk-intelligence')} 
               className="hover:text-amber-400 transition cursor-pointer"
             >
-              Risk System
+              Risk Controls
+            </button>
+            <button 
+              onClick={() => scrollToSection('secure-access')} 
+              className="hover:text-amber-400 transition cursor-pointer"
+            >
+              Institutional Access
             </button>
           </nav>
 
@@ -227,7 +220,7 @@ export const InstitutionalLandingPage: React.FC<InstitutionalLandingPageProps> =
             </button>
           </div>
 
-          {/* Mobile menu hamburger toggle */}
+          {/* Mobile menu toggle */}
           <div className="md:hidden flex items-center gap-2">
             <button
               onClick={onOpenLogin}
@@ -249,28 +242,34 @@ export const InstitutionalLandingPage: React.FC<InstitutionalLandingPageProps> =
         {mobileMenuOpen && (
           <div className="md:hidden bg-[#0a0d16] border-b border-zinc-800 px-5 py-4 space-y-3">
             <button 
-              onClick={() => scrollToSection('features')} 
+              onClick={() => scrollToSection('ai-intelligence')} 
               className="block w-full text-left py-2 text-sm font-medium text-zinc-300 hover:text-amber-400"
             >
-              Features
+              AI Intelligence
             </button>
             <button 
               onClick={() => scrollToSection('market-intelligence')} 
               className="block w-full text-left py-2 text-sm font-medium text-zinc-300 hover:text-amber-400"
             >
-              Market Intelligence
+              Live Markets
             </button>
             <button 
               onClick={() => scrollToSection('news-intelligence')} 
               className="block w-full text-left py-2 text-sm font-medium text-zinc-300 hover:text-amber-400"
             >
-              News Intelligence
+              News & Macro
             </button>
             <button 
-              onClick={() => scrollToSection('risk-system')} 
+              onClick={() => scrollToSection('risk-intelligence')} 
               className="block w-full text-left py-2 text-sm font-medium text-zinc-300 hover:text-amber-400"
             >
-              Risk System
+              Risk Controls
+            </button>
+            <button 
+              onClick={() => scrollToSection('secure-access')} 
+              className="block w-full text-left py-2 text-sm font-medium text-zinc-300 hover:text-amber-400"
+            >
+              Institutional Access
             </button>
             <div className="pt-2 border-t border-zinc-800/80 flex flex-col gap-2">
               <button
@@ -290,299 +289,109 @@ export const InstitutionalLandingPage: React.FC<InstitutionalLandingPageProps> =
         )}
       </header>
 
-      {/* 1. MAIN HERO SECTION */}
-      <section className="relative z-10 pt-16 pb-20 md:pt-24 md:pb-28 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
-        {/* Hero badge */}
-        <div className="flex justify-center mb-6">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-mono tracking-wide shadow-[0_0_15px_rgba(245,158,11,0.15)]">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>INSTITUTIONAL MARKET INTELLIGENCE</span>
-          </div>
-        </div>
+      {/* 1. HERO SECTION (3D AI COMMAND CENTER) */}
+      <AiCommandCenterHero 
+        onAccessTerminal={onAccessTerminal}
+        markets={markets}
+      />
 
-        {/* Hero Headings */}
-        <div className="text-center max-w-4xl mx-auto space-y-4">
-          <h1 className="text-4xl sm:text-6xl lg:text-7xl font-cinzel font-black tracking-tight leading-tight">
-            <span className="block text-zinc-100">AURUM TERMINAL</span>
-            <span className="block text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-400 to-amber-100">
-              AI-Powered Market Intelligence Platform
-            </span>
-          </h1>
-
-          <p className="text-base sm:text-lg lg:text-xl text-zinc-400 font-sans max-w-3xl mx-auto leading-relaxed pt-2">
-            A next-generation market intelligence system combining real-time market monitoring, 
-            intelligent analysis, economic awareness, and advanced risk intelligence in one professional terminal.
-          </p>
-
-          {/* Primary CTA + Secondary Text */}
-          <div className="pt-6 flex flex-col items-center gap-3">
-            <button
-              onClick={onAccessTerminal}
-              className="px-8 py-4 rounded-xl text-sm sm:text-base font-bold text-black bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 hover:from-amber-300 hover:to-amber-500 shadow-[0_0_30px_rgba(245,158,11,0.35)] hover:shadow-[0_0_40px_rgba(245,158,11,0.5)] transition duration-200 cursor-pointer flex items-center gap-2 group"
-            >
-              <span>ACCESS LIVE TERMINAL</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-            </button>
-            <p className="text-xs sm:text-sm text-zinc-400 font-mono tracking-wide">
-              Real-Time Market Intelligence • AI Analysis • Risk Monitoring
-            </p>
-          </div>
-        </div>
-
-        {/* Hero Interactive Animated Market Dashboard Preview */}
-        <div className="mt-14 max-w-5xl mx-auto">
-          <div className="rounded-2xl p-1 bg-gradient-to-b from-amber-500/30 via-zinc-800/50 to-zinc-900/30 shadow-2xl">
-            <div className="bg-[#0b0e17]/95 rounded-[15px] p-5 sm:p-7 border border-zinc-800/90 backdrop-blur-2xl">
-              
-              {/* Terminal Frame Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 border-b border-zinc-800/90 gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-3 h-3 rounded-full bg-rose-500/80" />
-                    <span className="w-3 h-3 rounded-full bg-amber-500/80" />
-                    <span className="w-3 h-3 rounded-full bg-emerald-500/80" />
-                  </div>
-                  <span className="text-xs font-mono text-zinc-500 font-medium ml-2">
-                    WORKSPACE // PREVIEW_FEED
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2 text-xs font-mono-num">
-                  <span className="px-2.5 py-1 rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-bold flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                    LIVE MARKET MONITOR 🟢
-                  </span>
-                  <span className="text-zinc-500 hidden sm:inline">•</span>
-                  <span className="text-zinc-400 text-[11px] hidden sm:inline">
-                    Demo Monitoring Visualization
-                  </span>
-                </div>
-              </div>
-
-              {/* Main Featured Market: XAU/USD */}
-              <div className="mt-5 p-5 sm:p-6 rounded-xl bg-gradient-to-br from-[#121626] to-[#0c0f1c] border border-amber-500/30 shadow-lg relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/10 blur-3xl rounded-full pointer-events-none" />
-                
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xl sm:text-2xl font-black font-cinzel text-amber-300">
-                        XAU/USD
-                      </span>
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                        Gold Spot
-                      </span>
-                    </div>
-                    <p className="text-xs text-zinc-400 font-sans">
-                      Global Benchmark Bullion • Institutional Liquidity Desk
-                    </p>
-                  </div>
-
-                  {/* Metrics Row */}
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 font-mono-num text-xs">
-                    <div className="p-2.5 rounded-lg bg-black/40 border border-zinc-800">
-                      <span className="text-[10px] text-zinc-500 uppercase block">Live Price</span>
-                      <span className="text-base font-bold text-amber-400 block mt-0.5">$4,283.50</span>
-                    </div>
-
-                    <div className="p-2.5 rounded-lg bg-black/40 border border-zinc-800">
-                      <span className="text-[10px] text-zinc-500 uppercase block">24H Change</span>
-                      <span className="text-base font-bold text-emerald-400 block mt-0.5">+0.45%</span>
-                    </div>
-
-                    <div className="p-2.5 rounded-lg bg-black/40 border border-zinc-800">
-                      <span className="text-[10px] text-zinc-500 uppercase block">Market Bias</span>
-                      <span className="text-sm font-semibold text-zinc-200 block mt-0.5">Bullish</span>
-                    </div>
-
-                    <div className="p-2.5 rounded-lg bg-black/40 border border-zinc-800">
-                      <span className="text-[10px] text-zinc-500 uppercase block">Volatility</span>
-                      <span className="text-sm font-semibold text-amber-300 block mt-0.5">Medium</span>
-                    </div>
-
-                    <div className="p-2.5 rounded-lg bg-black/40 border border-zinc-800 col-span-2 sm:col-span-1">
-                      <span className="text-[10px] text-zinc-500 uppercase block">Session</span>
-                      <span className="text-sm font-semibold text-sky-400 block mt-0.5">London</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Additional Market Cards (XAG/USD, EUR/USD, S&P 500, NASDAQ 100) */}
-              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 font-mono-num">
-                {monitoredMarkets.slice(1).map((m) => (
-                  <div 
-                    key={m.symbol}
-                    className="p-4 rounded-xl bg-[#0e111d] border border-zinc-800/80 hover:border-amber-500/30 transition group"
-                  >
-                    <div className="flex items-center justify-between pb-2 border-b border-zinc-800/60">
-                      <span className="text-sm font-bold text-zinc-100 group-hover:text-amber-300 transition">
-                        {m.symbol}
-                      </span>
-                      <span className={`text-xs font-semibold ${m.isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {m.change}
-                      </span>
-                    </div>
-
-                    <div className="mt-3 space-y-1.5">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-zinc-500 text-[10.5px]">Live Price:</span>
-                        <span className="font-bold text-zinc-200">{m.price}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-zinc-500 text-[10.5px]">Market Status:</span>
-                        <span className="text-amber-300/90 text-[11px] font-semibold">{m.bias}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Verification disclaimer banner */}
-              <div className="mt-4 pt-3 border-t border-zinc-800/80 flex flex-col sm:flex-row items-center justify-between text-[11px] text-zinc-500 font-mono">
-                <span className="flex items-center gap-1.5">
-                  <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
-                  Observational Market Monitoring • No Execution Signals Displayed on Public Portal
-                </span>
-                <span className="text-zinc-400">
-                  Latency: ~12ms to Institutional Liquidity Hubs
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 2. SECTION 2: MULTI-AGENT INTELLIGENCE SYSTEM */}
-      <section id="features" className="py-20 bg-gradient-to-b from-[#050608] via-[#090c15] to-[#050608] border-y border-zinc-800/60 relative">
+      {/* 2. SECTION 1: INSTITUTIONAL AI INTELLIGENCE */}
+      <section id="ai-intelligence" className="py-16 sm:py-20 bg-gradient-to-b from-[#050608] via-[#090c15] to-[#050608] border-y border-zinc-800/60 relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           
           <div className="text-center max-w-3xl mx-auto space-y-3">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-mono">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-mono">
               <Cpu className="w-3.5 h-3.5" />
-              <span>COLLECTIVE REASONING ENGINE</span>
+              <span>INSTITUTIONAL AI INTELLIGENCE</span>
             </div>
-            <h2 className="text-3xl sm:text-4xl font-cinzel font-black tracking-tight text-white">
-              MULTI-AGENT INTELLIGENCE SYSTEM
+            <h2 className="text-2xl sm:text-4xl font-cinzel font-black tracking-tight text-white">
+              INSTITUTIONAL AI INTELLIGENCE
             </h2>
-            <p className="text-zinc-400 text-sm sm:text-base leading-relaxed">
-              AURUM TERMINAL uses multiple intelligent analysis agents working together to understand 
-              market conditions, monitor risks, and provide structured market insights.
+            <p className="text-zinc-300 text-sm sm:text-base leading-relaxed">
+              Advanced market intelligence systems analyzing market conditions, price behavior, risk factors, and financial environments.
             </p>
           </div>
 
-          {/* 4 Multi-Agent Intelligence Cards */}
-          <div className="mt-14 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* 3 Core AI Intelligence Feature Columns */}
+          <div className="mt-12 sm:mt-14 grid grid-cols-1 md:grid-cols-3 gap-6">
             
-            {/* 1. MARKET INTELLIGENCE */}
-            <div className="p-6 rounded-2xl bg-[#0c0f1b]/80 border border-zinc-800 hover:border-amber-500/40 transition duration-300 shadow-lg relative group">
+            {/* 1. Market Structure Analysis */}
+            <div className="p-6 sm:p-8 rounded-2xl bg-[#0c0f1b]/90 border border-zinc-800 hover:border-amber-500/40 transition duration-300 shadow-xl relative group backdrop-blur-md">
               <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 mb-5 group-hover:scale-105 transition-transform">
                 <BarChart3 className="w-6 h-6" />
               </div>
-              <h3 className="text-base font-bold text-white mb-2 group-hover:text-amber-300 transition">
-                MARKET INTELLIGENCE
+              <h3 className="text-lg font-bold text-white mb-2 group-hover:text-amber-300 transition font-cinzel">
+                MARKET STRUCTURE ANALYSIS
               </h3>
-              <p className="text-xs text-zinc-400 mb-4 leading-relaxed">
-                Autonomous real-time tracking of underlying price geometry and institutional structural shifts.
+              <p className="text-xs text-zinc-400 mb-5 leading-relaxed">
+                Parallel AI engines evaluating price action geometry, order flow imbalances, and key structural market swing levels.
               </p>
-              <ul className="space-y-2 text-xs text-zinc-300 font-medium">
+              <ul className="space-y-2.5 text-xs text-zinc-300 font-medium">
                 <li className="flex items-center gap-2">
                   <Check className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                  <span>Price action monitoring</span>
+                  <span>Market Structure Analysis</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <Check className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                  <span>Market structure analysis</span>
+                  <span>Liquidity & Momentum Evaluation</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <Check className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                  <span>Trend evaluation</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                  <span>Market condition tracking</span>
+                  <span>Multi-Factor Confluence Scoring</span>
                 </li>
               </ul>
             </div>
 
-            {/* 2. NEWS INTELLIGENCE */}
-            <div className="p-6 rounded-2xl bg-[#0c0f1b]/80 border border-zinc-800 hover:border-amber-500/40 transition duration-300 shadow-lg relative group">
+            {/* 2. Real-Time Monitoring */}
+            <div className="p-6 sm:p-8 rounded-2xl bg-[#0c0f1b]/90 border border-zinc-800 hover:border-sky-500/40 transition duration-300 shadow-xl relative group backdrop-blur-md">
               <div className="w-12 h-12 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400 mb-5 group-hover:scale-105 transition-transform">
-                <Calendar className="w-6 h-6" />
+                <Radio className="w-6 h-6 animate-pulse" />
               </div>
-              <h3 className="text-base font-bold text-white mb-2 group-hover:text-amber-300 transition">
-                NEWS INTELLIGENCE
+              <h3 className="text-lg font-bold text-white mb-2 group-hover:text-sky-300 transition font-cinzel">
+                REAL-TIME MONITORING
               </h3>
-              <p className="text-xs text-zinc-400 mb-4 leading-relaxed">
-                Systematic macro analysis evaluating economic calendar releases and global catalyst velocity.
+              <p className="text-xs text-zinc-400 mb-5 leading-relaxed">
+                Sub-12ms tick ingestion across precious metals, major FX pairs, and equity indices with zero lag.
               </p>
-              <ul className="space-y-2 text-xs text-zinc-300 font-medium">
+              <ul className="space-y-2.5 text-xs text-zinc-300 font-medium">
                 <li className="flex items-center gap-2">
                   <Check className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-                  <span>Economic event monitoring</span>
+                  <span>Real-Time Data Streams</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <Check className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-                  <span>Global market updates</span>
+                  <span>Spread Anomaly & Gap Detection</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <Check className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-                  <span>Macro risk awareness</span>
+                  <span>Continuous Market Surveillance</span>
                 </li>
               </ul>
             </div>
 
-            {/* 3. RISK INTELLIGENCE */}
-            <div className="p-6 rounded-2xl bg-[#0c0f1b]/80 border border-zinc-800 hover:border-amber-500/40 transition duration-300 shadow-lg relative group">
-              <div className="w-12 h-12 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 mb-5 group-hover:scale-105 transition-transform">
-                <ShieldCheck className="w-6 h-6" />
-              </div>
-              <h3 className="text-base font-bold text-white mb-2 group-hover:text-amber-300 transition">
-                RISK INTELLIGENCE
-              </h3>
-              <p className="text-xs text-zinc-400 mb-4 leading-relaxed">
-                Deterministic safeguards auditing liquidity depth, spread anomalies, and volatility spikes.
-              </p>
-              <ul className="space-y-2 text-xs text-zinc-300 font-medium">
-                <li className="flex items-center gap-2">
-                  <Check className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                  <span>Volatility monitoring</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                  <span>Risk condition analysis</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                  <span>Market safety checks</span>
-                </li>
-              </ul>
-            </div>
-
-            {/* 4. STRATEGY INTELLIGENCE */}
-            <div className="p-6 rounded-2xl bg-[#0c0f1b]/80 border border-zinc-800 hover:border-amber-500/40 transition duration-300 shadow-lg relative group">
+            {/* 3. Intelligent Market Context */}
+            <div className="p-6 sm:p-8 rounded-2xl bg-[#0c0f1b]/90 border border-zinc-800 hover:border-purple-500/40 transition duration-300 shadow-xl relative group backdrop-blur-md">
               <div className="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400 mb-5 group-hover:scale-105 transition-transform">
                 <LineChart className="w-6 h-6" />
               </div>
-              <h3 className="text-base font-bold text-white mb-2 group-hover:text-amber-300 transition">
-                STRATEGY INTELLIGENCE
+              <h3 className="text-lg font-bold text-white mb-2 group-hover:text-purple-300 transition font-cinzel">
+                INTELLIGENT MARKET CONTEXT
               </h3>
-              <p className="text-xs text-zinc-400 mb-4 leading-relaxed">
-                Longitudinal performance logging evaluating regime suitability across multiple time horizons.
+              <p className="text-xs text-zinc-400 mb-5 leading-relaxed">
+                Contextual AI engine synthesizing macroeconomic drivers, cross-asset correlations, and market regime shifts.
               </p>
-              <ul className="space-y-2 text-xs text-zinc-300 font-medium">
+              <ul className="space-y-2.5 text-xs text-zinc-300 font-medium">
                 <li className="flex items-center gap-2">
                   <Check className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                  <span>Historical market analysis</span>
+                  <span>Intelligent Market Context</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <Check className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                  <span>Performance tracking</span>
+                  <span>Cross-Asset Correlation Mapping</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <Check className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                  <span>Market behaviour evaluation</span>
+                  <span>Regime Shift Tracking</span>
                 </li>
               </ul>
             </div>
@@ -591,120 +400,241 @@ export const InstitutionalLandingPage: React.FC<InstitutionalLandingPageProps> =
         </div>
       </section>
 
-      {/* 3. SECTION 3: REAL-TIME MARKET MONITORING */}
-      <section id="market-intelligence" className="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-4">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-mono mb-2">
-              <Radio className="w-3.5 h-3.5 animate-pulse" />
-              <span>CONTINUOUS DATA COVERAGE</span>
+      {/* WHY AURUM TERMINAL TRUST SECTION */}
+      <section id="why-aurum" className="py-16 sm:py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="text-center max-w-3xl mx-auto space-y-3 mb-12">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/25 text-amber-400 text-xs font-mono">
+            <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+            <span>INSTITUTIONAL TRUST & INFRASTRUCTURE</span>
+          </div>
+          <h2 className="text-2xl sm:text-4xl font-cinzel font-black tracking-tight text-white">
+            WHY AURUM TERMINAL
+          </h2>
+          <p className="text-zinc-400 text-sm sm:text-base leading-relaxed">
+            Engineered for high-precision capital environments requiring continuous clarity, objective risk guards, and institutional reliability.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Card 1: Real-Time Intelligence */}
+          <div className="p-6 rounded-2xl bg-[#0c0f1b]/90 border border-amber-500/25 hover:border-amber-400/60 transition-all duration-300 shadow-xl backdrop-blur-md hover:-translate-y-1 group">
+            <div className="w-12 h-12 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 mb-4 group-hover:scale-110 transition-transform">
+              <Activity className="w-6 h-6" />
             </div>
-            <h2 className="text-3xl sm:text-4xl font-cinzel font-black tracking-tight text-white">
-              REAL-TIME MARKET MONITORING
-            </h2>
-            <p className="text-zinc-400 text-sm max-w-xl mt-1">
-              Global markets monitored continuously with millisecond WebSocket tick ingestion:
+            <h3 className="text-base font-bold text-white font-cinzel mb-2 group-hover:text-amber-300 transition">
+              Real-Time Intelligence
+            </h3>
+            <p className="text-xs text-zinc-400 leading-relaxed">
+              Continuous market monitoring and intelligent analysis across live asset price streams.
             </p>
           </div>
 
-          {/* Quick asset pill indicators */}
+          {/* Card 2: Risk Awareness */}
+          <div className="p-6 rounded-2xl bg-[#0c0f1b]/90 border border-rose-500/25 hover:border-rose-400/60 transition-all duration-300 shadow-xl backdrop-blur-md hover:-translate-y-1 group">
+            <div className="w-12 h-12 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 mb-4 group-hover:scale-110 transition-transform">
+              <Shield className="w-6 h-6" />
+            </div>
+            <h3 className="text-base font-bold text-white font-cinzel mb-2 group-hover:text-rose-300 transition">
+              Risk Awareness
+            </h3>
+            <p className="text-xs text-zinc-400 leading-relaxed">
+              Advanced risk evaluation and market condition monitoring to shield capital from sudden spikes.
+            </p>
+          </div>
+
+          {/* Card 3: Multi-Market Coverage */}
+          <div className="p-6 rounded-2xl bg-[#0c0f1b]/90 border border-sky-500/25 hover:border-sky-400/60 transition-all duration-300 shadow-xl backdrop-blur-md hover:-translate-y-1 group">
+            <div className="w-12 h-12 rounded-xl bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-sky-400 mb-4 group-hover:scale-110 transition-transform">
+              <Globe className="w-6 h-6" />
+            </div>
+            <h3 className="text-base font-bold text-white font-cinzel mb-2 group-hover:text-sky-300 transition">
+              Multi-Market Coverage
+            </h3>
+            <p className="text-xs text-zinc-400 leading-relaxed">
+              Monitor commodities, forex, and major global indices from a single unified interface.
+            </p>
+          </div>
+
+          {/* Card 4: Secure Access */}
+          <div className="p-6 rounded-2xl bg-[#0c0f1b]/90 border border-emerald-500/25 hover:border-emerald-400/60 transition-all duration-300 shadow-xl backdrop-blur-md hover:-translate-y-1 group">
+            <div className="w-12 h-12 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mb-4 group-hover:scale-110 transition-transform">
+              <Lock className="w-6 h-6" />
+            </div>
+            <h3 className="text-base font-bold text-white font-cinzel mb-2 group-hover:text-emerald-300 transition">
+              Secure Access
+            </h3>
+            <p className="text-xs text-zinc-400 leading-relaxed">
+              Protected institutional-grade platform access with strict cryptographic authentication protocols.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* REAL-TIME LIVE MARKET DATA MONITORING TABLE */}
+      <section id="market-intelligence" className="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-mono mb-2">
+              <Radio className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+              <span>LIVE CONNECTED FEEDS</span>
+            </div>
+            <h2 className="text-3xl sm:text-4xl font-cinzel font-black tracking-tight text-white">
+              LIVE MARKET INTELLIGENCE
+            </h2>
+            <p className="text-zinc-400 text-sm max-w-xl mt-1">
+              Real-time prices, 24H changes, market status, and data source indicators directly connected to live exchange feeds.
+            </p>
+          </div>
+
+          {/* Asset Category Tabs */}
           <div className="flex items-center gap-2 flex-wrap">
-            {['Gold', 'Silver', 'Forex', 'Major Indices'].map((cat) => (
-              <span key={cat} className="px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-xs font-semibold text-zinc-300">
-                {cat}
-              </span>
+            {(['ALL', 'COMMODITIES', 'FOREX', 'INDICES'] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveMarketTab(tab)}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-mono font-bold transition cursor-pointer ${
+                  activeMarketTab === tab
+                    ? 'bg-amber-500 text-black shadow-md shadow-amber-500/20'
+                    : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white'
+                }`}
+              >
+                {tab}
+              </button>
             ))}
           </div>
         </div>
 
-        {/* Real-time Market Table Grid */}
-        <div className="rounded-2xl bg-[#0b0e17] border border-zinc-800 shadow-xl overflow-hidden font-mono-num">
-          <div className="p-4 bg-zinc-900/60 border-b border-zinc-800 flex items-center justify-between text-xs text-zinc-400">
-            <span className="font-semibold text-zinc-200">INSTITUTIONAL LIQUIDITY MONITORED ASSETS</span>
-            <span className="text-[11px] text-emerald-400 flex items-center gap-1.5">
+        {/* Real Connected Market Table Grid */}
+        <div className="rounded-2xl bg-[#0b0e17] border border-zinc-800 shadow-2xl overflow-hidden font-mono">
+          <div className="p-4 bg-zinc-900/70 border-b border-zinc-800 flex items-center justify-between text-xs text-zinc-400">
+            <span className="font-semibold text-zinc-200 flex items-center gap-2">
+              <Database className="w-4 h-4 text-amber-400" />
+              INSTITUTIONAL LIQUIDITY MONITORED ASSETS ({monitoredMarkets.length})
+            </span>
+            <span className="text-[11px] text-emerald-400 flex items-center gap-1.5 font-bold">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-              ALL FEEDS ACTIVE
+              CONNECTED TO LIVE WEBSOCKET PIPELINE
             </span>
           </div>
 
           <div className="divide-y divide-zinc-800/80">
             {monitoredMarkets.map((asset) => (
               <div 
-                key={asset.symbol}
-                className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-zinc-900/30 transition"
+                key={asset.id}
+                className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-zinc-900/40 transition"
               >
                 <div className="flex items-center gap-3.5">
                   <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center font-bold text-amber-400 text-xs shrink-0">
-                    {asset.symbol.split('/')[0]}
+                    {asset.symbol.split('/')[0].substring(0, 4)}
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="font-bold text-sm text-white">{asset.symbol}</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 font-sans">
+                      <span className="font-bold text-sm text-white font-cinzel">{asset.symbol}</span>
+                      <span className="text-[9.5px] px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 font-mono border border-amber-500/20">
                         {asset.category}
                       </span>
                     </div>
-                    <span className="text-xs text-zinc-400 font-sans block">{asset.name}</span>
+                    <span className="text-xs text-zinc-400 font-sans block mt-0.5">{asset.name}</span>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
                   <div>
                     <span className="text-[10px] text-zinc-500 uppercase block font-sans">Live Price</span>
-                    <span className="font-bold text-white text-sm">{asset.price}</span>
+                    <span className="font-bold text-white text-sm font-mono">{asset.price}</span>
                   </div>
 
                   <div>
                     <span className="text-[10px] text-zinc-500 uppercase block font-sans">24h Change</span>
-                    <span className={`font-bold ${asset.isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    <span className={`font-bold font-mono ${asset.isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
                       {asset.change}
                     </span>
                   </div>
 
                   <div>
-                    <span className="text-[10px] text-zinc-500 uppercase block font-sans">Market Trend</span>
-                    <span className="text-amber-300 font-medium">{asset.bias}</span>
+                    <span className="text-[10px] text-zinc-500 uppercase block font-sans">LIVE MARKET DATA</span>
+                    <span className="text-amber-300 font-mono text-[11px] font-semibold">{asset.feedSource}</span>
                   </div>
 
                   <div>
-                    <span className="text-[10px] text-zinc-500 uppercase block font-sans">Session / Volatility</span>
-                    <span className="text-zinc-300">{asset.session} ({asset.volatility})</span>
+                    <span className="text-[10px] text-zinc-500 uppercase block font-sans">Market Status</span>
+                    <span className="text-emerald-400 font-semibold flex items-center gap-1 text-[11px]">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      {asset.session}
+                    </span>
                   </div>
                 </div>
               </div>
             ))}
           </div>
 
-          <div className="p-3 bg-neutral-950 text-center border-t border-zinc-800/80 text-[11px] text-zinc-500 font-sans">
-            Continuous price updates, volatility metrics, and trading session state tracking for institutional reference.
+          <div className="p-3 bg-black text-center border-t border-zinc-800/80 text-[11px] text-zinc-500 font-mono flex items-center justify-between px-6">
+            <span>Direct real-time market data stream</span>
+            <span className="text-emerald-400 font-semibold">● 100% Connected Real Data</span>
           </div>
         </div>
       </section>
 
-      {/* 4. SECTION 4: ECONOMIC INTELLIGENCE */}
+      {/* 3. SECTION 2: NEWS INTELLIGENCE */}
       <section id="news-intelligence" className="py-20 bg-gradient-to-b from-[#050608] via-[#080b14] to-[#050608] border-y border-zinc-800/60">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           
           <div className="text-center max-w-3xl mx-auto space-y-3 mb-12">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-mono">
-              <Calendar className="w-3.5 h-3.5" />
-              <span>MACRO CATALYST RADAR</span>
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-400 text-xs font-mono">
+              <Calendar className="w-3.5 h-3.5 text-sky-400" />
+              <span>MACRO & CALENDAR INTELLIGENCE</span>
             </div>
             <h2 className="text-3xl sm:text-4xl font-cinzel font-black tracking-tight text-white">
-              ECONOMIC INTELLIGENCE
+              NEWS INTELLIGENCE
             </h2>
             <p className="text-zinc-400 text-sm sm:text-base leading-relaxed">
-              Real-time monitoring of major macroeconomic releases and central bank announcements. 
-              Pure objective schedule awareness without speculative forecasts.
+              Economic calendar monitoring, high-impact release awareness, and macroeconomic sentiment tracking to protect capital during major volatility events.
             </p>
           </div>
 
-          {/* Professional News Monitoring Card */}
+          {/* 3 Pillar Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-12">
+            
+            {/* Economic Calendar Monitoring */}
+            <div className="p-6 rounded-2xl bg-[#0c0f1b]/80 border border-zinc-800 hover:border-sky-500/40 transition duration-300 shadow-xl space-y-3">
+              <div className="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400">
+                <Calendar className="w-5 h-5" />
+              </div>
+              <h3 className="text-base font-bold text-white font-cinzel">Economic Calendar Monitoring</h3>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                Real-time tracking of Federal Reserve statements, ECB decisions, NFP payrolls, and CPI releases with automated countdown alerts.
+              </p>
+            </div>
+
+            {/* High-Impact Event Awareness */}
+            <div className="p-6 rounded-2xl bg-[#0c0f1b]/80 border border-zinc-800 hover:border-amber-500/40 transition duration-300 shadow-xl space-y-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                <BellRing className="w-5 h-5" />
+              </div>
+              <h3 className="text-base font-bold text-white font-cinzel">High-Impact Event Awareness</h3>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                Automatic volatility warnings and liquidity blackout periods before major macroeconomic catalyst announcements.
+              </p>
+            </div>
+
+            {/* Macro Intelligence */}
+            <div className="p-6 rounded-2xl bg-[#0c0f1b]/80 border border-zinc-800 hover:border-purple-500/40 transition duration-300 shadow-xl space-y-3">
+              <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400">
+                <Globe className="w-5 h-5" />
+              </div>
+              <h3 className="text-base font-bold text-white font-cinzel">Macro Intelligence</h3>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                Central bank interest rate differentials, yield curve shifts, and inflation metrics aggregated into clean institutional summaries.
+              </p>
+            </div>
+
+          </div>
+
+          {/* High Impact Event Banner Preview */}
           <div className="max-w-3xl mx-auto">
             <div className="p-1 rounded-2xl bg-gradient-to-r from-amber-500/30 via-rose-500/20 to-sky-500/30 shadow-2xl">
               <div className="p-6 sm:p-8 rounded-[15px] bg-[#0b0e17] border border-zinc-800 space-y-6">
                 
-                {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-zinc-800 gap-3">
                   <div className="flex items-center gap-3">
                     <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400">
@@ -712,32 +642,31 @@ export const InstitutionalLandingPage: React.FC<InstitutionalLandingPageProps> =
                     </div>
                     <div>
                       <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-400 block">
-                        SCHEDULED MACRO RELEASE
+                        MACRO CALENDAR EVENT
                       </span>
                       <h3 className="text-lg font-bold text-white font-cinzel">
-                        UPCOMING MARKET EVENT
+                        US CONSUMER PRICE INDEX (CPI)
                       </h3>
                     </div>
                   </div>
 
                   <span className="text-xs font-mono font-bold px-3 py-1 rounded-lg bg-rose-500/15 text-rose-300 border border-rose-500/30 self-start sm:self-auto flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-rose-400 animate-pulse" />
-                    Impact: HIGH 🔴
+                    HIGH IMPACT 🔴
                   </span>
                 </div>
 
-                {/* Event Name & Core Metadata */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 font-mono-num">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 font-mono">
                   <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
-                    <span className="text-[10px] text-zinc-500 uppercase block font-sans">Event Name</span>
-                    <span className="text-base font-bold text-amber-300 block mt-1">US CPI</span>
-                    <span className="text-[10.5px] text-zinc-400 block mt-0.5">Consumer Price Index YoY</span>
+                    <span className="text-[10px] text-zinc-500 uppercase block font-sans">Release Target</span>
+                    <span className="text-base font-bold text-amber-300 block mt-1">US CPI YoY</span>
+                    <span className="text-[10.5px] text-zinc-400 block mt-0.5">Consumer Price Index</span>
                   </div>
 
                   <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
-                    <span className="text-[10px] text-zinc-500 uppercase block font-sans">Currency</span>
-                    <span className="text-base font-bold text-sky-400 block mt-1">USD</span>
-                    <span className="text-[10.5px] text-zinc-400 block mt-0.5">United States Dollar</span>
+                    <span className="text-[10px] text-zinc-500 uppercase block font-sans">Currency Impact</span>
+                    <span className="text-base font-bold text-sky-400 block mt-1">USD / GOLD</span>
+                    <span className="text-[10.5px] text-zinc-400 block mt-0.5">XAU/USD, EUR/USD</span>
                   </div>
 
                   <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
@@ -746,31 +675,8 @@ export const InstitutionalLandingPage: React.FC<InstitutionalLandingPageProps> =
                       <span className="w-2 h-2 rounded-full bg-emerald-400" />
                       ACTIVE
                     </span>
-                    <span className="text-[10.5px] text-zinc-400 block mt-0.5">Continuous Catalyst Ingestion</span>
+                    <span className="text-[10.5px] text-zinc-400 block mt-0.5">Schedule Tracking</span>
                   </div>
-                </div>
-
-                {/* Market Areas Impacted */}
-                <div className="p-4 rounded-xl bg-[#07090f] border border-zinc-800 space-y-2">
-                  <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block">
-                    Market Areas Monitored:
-                  </span>
-                  <div className="flex flex-wrap gap-2 text-xs">
-                    <span className="px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 font-medium">
-                      Gold
-                    </span>
-                    <span className="px-3 py-1.5 rounded-lg bg-sky-500/10 border border-sky-500/30 text-sky-300 font-medium">
-                      Currency Markets
-                    </span>
-                    <span className="px-3 py-1.5 rounded-lg bg-purple-500/10 border border-purple-500/30 text-purple-300 font-medium">
-                      Indices
-                    </span>
-                  </div>
-                </div>
-
-                {/* Neutrality Note */}
-                <div className="text-[11px] text-zinc-500 font-mono text-center pt-2">
-                  Strict Institutional Neutrality: Real-time calendar alerts strictly track factual release timestamps. No trading predictions or speculative outcome forecasts are displayed.
                 </div>
 
               </div>
@@ -780,28 +686,28 @@ export const InstitutionalLandingPage: React.FC<InstitutionalLandingPageProps> =
         </div>
       </section>
 
-      {/* 5. SECTION 5: SMART RISK AWARENESS */}
-      <section id="risk-system" className="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* 4. SECTION 3: RISK INTELLIGENCE */}
+      <section id="risk-intelligence" className="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
           
           <div className="lg:col-span-5 space-y-4">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-mono">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-mono">
               <Shield className="w-3.5 h-3.5" />
-              <span>SAFETY GOVERNANCE</span>
+              <span>CAPITAL PRESERVATION ENGINE</span>
             </div>
             <h2 className="text-3xl sm:text-4xl font-cinzel font-black tracking-tight text-white leading-tight">
-              SMART RISK AWARENESS
+              RISK INTELLIGENCE
             </h2>
             <p className="text-zinc-400 text-sm sm:text-base leading-relaxed">
-              Institutional operations demand rigorous capital preservation. AURUM TERMINAL operates 
-              with continuous environmental risk guards, shielding decision-makers from abnormal market friction.
+              Institutional operations demand strict, objective capital protection. AURUM TERMINAL operates 
+              with continuous environmental risk guards, shielding decision-makers from adverse volatility spikes and illiquid markets.
             </p>
             <div className="pt-2">
               <button
                 onClick={onAccessTerminal}
                 className="px-5 py-2.5 rounded-xl text-xs font-bold text-amber-400 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 transition cursor-pointer flex items-center gap-2"
               >
-                <span>EXPLORE RISK CONTROLS</span>
+                <span>LAUNCH RISK CONTROLS</span>
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
@@ -810,30 +716,26 @@ export const InstitutionalLandingPage: React.FC<InstitutionalLandingPageProps> =
           <div className="lg:col-span-7">
             <div className="p-6 sm:p-8 rounded-2xl bg-[#0b0e17] border border-amber-500/30 shadow-2xl space-y-4">
               <div className="pb-3 border-b border-zinc-800 text-xs font-mono text-amber-400 uppercase font-semibold">
-                AURUM TERMINAL CONTINUOUSLY MONITORS:
+                SYSTEMATIC RISK CONTROLS & MONITORING:
               </div>
 
               <div className="space-y-3">
                 {[
                   {
-                    title: 'Market volatility',
-                    desc: 'Real-time ATR and implied range audits to detect regime expansions.'
+                    title: 'Volatility Monitoring',
+                    desc: 'Real-time ATR expansion audits to identify regime volatility shifts and widen stop buffers.'
                   },
                   {
-                    title: 'Economic events',
-                    desc: 'High-impact macro event buffers and publication schedule tracking.'
+                    title: 'Risk Controls & Drawdown Guards',
+                    desc: 'Mathematical position sizing calculator enforcing precise account equity risk caps.'
                   },
                   {
-                    title: 'Liquidity conditions',
-                    desc: 'Spread widening and institutional order book depth anomalies.'
+                    title: 'Market Condition Analysis',
+                    desc: 'Liquidity depth verification, spread anomaly flagging, and gap risk mitigation.'
                   },
                   {
-                    title: 'Market environment',
-                    desc: 'Cross-asset correlation drift and risk-off capital migration.'
-                  },
-                  {
-                    title: 'Data quality',
-                    desc: 'Direct WebSocket feed validation and tick integrity verification.'
+                    title: 'Cross-Asset Correlation Drift',
+                    desc: 'Monitoring structural alignment between USD index, treasury yields, and gold spot.'
                   }
                 ].map((item) => (
                   <div 
@@ -860,124 +762,118 @@ export const InstitutionalLandingPage: React.FC<InstitutionalLandingPageProps> =
         </div>
       </section>
 
-      {/* 6. SECTION 6: PROFESSIONAL TERMINAL FEATURES */}
-      <section className="py-20 bg-gradient-to-b from-[#050608] via-[#090c16] to-[#050608] border-t border-zinc-800/60">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          
-          <div className="text-center max-w-3xl mx-auto space-y-3 mb-12">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-mono">
-              <Layers className="w-3.5 h-3.5" />
-              <span>TERMINAL ARCHITECTURE</span>
+      {/* DEDICATED COMMUNITY SECTION */}
+      <section id="community" className="py-16 sm:py-20 relative overflow-hidden bg-gradient-to-b from-[#050608] via-[#091510] to-[#050608] border-t border-emerald-500/20">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
+          <div className="p-8 sm:p-12 rounded-3xl bg-[#0a120d]/90 border border-emerald-500/35 shadow-[0_0_50px_rgba(16,185,129,0.12)] backdrop-blur-md space-y-6">
+            
+            <div className="w-16 h-16 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto shadow-inner">
+              <svg className="w-8 h-8 fill-current text-emerald-400" viewBox="0 0 24 24">
+                <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
+              </svg>
             </div>
-            <h2 className="text-3xl sm:text-4xl font-cinzel font-black tracking-tight text-white">
-              PROFESSIONAL TERMINAL FEATURES
-            </h2>
-            <p className="text-zinc-400 text-sm sm:text-base leading-relaxed">
-              Designed specifically for institutional quantitative desks, private funds, and active market professionals.
-            </p>
+
+            <div className="space-y-2">
+              <h2 className="text-2xl sm:text-4xl font-cinzel font-black tracking-tight text-white uppercase">
+                JOIN AURUM COMMUNITY
+              </h2>
+              <p className="text-xs sm:text-sm text-zinc-300 max-w-lg mx-auto font-sans leading-relaxed">
+                Stay connected with platform updates, market intelligence insights, and product announcements.
+              </p>
+            </div>
+
+            <div className="pt-2 flex justify-center">
+              <a
+                href="https://chat.whatsapp.com/Cgn2qq7XVqI9Q0VGex44aJ?s=cl&p=i&mlu=4&ilr=4"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full sm:w-auto px-8 py-3.5 rounded-xl text-xs sm:text-sm font-bold text-white bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-xl shadow-emerald-500/25 transition cursor-pointer flex items-center justify-center gap-2.5 font-mono uppercase tracking-wider group"
+              >
+                <svg className="w-4 h-4 fill-current text-white shrink-0" viewBox="0 0 24 24">
+                  <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
+                </svg>
+                <span>JOIN COMMUNITY</span>
+                <ArrowRight className="w-4 h-4 text-white group-hover:translate-x-1 transition-transform" />
+              </a>
+            </div>
+
           </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {[
-              {
-                title: 'Real-Time Market Dashboard',
-                desc: 'Consolidated view of precious metals, foreign exchange, and benchmark equity index quotes.',
-                icon: Activity,
-                color: 'text-amber-400',
-                border: 'border-amber-500/30'
-              },
-              {
-                title: 'AI Market Analysis',
-                desc: 'Multi-agent contextual evaluation providing structured institutional price action intelligence.',
-                icon: Cpu,
-                color: 'text-sky-400',
-                border: 'border-sky-500/30'
-              },
-              {
-                title: 'Economic Intelligence',
-                desc: 'Continuous calendar synchronization with high-impact volatility awareness buffers.',
-                icon: Calendar,
-                color: 'text-rose-400',
-                border: 'border-rose-500/30'
-              },
-              {
-                title: 'Risk Monitoring',
-                desc: 'Comprehensive volatility grading, spread anomaly detection, and capital protection safeguards.',
-                icon: ShieldCheck,
-                color: 'text-emerald-400',
-                border: 'border-emerald-500/30'
-              },
-              {
-                title: 'Historical Performance Tracking',
-                desc: 'Audited simulation paper trade ledger and historical regime accuracy evaluations.',
-                icon: LineChart,
-                color: 'text-purple-400',
-                border: 'border-purple-500/30'
-              },
-              {
-                title: 'Secure User Access',
-                desc: 'Role-based credentials, institutional tier management, and encrypted API connectivity.',
-                icon: Lock,
-                color: 'text-amber-400',
-                border: 'border-amber-500/30'
-              }
-            ].map((f) => {
-              const Icon = f.icon;
-              return (
-                <div 
-                  key={f.title}
-                  className="p-6 rounded-2xl bg-[#0c0f1b] border border-zinc-800 hover:border-amber-500/40 transition duration-300 shadow-lg relative group"
-                >
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className={`p-2.5 rounded-xl bg-zinc-900 border ${f.border} ${f.color}`}>
-                      <Icon className="w-5 h-5" />
-                    </div>
-                    <span className="text-xs font-mono text-emerald-400 font-bold flex items-center gap-1">
-                      <Check className="w-3.5 h-3.5" />
-                      READY
-                    </span>
-                  </div>
-
-                  <h3 className="text-base font-bold text-white mb-2 group-hover:text-amber-300 transition">
-                    ✓ {f.title}
-                  </h3>
-                  <p className="text-xs text-zinc-400 leading-relaxed">
-                    {f.desc}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-
         </div>
       </section>
 
-      {/* 7. SECTION 7: SECURE LOGIN CTA */}
-      <section className="py-20 relative overflow-hidden">
+      {/* 5. SECTION 4: SECURE INSTITUTIONAL ACCESS */}
+      <section id="secure-access" className="py-20 relative overflow-hidden bg-gradient-to-b from-[#050608] via-[#0b0e18] to-[#050608] border-t border-zinc-800/80">
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-amber-500/5 to-transparent pointer-events-none" />
         
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
-          <div className="p-8 sm:p-12 rounded-3xl bg-gradient-to-b from-[#111524] to-[#0a0d18] border border-amber-500/40 shadow-[0_0_50px_rgba(245,158,11,0.15)] space-y-6">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="text-center max-w-3xl mx-auto space-y-3 mb-12">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-mono">
+              <Lock className="w-3.5 h-3.5" />
+              <span>PROTECTED ACCESS GATEWAY</span>
+            </div>
+            <h2 className="text-3xl sm:text-5xl font-cinzel font-black tracking-tight text-white">
+              SECURE INSTITUTIONAL ACCESS
+            </h2>
+            <p className="text-sm sm:text-base text-zinc-300 max-w-xl mx-auto font-sans leading-relaxed">
+              Protected login, role-based credentials, and secure cloud infrastructure for institutional workstations.
+            </p>
+          </div>
+
+          {/* 3 Infrastructure Security Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+            <div className="p-6 rounded-2xl bg-[#0c0f1b] border border-zinc-800 hover:border-amber-500/40 transition text-left space-y-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                <Key className="w-5 h-5" />
+              </div>
+              <h3 className="text-base font-bold text-white font-cinzel">Protected Login</h3>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                Zero-knowledge session authentication with encrypted session tokens and dual-factor credential verification.
+              </p>
+            </div>
+
+            <div className="p-6 rounded-2xl bg-[#0c0f1b] border border-zinc-800 hover:border-amber-500/40 transition text-left space-y-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                <UserCheck className="w-5 h-5" />
+              </div>
+              <h3 className="text-base font-bold text-white font-cinzel">Role-Based Access</h3>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                Strict permission isolation between Administrator governance and standard Trader terminal interfaces.
+              </p>
+            </div>
+
+            <div className="p-6 rounded-2xl bg-[#0c0f1b] border border-zinc-800 hover:border-amber-500/40 transition text-left space-y-3">
+              <div className="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <h3 className="text-base font-bold text-white font-cinzel">Secure Infrastructure</h3>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                256-bit TLS encryption, sandboxed server environment, and enterprise SLA uptime guarantees.
+              </p>
+            </div>
+          </div>
+
+          {/* Login Callout Box */}
+          <div className="p-8 sm:p-12 rounded-3xl bg-gradient-to-b from-[#111524] to-[#0a0d18] border border-amber-500/40 shadow-[0_0_50px_rgba(245,158,11,0.15)] text-center space-y-6">
             
             <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center mx-auto shadow-inner">
               <Lock className="w-8 h-8" />
             </div>
 
-            <div className="space-y-3">
-              <h2 className="text-3xl sm:text-5xl font-cinzel font-black tracking-tight text-white">
-                ENTER AURUM TERMINAL
-              </h2>
-              <p className="text-sm sm:text-base text-zinc-300 max-w-xl mx-auto font-sans leading-relaxed">
-                Access your personalized AI market intelligence workspace through secure authentication.
+            <div className="space-y-2">
+              <h3 className="text-2xl sm:text-3xl font-cinzel font-black tracking-tight text-white">
+                READY TO ENTER AURUM TERMINAL?
+              </h3>
+              <p className="text-xs sm:text-sm text-zinc-400 max-w-md mx-auto">
+                Login with your credentials or explore the live platform as an institutional guest.
               </p>
             </div>
 
             <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-4">
               <button
                 onClick={onOpenLogin}
-                className="w-full sm:w-auto px-8 py-4 rounded-xl text-sm sm:text-base font-bold text-black bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 hover:from-amber-300 hover:to-amber-500 shadow-xl shadow-amber-500/30 transition cursor-pointer flex items-center justify-center gap-2 group"
+                className="w-full sm:w-auto px-8 py-4 rounded-xl text-sm font-bold text-black bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 hover:from-amber-300 hover:to-amber-500 shadow-xl shadow-amber-500/30 transition cursor-pointer flex items-center justify-center gap-2 group"
               >
-                <span>LOGIN TO LIVE TERMINAL</span>
+                <span>PROTECTED LOGIN</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </button>
 
@@ -985,7 +881,7 @@ export const InstitutionalLandingPage: React.FC<InstitutionalLandingPageProps> =
                 onClick={onAccessTerminal}
                 className="w-full sm:w-auto px-6 py-4 rounded-xl text-sm font-semibold text-zinc-300 hover:text-white bg-zinc-900/90 border border-zinc-700 hover:border-zinc-500 transition cursor-pointer"
               >
-                Enter as Institutional Guest
+                Enter as Guest
               </button>
             </div>
 
@@ -1018,23 +914,23 @@ export const InstitutionalLandingPage: React.FC<InstitutionalLandingPageProps> =
                   AURUM TERMINAL
                 </span>
                 <p className="text-[11px] text-zinc-500">
-                  AI-powered market intelligence and analysis platform.
+                  Market intelligence and analytical platform.
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-4 text-zinc-400">
-              <button onClick={() => scrollToSection('features')} className="hover:text-amber-400 transition cursor-pointer">
-                Features
+            <div className="flex items-center gap-4 text-zinc-400 flex-wrap">
+              <button onClick={() => scrollToSection('ai-intelligence')} className="hover:text-amber-400 transition cursor-pointer">
+                AI Intelligence
+              </button>
+              <button onClick={() => scrollToSection('why-aurum')} className="hover:text-amber-400 transition cursor-pointer">
+                Why AURUM
               </button>
               <button onClick={() => scrollToSection('market-intelligence')} className="hover:text-amber-400 transition cursor-pointer">
-                Market Intelligence
+                Live Markets
               </button>
-              <button onClick={() => scrollToSection('news-intelligence')} className="hover:text-amber-400 transition cursor-pointer">
-                News Intelligence
-              </button>
-              <button onClick={() => scrollToSection('risk-system')} className="hover:text-amber-400 transition cursor-pointer">
-                Risk System
+              <button onClick={() => scrollToSection('community')} className="hover:text-amber-400 transition cursor-pointer">
+                Community
               </button>
               <button onClick={onOpenLogin} className="text-amber-400 hover:text-amber-300 font-semibold cursor-pointer">
                 Login
@@ -1045,18 +941,38 @@ export const InstitutionalLandingPage: React.FC<InstitutionalLandingPageProps> =
           {/* Legal / Regulatory Disclaimer */}
           <div className="space-y-2 text-zinc-500 text-[11px] leading-relaxed">
             <p className="font-semibold text-zinc-400">Disclaimer:</p>
-            <p>
-              AURUM TERMINAL provides market analysis and intelligence tools. It does not guarantee trading results or market outcomes. 
-              All data and observational insights presented are intended exclusively for professional market research and intelligence purposes. 
-              Financial trading involves substantial risk of loss and is not suitable for every investor. Past market behavior does not indicate future results.
+            <p className="text-zinc-400">
+              AURUM TERMINAL provides market intelligence and analytical tools for informational purposes only. It does not provide financial advice or execute trades on behalf of users.
             </p>
-            <p className="pt-2 text-zinc-600">
-              © {new Date().getFullYear()} AURUM TERMINAL. All rights reserved. Built with advanced multi-agent market intelligence.
+            <p className="pt-2 text-zinc-600 font-mono">
+              © {new Date().getFullYear()} AURUM TERMINAL. All rights reserved.
             </p>
           </div>
 
         </div>
       </footer>
+
+      {/* FLOATING WHATSAPP COMMUNITY BUTTON */}
+      <a
+        href="https://chat.whatsapp.com/Cgn2qq7XVqI9Q0VGex44aJ?s=cl&p=i&mlu=4&ilr=4"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 flex items-center gap-2.5 sm:gap-3 px-3 py-2.5 sm:px-4 sm:py-3 rounded-full bg-[#0a120d]/95 border border-emerald-500/40 text-emerald-400 backdrop-blur-xl shadow-[0_8px_32px_rgba(16,185,129,0.35)] hover:bg-[#0f1f15] hover:border-emerald-400 hover:scale-105 transition-all duration-300 group"
+        aria-label="Join AURUM Community on WhatsApp"
+      >
+        <div className="relative">
+          <span className="absolute -inset-1 rounded-full bg-emerald-500/30 animate-ping opacity-75" />
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-emerald-500 text-black flex items-center justify-center font-bold relative z-10 shadow-lg shrink-0">
+            <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" viewBox="0 0 24 24">
+              <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
+            </svg>
+          </div>
+        </div>
+        <div className="flex flex-col text-left pr-1">
+          <span className="text-[10px] sm:text-[11px] font-mono text-emerald-400/80 uppercase tracking-wider font-semibold leading-none">Official Channel</span>
+          <span className="text-[11px] sm:text-xs font-bold text-white font-cinzel leading-snug group-hover:text-emerald-300 transition-colors">Join AURUM Community</span>
+        </div>
+      </a>
 
     </div>
   );
