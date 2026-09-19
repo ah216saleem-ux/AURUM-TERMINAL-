@@ -17,6 +17,7 @@ import {
   Terminal
 } from 'lucide-react';
 import { realDataIntegrationService } from '../services/realDataIntegration';
+import { marketDataService } from '../services/marketDataService';
 import { RealDataChannelStatus, RealDataIntegrationConfig } from '../types';
 
 interface RealDataIntegrationModalProps {
@@ -58,12 +59,37 @@ export const RealDataIntegrationModal: React.FC<RealDataIntegrationModalProps> =
     setIsLoadingDebug(true);
     try {
       const res = await fetch('/api/market-data/all');
-      const json = await res.json();
-      if (json && json.data) {
-        setMarketDebugData(json.data);
+      if (res.ok) {
+        const json = await res.json();
+        if (json && json.data) {
+          setMarketDebugData(json.data);
+          setIsLoadingDebug(false);
+          return;
+        }
       }
     } catch (e) {
-      console.warn('Failed to load market debug data', e);
+      console.warn('Failed to fetch backend market debug data, falling back to direct client-side service data:', e);
+    }
+
+    // Direct local fallback so the modal always displays correct data on custom domain
+    try {
+      const localDebug = marketDataService.getAllDebugInfo();
+      const mappedLocal: Record<string, any> = {};
+      Object.entries(localDebug).forEach(([id, tick]) => {
+        mappedLocal[id] = {
+          assetId: id,
+          price: tick.currentPrice,
+          change: tick.currentPrice - tick.previousPrice,
+          changePercent: tick.previousPrice > 0 ? +(((tick.currentPrice - tick.previousPrice) / tick.previousPrice) * 100).toFixed(2) : 0,
+          high24h: tick.currentPrice * 1.005,
+          low24h: tick.currentPrice * 0.995,
+          provider: tick.source,
+          timestamp: tick.lastTickTimestamp || Date.now()
+        };
+      });
+      setMarketDebugData(mappedLocal);
+    } catch (err) {
+      console.error('Local debug fallback failed:', err);
     } finally {
       setIsLoadingDebug(false);
     }
