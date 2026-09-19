@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useMarket } from '../context/MarketContext';
 import { userService } from '../services/userService';
+import { LiveMarketConnectionIndicator } from './LiveMarketConnectionIndicator';
 
 export const Header: React.FC = () => {
   const { 
@@ -94,20 +95,13 @@ export const Header: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 text-zinc-300">
             <Clock className="w-3 h-3 text-amber-400" />
             <span>{currentTimeUTC}</span>
           </div>
           <span className="text-zinc-700">•</span>
-          <button
-            onClick={() => setIsRealDataModalOpen(true)}
-            className="flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 transition cursor-pointer font-bold"
-            title="Open Real Data Integration Architecture Gateway"
-          >
-            <Radio className="w-3 h-3 text-emerald-400 animate-pulse" />
-            <span>REAL-TIME STREAMING</span>
-          </button>
+          <LiveMarketConnectionIndicator compact={true} />
         </div>
       </div>
 

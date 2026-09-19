@@ -34,6 +34,8 @@ import {
   GANN_ASSET_PROFILES 
 } from '../services/gannIntradayEngine';
 import { GannIntradayOpportunity } from '../types/gannTypes';
+import { GannPerformanceDashboardView } from './GannPerformanceDashboardView';
+import { gannValidationService } from '../services/gannValidationService';
 
 interface GannIntradayEnginePanelProps {
   initialAssetId?: string;
@@ -53,8 +55,8 @@ export const GannIntradayEnginePanel: React.FC<GannIntradayEnginePanelProps> = (
       : 'xau-usd'
   );
 
-  // Active sub-tool tab: ALL, FAN, SQUARE, BOX, CHECKLIST, TIME_CYCLES, MANAGEMENT
-  const [activeSubTab, setActiveSubTab] = useState<'OVERVIEW' | 'CHECKLIST' | 'FAN' | 'SQUARE' | 'BOX' | 'TIME_CYCLES' | 'MANAGEMENT'>('OVERVIEW');
+  // Active sub-tool tab: ALL, FAN, SQUARE, BOX, CHECKLIST, TIME_CYCLES, MANAGEMENT, VALIDATION
+  const [activeSubTab, setActiveSubTab] = useState<'OVERVIEW' | 'CHECKLIST' | 'FAN' | 'SQUARE' | 'BOX' | 'TIME_CYCLES' | 'MANAGEMENT' | 'VALIDATION'>('OVERVIEW');
 
   // Copy state
   const [copied, setCopied] = useState<boolean>(false);
@@ -69,6 +71,13 @@ export const GannIntradayEnginePanel: React.FC<GannIntradayEnginePanelProps> = (
   const opportunity: GannIntradayOpportunity = useMemo(() => {
     return gannIntradayEngine.analyzeAsset(selectedAssetId, currentMarket?.price);
   }, [selectedAssetId, currentMarket?.price]);
+
+  // Automatically track and validate discovered live setups in GannValidationService
+  React.useEffect(() => {
+    if (opportunity) {
+      gannValidationService.recordGannSetup(opportunity);
+    }
+  }, [opportunity]);
 
   // Scan all 9 assets for overview radar
   const scanOverview = useMemo(() => {
@@ -118,6 +127,19 @@ export const GannIntradayEnginePanel: React.FC<GannIntradayEnginePanelProps> = (
           </div>
 
           <div className="flex items-center gap-2 self-start sm:self-auto">
+            <button
+              onClick={() => setActiveSubTab(prev => prev === 'VALIDATION' ? 'OVERVIEW' : 'VALIDATION')}
+              className={`px-3 py-1.5 rounded-xl border flex items-center gap-1.5 text-xs font-mono font-bold transition cursor-pointer ${
+                activeSubTab === 'VALIDATION'
+                  ? 'bg-amber-500 text-black border-amber-400 shadow-md shadow-amber-500/20'
+                  : 'bg-amber-500/15 hover:bg-amber-500/25 border-amber-500/40 text-amber-300'
+              }`}
+            >
+              <BarChart3 className="w-3.5 h-3.5 text-amber-400" />
+              <span>Validation Intelligence</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse ml-0.5" />
+            </button>
+
             <div className="px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-700/80 flex items-center gap-2 text-xs font-mono">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-zinc-300 font-bold">1-2 SIGNALS/DAY</span>
@@ -268,7 +290,8 @@ export const GannIntradayEnginePanel: React.FC<GannIntradayEnginePanelProps> = (
           { id: 'SQUARE', label: 'Square of 9 (Daily Open)', icon: Sliders },
           { id: 'BOX', label: 'Gann Box Timing', icon: Clock },
           { id: 'TIME_CYCLES', label: 'Time Cycles & Lunar', icon: Moon },
-          { id: 'MANAGEMENT', label: 'Post-Entry Management', icon: ShieldCheck }
+          { id: 'MANAGEMENT', label: 'Post-Entry Management', icon: ShieldCheck },
+          { id: 'VALIDATION', label: 'Validation & Performance Intelligence', icon: BarChart3 }
         ].map(tab => {
           const Icon = tab.icon;
           const isActive = activeSubTab === tab.id;
@@ -1216,6 +1239,24 @@ export const GannIntradayEnginePanel: React.FC<GannIntradayEnginePanelProps> = (
                 </div>
               </div>
             </div>
+          </motion.div>
+        )}
+
+        {activeSubTab === 'VALIDATION' && (
+          <motion.div
+            key="validation"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            className="space-y-4"
+          >
+            <GannPerformanceDashboardView
+              onSelectAsset={(id) => {
+                setSelectedAssetId(id);
+                setActiveSubTab('OVERVIEW');
+              }}
+              onBackToGannEngine={() => setActiveSubTab('OVERVIEW')}
+            />
           </motion.div>
         )}
       </AnimatePresence>

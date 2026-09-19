@@ -311,3 +311,185 @@ export interface LunarCycleIntelligence {
   summaryRationale: string;
 }
 
+// ==========================================
+// GANN ENGINE VALIDATION & PERFORMANCE INTELLIGENCE PHASE TYPES
+// ==========================================
+
+export type GannConfluenceArchetypeKey = 
+  | 'FAN_ONLY' 
+  | 'SQUARE_ONLY' 
+  | 'BOX_ONLY' 
+  | 'GANN_2_OF_3' 
+  | 'FULL_GANN_SMC_LIQUIDITY';
+
+export interface GannSignalTrackRecord {
+  id: string;
+  asset: string; // e.g. 'XAU/USD'
+  assetId: string; // e.g. 'xau-usd'
+  direction: 'BUY' | 'SELL' | 'WAIT';
+  entryPrice: number;
+  stopLoss: number;
+  tp1: number;
+  tp2: number;
+  timeframe: string;
+  
+  // Confluence components tracked
+  gannFanAlignment: string;
+  gannSquareAlignment: string;
+  gannBoxAlignment: string;
+  timeCycleStatus: string;
+  lunarConfirmationStatus: string;
+  marketStructureStatus: string;
+  liquidityConfirmation: string;
+  momentumConfirmation: string;
+  confidenceScore: number;
+
+  // Real market execution metadata
+  liveMarketPrice: number;
+  atrVolatility: number;
+  session: 'London' | 'New York' | 'London/New York Overlap' | 'Asian';
+  confluenceArchetype: GannConfluenceArchetypeKey;
+  status: 'APPROVED' | 'WAIT' | 'ACTIVE' | 'TP HIT' | 'SL HIT' | 'EXPIRED';
+  result: 'TP HIT' | 'SL HIT' | 'ACTIVE' | 'WAIT';
+  pnlR: number;
+  closePrice?: number;
+  timestamp: string;
+  closeTimestamp?: string;
+  durationMinutes: number;
+  durationFormatted?: string;
+}
+
+export interface GannPerformanceAnalytics {
+  totalSetups: number;
+  approvedSignals: number;
+  waitSignals: number;
+  winRate: number;
+  lossRate: number;
+  avgRMultiple: number;
+  profitFactor: number;
+  maxDrawdownR: number;
+  maxDrawdownPercent: number;
+  avgTradeDurationMinutes: number;
+  avgTradeDurationFormatted: string;
+  netRPnl: number;
+  closedTradesCount: number;
+  activeTradesCount: number;
+}
+
+export interface GannConfluenceComparison {
+  archetype: GannConfluenceArchetypeKey;
+  label: string;
+  description: string;
+  totalTrades: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  avgR: number;
+  profitFactor: number;
+  efficiencyTier: 'HIGHEST_PERFORMING' | 'ROBUST' | 'MODERATE' | 'WEAK_COMBINATION' | 'HIGH_FALSE_SIGNALS';
+  falseSignalRate: number;
+  findings: string;
+}
+
+export interface GannLunarValidationMetrics {
+  withLunarAlignment: {
+    tradesCount: number;
+    wins: number;
+    losses: number;
+    winRate: number;
+    avgR: number;
+    profitFactor: number;
+  };
+  withoutLunarAlignment: {
+    tradesCount: number;
+    wins: number;
+    losses: number;
+    winRate: number;
+    avgR: number;
+    profitFactor: number;
+  };
+  winRateDifference: number;
+  avgRSpread: number;
+  volatilityBehavior: string;
+  structureConflictIgnoredCount: number;
+  confirmationOnlyCompliance: boolean;
+  summary: string;
+}
+
+export interface GannAssetValidationResult {
+  asset: string;
+  assetId: string;
+  totalTrades: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  avgR: number;
+  profitFactor: number;
+  bestSession: string;
+  bestGannPattern: string;
+  rank: number;
+  status: 'BEST_PERFORMER' | 'PROVEN' | 'DEVELOPING';
+}
+
+export interface GannSessionValidationResult {
+  session: 'London' | 'New York' | 'London/New York Overlap' | 'Asian';
+  totalTrades: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  avgR: number;
+  bestTimingWindow: string;
+  weakPeriod: string;
+  volumeProfile: string;
+  status: 'OPTIMAL_WINDOW' | 'ACTIVE' | 'CAUTION_PERIOD';
+}
+
+export interface GannConfidenceCalibration {
+  highConfidence: {
+    tier: string;
+    total: number;
+    wins: number;
+    losses: number;
+    winRate: number;
+    avgR: number;
+  };
+  midConfidence: {
+    tier: string;
+    total: number;
+    wins: number;
+    losses: number;
+    winRate: number;
+    avgR: number;
+  };
+  lowConfidence: {
+    tier: string;
+    total: number;
+    wins: number;
+    losses: number;
+    winRate: number;
+    avgR: number;
+  };
+  confidenceAccuracy: number;
+  highConfidenceWinners: number;
+  highConfidenceLosses: number;
+}
+
+export interface GannOptimizationReport {
+  totalSetupsTested: number;
+  overallWinRate: number;
+  overallAvgR: number;
+  bestGannConfiguration: string;
+  bestAsset: string;
+  bestSession: string;
+  recommendedImprovements: string[];
+  generatedAt: string;
+}
+
+export interface GannEngineOperationalStatus {
+  gannValidation: 'ACTIVE ✅';
+  performanceTracking: 'READY ✅';
+  realDataAnalysis: 'CONNECTED ✅';
+  optimization: 'RUNNING ✅';
+  operationalRule: string;
+}
+

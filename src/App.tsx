@@ -53,17 +53,22 @@ import {
   User,
   LogOut,
   Lock,
-  Compass
+  Compass,
+  Cpu
 } from 'lucide-react';
 import { GannIntradayEnginePanel } from './components/GannIntradayEnginePanel';
+import { MasterIntelligenceView } from './components/MasterIntelligenceView';
 import { InstitutionalLandingPage } from './components/InstitutionalLandingPage';
 import { SecureLoginPage } from './components/SecureLoginPage';
 import { AdminManagementPanel } from './components/AdminManagementPanel';
+import { TerminalDashboard } from './components/dashboard/TerminalDashboard';
 import { userService } from './services/userService';
 
 function MainApp() {
   const { 
     markets, 
+    signals,
+    sendSignalToTelegram,
     historyStats,
     isAlertCenterOpen,
     setIsAlertCenterOpen,
@@ -80,7 +85,7 @@ function MainApp() {
   const [selectedProfileAssetId, setSelectedProfileAssetId] = useState<string | null>(null);
   const [isScannerOpen, setIsScannerOpen] = useState<boolean>(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'SIGNALS' | 'GANN' | 'PAPER' | 'VALIDATION' | 'SCANNER' | 'NEWS' | 'RISK' | 'LEARNING' | 'HISTORY'>('DASHBOARD');
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'MASTER' | 'SIGNALS' | 'GANN' | 'PAPER' | 'VALIDATION' | 'SCANNER' | 'NEWS' | 'RISK' | 'LEARNING' | 'HISTORY'>('DASHBOARD');
   const [categoryFilter, setCategoryFilter] = useState<MarketCategory | 'all'>('all');
   
   // Persistent Login & Direct Access Protection State
@@ -221,7 +226,7 @@ function MainApp() {
       </div>
 
       {/* Centered Mobile-First Container */}
-      <div className="w-full max-w-lg mx-auto flex-1 flex flex-col px-4 py-4 sm:py-5 pb-24 space-y-4">
+      <div className="w-full max-w-xl lg:max-w-4xl mx-auto flex-1 flex flex-col px-3 sm:px-4 py-4 sm:py-5 pb-24 space-y-4">
         {/* Mobile App Header with Subtle 3D Globe */}
         <MobileAppHeader />
 
@@ -243,6 +248,7 @@ function MainApp() {
             <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-none text-[10.5px] font-mono-num font-bold">
               {[
                 { id: 'DASHBOARD', label: 'Dashboard', icon: Zap, adminOnly: false },
+                { id: 'MASTER', label: 'Master Intelligence', icon: Cpu, adminOnly: false },
                 { id: 'SIGNALS', label: 'Signals', icon: Sparkles, adminOnly: false },
                 { id: 'GANN', label: 'Gann Intraday', icon: Compass, adminOnly: false },
                 { id: 'PAPER', label: 'Paper Trading', icon: BarChart3, adminOnly: true },
@@ -331,38 +337,31 @@ function MainApp() {
                 </div>
               </div>
             ) : activeTab === 'DASHBOARD' ? (
-              /* MAIN DASHBOARD: SIMPLIFIED TARGET 9 ASSET LIST */
-              <div className="space-y-4">
-                <div className="flex items-center justify-between px-1">
-                  <div>
-                    <h2 className="text-xs sm:text-sm font-mono-num font-black text-white uppercase tracking-wider">
-                      PRIMARY ASSETS
-                    </h2>
-                    <span className="text-[10px] text-zinc-400 font-sans block">
-                      Select any pair to open its dedicated AI trading terminal
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1 bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 rounded-xl text-[10px] font-bold text-amber-300">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                    <span>9 CORE MARKETS</span>
-                  </div>
-                </div>
-
-                <div className="space-y-3 sm:space-y-3.5">
-                  {dashboardMarkets.map((market, index) => (
-                    <AssetCard
-                      key={market.id}
-                      market={market}
-                      index={index}
-                      isSelected={false}
-                      onClick={() => {
-                        setSelectedAssetId(market.id);
-                        setSelectedAssetForSetup(market);
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
+              /* AURUM TERMINAL: FINAL INTELLIGENCE DASHBOARD (USER & ADMIN VIEWS) */
+              <TerminalDashboard
+                markets={markets}
+                signals={signals}
+                currentRole={currentRole}
+                onSelectMarket={(market) => {
+                  setSelectedAssetId(market.id);
+                  setSelectedAssetForSetup(market);
+                }}
+                onNavigateTab={(tabId) => {
+                  setActiveTab(tabId as any);
+                }}
+                onSendTelegram={sendSignalToTelegram}
+              />
+            ) : activeTab === 'MASTER' ? (
+              /* MASTER PERFORMANCE INTELLIGENCE ENGINE */
+              <MasterIntelligenceView
+                onSelectAsset={(assetId) => {
+                  const m = markets.find(item => item.id === assetId);
+                  if (m) {
+                    setSelectedAssetId(m.id);
+                    setSelectedAssetForSetup(m);
+                  }
+                }}
+              />
             ) : activeTab === 'SIGNALS' ? (
               /* SIGNALS TAB: INSTITUTIONAL SIGNAL CENTER */
               <div className="space-y-4">

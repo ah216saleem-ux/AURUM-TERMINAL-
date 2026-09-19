@@ -25,7 +25,7 @@ import { UPCOMING_ECONOMIC_EVENTS } from '../data/newsIntelligenceData';
 import { getCurrentMarketSession } from '../utils/marketContextHelpers';
 import { ASSET_TIMEFRAME_SETUPS, getTimeframeSetup } from '../data/timeframeSignals';
 
-// Supported 9 Core Assets as mandated by specification #15
+// Supported Core Assets
 export const GANN_SUPPORTED_ASSET_IDS = [
   'xau-usd',
   'xag-usd',
@@ -33,6 +33,7 @@ export const GANN_SUPPORTED_ASSET_IDS = [
   'gbp-usd',
   'usd-jpy',
   'usd-cad',
+  'aud-usd',
   'sp-500',
   'nasdaq-100',
   'crude-oil'
@@ -118,6 +119,17 @@ export const GANN_ASSET_PROFILES: Record<string, AssetGannProfile> = {
     typicalAtr14: 0.0052,
     averageSpreadPips: 0.00016,
     dailyOpenBaseOffset: -0.0010
+  },
+  'aud-usd': {
+    id: 'aud-usd',
+    symbol: 'AUD/USD',
+    name: 'Australian Dollar / USD',
+    decimals: 4,
+    pipFactor: 0.0001,
+    scaleFactorSquareOf9: 10000,
+    typicalAtr14: 0.0045,
+    averageSpreadPips: 0.00014,
+    dailyOpenBaseOffset: 0.0006
   },
   'sp-500': {
     id: 'sp-500',
