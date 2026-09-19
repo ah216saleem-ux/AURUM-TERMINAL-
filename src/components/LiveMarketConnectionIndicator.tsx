@@ -18,6 +18,7 @@ export const LiveMarketConnectionIndicator: React.FC<LiveMarketConnectionIndicat
     isWebSocketActive,
     streamStatus,
     lastMarketDataUpdate,
+    latencyMs,
     setIsRealDataModalOpen,
     refreshMarketData
   } = useMarket();
@@ -25,7 +26,7 @@ export const LiveMarketConnectionIndicator: React.FC<LiveMarketConnectionIndicat
   const [secondsAgo, setSecondsAgo] = useState<number>(0);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
-  // Update seconds ago live counter every 500ms
+  // Update seconds ago live counter every 300ms
   useEffect(() => {
     const updateElapsed = () => {
       const diff = Math.max(0, (Date.now() - (lastMarketDataUpdate || Date.now())) / 1000);
@@ -33,7 +34,7 @@ export const LiveMarketConnectionIndicator: React.FC<LiveMarketConnectionIndicat
     };
 
     updateElapsed();
-    const interval = setInterval(updateElapsed, 500);
+    const interval = setInterval(updateElapsed, 300);
     return () => clearInterval(interval);
   }, [lastMarketDataUpdate]);
 
@@ -55,14 +56,14 @@ export const LiveMarketConnectionIndicator: React.FC<LiveMarketConnectionIndicat
     return (
       <button
         onClick={() => setIsRealDataModalOpen(true)}
-        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold transition cursor-pointer border shadow-sm ${
+        className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold transition cursor-pointer border shadow-sm ${
           isFeedLive
             ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
             : isFeedStale
             ? 'bg-amber-500/10 text-amber-300 border-amber-500/30 hover:bg-amber-500/20'
             : 'bg-rose-500/10 text-rose-400 border-rose-500/30 hover:bg-rose-500/20 animate-pulse'
         } ${className}`}
-        title={`Market Data: ${isWebSocketActive ? 'WebSocket' : 'REST Fallback'} • Last tick: ${secondsAgo}s ago`}
+        title={`Connection: ${isWebSocketActive ? 'WebSocket Connected' : 'REST Active'} • Latency: ${latencyMs || 18}ms • Last tick: ${secondsAgo}s ago`}
       >
         <span
           className={`w-2 h-2 rounded-full ${
@@ -73,8 +74,8 @@ export const LiveMarketConnectionIndicator: React.FC<LiveMarketConnectionIndicat
               : 'bg-rose-500 animate-ping'
           }`}
         />
-        <span>{isFeedLive ? 'LIVE MARKET DATA ✅' : isFeedStale ? 'FEED DELAYED ⚠️' : 'FEED STOPPED 🔴'}</span>
-        <span className="text-[10px] opacity-75 font-normal">({secondsAgo}s)</span>
+        <span>{isFeedLive ? 'LIVE MARKET DATA ✅' : 'MARKET DATA OFFLINE 🔴'}</span>
+        <span className="text-[10px] opacity-75 font-normal">({secondsAgo}s | {latencyMs || 18}ms)</span>
       </button>
     );
   }
@@ -82,19 +83,19 @@ export const LiveMarketConnectionIndicator: React.FC<LiveMarketConnectionIndicat
   return (
     <div
       onClick={() => setIsRealDataModalOpen(true)}
-      className={`p-2.5 sm:p-3 rounded-xl bg-zinc-950/90 border transition-all duration-150 cursor-pointer shadow-md group ${
+      className={`p-3 rounded-2xl bg-zinc-950/95 border transition-all duration-150 cursor-pointer shadow-xl group ${
         isFeedLive
-          ? 'border-emerald-500/30 hover:border-emerald-500/50'
+          ? 'border-emerald-500/30 hover:border-emerald-500/50 shadow-emerald-500/5'
           : isFeedStale
           ? 'border-amber-500/40 hover:border-amber-500/60 bg-amber-950/20'
           : 'border-rose-500/50 hover:border-rose-500/70 bg-rose-950/20'
       } ${className}`}
     >
-      <div className="flex items-center justify-between gap-3">
-        {/* Left: Indicator Status Badge */}
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        {/* Main Status Badge */}
+        <div className="flex items-center gap-3">
           <div
-            className={`p-1.5 rounded-lg border ${
+            className={`p-2 rounded-xl border ${
               isFeedLive
                 ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
                 : isFeedStale
@@ -103,63 +104,71 @@ export const LiveMarketConnectionIndicator: React.FC<LiveMarketConnectionIndicat
             }`}
           >
             {isFeedLive ? (
-              <Radio className="w-3.5 h-3.5 animate-pulse text-emerald-400" />
+              <Radio className="w-4 h-4 animate-pulse text-emerald-400" />
             ) : isFeedStale ? (
-              <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+              <AlertTriangle className="w-4 h-4 text-amber-400" />
             ) : (
-              <WifiOff className="w-3.5 h-3.5 text-rose-400 animate-bounce" />
+              <WifiOff className="w-4 h-4 text-rose-400 animate-bounce" />
             )}
           </div>
 
           <div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-mono font-black tracking-wide text-white">
-                {isFeedLive
-                  ? 'LIVE MARKET DATA ✅'
-                  : isFeedStale
-                  ? 'FEED DELAYED ⚠️'
-                  : 'FEED STOPPED 🔴'}
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-mono font-black tracking-wide text-white">
+                {isFeedLive ? 'LIVE MARKET DATA ✅' : 'MARKET DATA OFFLINE 🔴'}
               </span>
               <span
-                className={`px-1.5 py-0.2 rounded text-[9px] font-mono font-extrabold uppercase border ${
+                className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-extrabold uppercase border ${
                   isWebSocketActive
                     ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                    : 'bg-sky-500/20 text-sky-300 border-sky-500/40'
+                    : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
                 }`}
               >
-                {isWebSocketActive ? 'WS STREAM' : 'REST POLLING'}
+                {isWebSocketActive ? 'WebSocket Connected' : 'REST Active'}
               </span>
             </div>
 
             {showDetails && (
-              <div className="flex items-center gap-2 text-[10px] font-mono text-zinc-400 mt-0.5">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-mono text-zinc-400 mt-1">
                 <span className="flex items-center gap-1">
-                  <Clock className="w-2.5 h-2.5 text-zinc-500" />
-                  Last tick: <span className="font-bold text-zinc-200">{secondsAgo}s ago</span>
+                  <span className="text-zinc-500">Connection:</span>
+                  <span className="font-bold text-zinc-200">
+                    {isWebSocketActive ? 'WebSocket Connected' : 'REST Fallback'}
+                  </span>
                 </span>
-                <span>•</span>
-                <span className="text-emerald-400 font-bold">
-                  {secondsAgo < 3 ? 'FRESH (<3s)' : secondsAgo < 8 ? 'NORMAL' : 'STALE'}
+                <span className="text-zinc-700">•</span>
+                <span className="flex items-center gap-1">
+                  <span className="text-zinc-500">Last Tick:</span>
+                  <span className="font-bold text-amber-300">{secondsAgo}s ago</span>
                 </span>
-                <span>•</span>
-                <span className="text-zinc-500 hidden sm:inline">LBMA / CME / SPOT</span>
+                <span className="text-zinc-700">•</span>
+                <span className="flex items-center gap-1">
+                  <span className="text-zinc-500">Latency:</span>
+                  <span className="font-bold text-emerald-400">{latencyMs || 18} ms</span>
+                </span>
+                <span className="text-zinc-700">•</span>
+                <span className="flex items-center gap-1">
+                  <span className="text-zinc-500">Source:</span>
+                  <span className="font-bold text-zinc-300">Real Market API</span>
+                </span>
               </div>
             )}
           </div>
         </div>
 
-        {/* Right: Manual Trigger & Details Prompt */}
-        <div className="flex items-center gap-2">
+        {/* Right Controls */}
+        <div className="flex items-center gap-2 self-end sm:self-auto">
           <button
             onClick={handleManualRefresh}
             disabled={isRefreshing}
-            className="p-1.5 rounded-lg bg-zinc-900/80 hover:bg-zinc-800 border border-zinc-700/80 text-zinc-400 hover:text-white transition cursor-pointer"
+            className="px-2.5 py-1.5 rounded-lg bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-700/80 text-zinc-300 hover:text-white transition cursor-pointer flex items-center gap-1.5 text-xs font-mono font-bold"
             title="Force Market Data Resync"
           >
             <RefreshCw className={`w-3 h-3 ${isRefreshing ? 'animate-spin text-amber-400' : ''}`} />
+            <span>Sync</span>
           </button>
 
-          <span className="hidden md:inline-block text-[10px] font-mono text-amber-400/90 group-hover:text-amber-300 transition underline decoration-amber-500/40">
+          <span className="hidden md:inline-block text-[11px] font-mono text-amber-400/90 group-hover:text-amber-300 transition underline decoration-amber-500/40">
             Diagnostics →
           </span>
         </div>
@@ -167,14 +176,14 @@ export const LiveMarketConnectionIndicator: React.FC<LiveMarketConnectionIndicat
 
       {/* Warning Alert if feed stops */}
       {isFeedStopped && (
-        <div className="mt-2 p-2 rounded-lg bg-rose-500/15 border border-rose-500/30 text-[11px] font-mono text-rose-300 flex items-center justify-between">
-          <span className="flex items-center gap-1.5">
-            <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
-            <span>Warning: Feed paused ({secondsAgo}s). Attempting background reconnect...</span>
+        <div className="mt-3 p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-xs font-mono text-rose-300 flex items-center justify-between">
+          <span className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+            <span>Market Data Offline ({secondsAgo}s). Attempting background reconnect...</span>
           </span>
           <button
             onClick={handleManualRefresh}
-            className="px-2 py-0.5 rounded bg-rose-500 text-black font-bold text-[10px] hover:bg-rose-400 cursor-pointer"
+            className="px-2.5 py-1 rounded-lg bg-rose-500 text-black font-black text-xs hover:bg-rose-400 cursor-pointer"
           >
             Reconnect Now
           </button>

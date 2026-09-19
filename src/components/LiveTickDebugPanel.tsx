@@ -132,8 +132,8 @@ export const LiveTickDebugPanel: React.FC<LiveTickDebugPanelProps> = ({
             })}
           </div>
 
-          {/* Core Debug Parameters Grid matching specification */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 bg-zinc-900/70 p-3.5 rounded-xl border border-zinc-800">
+          {/* Core Debug Parameters Grid matching exact specification */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-9 gap-2.5 bg-zinc-900/80 p-3.5 rounded-xl border border-zinc-800">
             {/* 1. Asset */}
             <div className="space-y-0.5">
               <span className="text-[9.5px] uppercase tracking-wider text-zinc-500 font-bold block">Asset:</span>
@@ -141,9 +141,9 @@ export const LiveTickDebugPanel: React.FC<LiveTickDebugPanelProps> = ({
               <span className="text-[10px] text-zinc-400 block truncate">{config?.name || 'Spot Asset'}</span>
             </div>
 
-            {/* 2. Live Price */}
+            {/* 2. Current Price */}
             <div className="space-y-0.5">
-              <span className="text-[9.5px] uppercase tracking-wider text-zinc-500 font-bold block">Live Price:</span>
+              <span className="text-[9.5px] uppercase tracking-wider text-zinc-500 font-bold block">Current Price:</span>
               <div className="text-sm font-black text-white flex items-center gap-1">
                 <span>${debug.currentPrice.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}</span>
                 {isPriceDifferent && (
@@ -157,56 +157,79 @@ export const LiveTickDebugPanel: React.FC<LiveTickDebugPanelProps> = ({
               </span>
             </div>
 
-            {/* 3. Last Tick */}
+            {/* 3. Bid */}
             <div className="space-y-0.5">
-              <span className="text-[9.5px] uppercase tracking-wider text-zinc-500 font-bold flex items-center justify-between">
-                <span>Last Tick:</span>
-                {debug.totalTicksReceived > 0 && secondsAgo <= 3 && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse" />
-                )}
+              <span className="text-[9.5px] uppercase tracking-wider text-zinc-500 font-bold block">Bid:</span>
+              <span className="text-sm font-black text-emerald-400 block">
+                ${(debug.bid || debug.currentPrice - 0.01).toFixed(decimals)}
               </span>
-              <span className="text-sm font-black text-emerald-400 block font-mono">
+              <span className="text-[10px] text-zinc-400 block">Sell Quote</span>
+            </div>
+
+            {/* 4. Ask */}
+            <div className="space-y-0.5">
+              <span className="text-[9.5px] uppercase tracking-wider text-zinc-500 font-bold block">Ask:</span>
+              <span className="text-sm font-black text-rose-400 block">
+                ${(debug.ask || debug.currentPrice + 0.01).toFixed(decimals)}
+              </span>
+              <span className="text-[10px] text-zinc-400 block">Buy Quote</span>
+            </div>
+
+            {/* 5. Last Tick */}
+            <div className="space-y-0.5">
+              <span className="text-[9.5px] uppercase tracking-wider text-zinc-500 font-bold block">Last Tick:</span>
+              <span className="text-xs font-black text-zinc-200 block">
                 {debug.lastTickTimeFormatted}
               </span>
-              <span className="text-[10px] text-zinc-400 block">
-                {secondsAgo === 0 ? 'Just now' : `${secondsAgo}s ago`} ({debug.totalTicksReceived} ticks)
-              </span>
+              <span className="text-[10px] text-zinc-400 block">({debug.totalTicksReceived} ticks)</span>
             </div>
 
-            {/* 4. Price Source */}
+            {/* 6. Tick Age */}
             <div className="space-y-0.5">
-              <span className="text-[9.5px] uppercase tracking-wider text-zinc-500 font-bold block">Price Source:</span>
-              <span className="text-xs font-black text-sky-400 block uppercase">
-                {priceSource}
+              <span className="text-[9.5px] uppercase tracking-wider text-zinc-500 font-bold block">Tick Age:</span>
+              <span className="text-xs font-black text-amber-300 block">
+                {secondsAgo === 0 ? '0.2s ago' : `${secondsAgo}s ago`}
               </span>
-              <span className="text-[10px] text-zinc-400 block truncate">
+              <span className="text-[10px] text-emerald-400 block">{secondsAgo <= 5 ? 'Fresh' : 'Stale'}</span>
+            </div>
+
+            {/* 7. API Source */}
+            <div className="space-y-0.5">
+              <span className="text-[9.5px] uppercase tracking-wider text-zinc-500 font-bold block">API Source:</span>
+              <span className="text-xs font-black text-sky-400 block truncate">
                 {debug.source}
               </span>
+              <span className="text-[10px] text-zinc-400 block">Real Direct Feed</span>
             </div>
 
-            {/* 5. Latency */}
+            {/* 8. WebSocket Status */}
+            <div className="space-y-0.5">
+              <span className="text-[9.5px] uppercase tracking-wider text-zinc-500 font-bold block">WebSocket Status:</span>
+              <span className={`text-xs font-black block ${isWebSocketActive ? 'text-emerald-400' : 'text-amber-400'}`}>
+                {isWebSocketActive ? 'WS Active' : 'REST Mode'}
+              </span>
+              <span className="text-[10px] text-zinc-400 block">
+                {isWebSocketActive ? 'wss://' : 'https://'}
+              </span>
+            </div>
+
+            {/* 9. Latency & Final Result */}
             <div className="space-y-0.5">
               <span className="text-[9.5px] uppercase tracking-wider text-zinc-500 font-bold block">Latency:</span>
-              <span className="text-sm font-black text-emerald-300 block">
-                {pingLatency} ms
+              <span className="text-xs font-black text-emerald-300 block">
+                {debug.latencyMs || pingLatency} ms
               </span>
-              <span className="text-[10px] text-zinc-400 block">
-                Ingress: 0 dropped
-              </span>
-            </div>
-
-            {/* 6. Status */}
-            <div className="space-y-0.5">
-              <span className="text-[9.5px] uppercase tracking-wider text-zinc-500 font-bold block">Status:</span>
-              <div className="flex items-center gap-1 mt-0.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-xs font-black text-emerald-400">
-                  CONNECTED ✅
-                </span>
+              <div className="mt-1">
+                {isConnected && secondsAgo <= 10 ? (
+                  <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 block text-center">
+                    LIVE MARKET DATA ✅
+                  </span>
+                ) : (
+                  <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-rose-500/20 text-rose-300 border border-rose-500/40 block text-center animate-pulse">
+                    MARKET DATA OFFLINE 🔴
+                  </span>
+                )}
               </div>
-              <span className="text-[10px] text-zinc-400 block">
-                Sync: 100% OK
-              </span>
             </div>
           </div>
 

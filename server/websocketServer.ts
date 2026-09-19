@@ -273,7 +273,11 @@ export function initWebSocketServer(httpServer: any) {
         const text = msg.toString();
         const parsed = JSON.parse(text);
         if (parsed.type === 'ping') {
-          ws.send(JSON.stringify({ type: 'pong', timestamp: Date.now() }));
+          ws.send(JSON.stringify({ 
+            type: 'pong', 
+            timestamp: Date.now(),
+            clientTime: parsed.timestamp || Date.now()
+          }));
         }
       } catch (e) {}
     });
@@ -501,10 +505,10 @@ function startLiveTickStream() {
     pollBinanceTicks();
   }, 1000);
 
-  // Yahoo Finance indices & commodities every 3500ms
+  // Yahoo Finance indices & commodities every 1500ms
   setInterval(() => {
     pollYahooTicks();
-  }, 3500);
+  }, 1500);
 }
 
 export function getLatestLivePrices(): Record<string, LivePriceData> {

@@ -56,6 +56,7 @@ interface MarketContextType {
   isWebSocketActive: boolean;
   streamStatus: StreamStatus;
   lastMarketDataUpdate: number;
+  latencyMs: number;
   getTickDebug: (symbolOrId: string) => TickDebugInfo;
   refreshMarketData: () => Promise<void>;
   telegramSettings: TelegramSettings;
@@ -1056,31 +1057,42 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isWebSocketActive, setIsWebSocketActive] = useState<boolean>(marketDataService.isWebSocketStreaming());
   const [streamStatus, setStreamStatus] = useState<StreamStatus>(marketDataService.getStreamStatus());
   const [lastMarketDataUpdate, setLastMarketDataUpdate] = useState<number>(Date.now());
+  const [latencyMs, setLatencyMs] = useState<number>(marketDataService.getLatencyMs());
   const isDataConnected = dataConnectedStatus === 'LIVE';
 
   const getTickDebug = useCallback((symbolOrId: string): TickDebugInfo => {
     return marketDataService.getDebugInfo(symbolOrId);
   }, [markets, lastMarketDataUpdate, streamStatus]);
 
-  // Real-time market data service layer subscription (Binance for Crypto, Yahoo Finance for Gold & Markets)
+  // Real-time market data service layer subscription (Binance for Crypto, Yahoo Finance & Biquote for Gold & Markets)
   useEffect(() => {
     let active = true;
 
     // Subscribe to unified service updates
-    const unsubscribe = marketDataService.subscribe(({ markets: incomingMarkets, status, lastUpdate, streamStatus: incomingStreamStatus }) => {
+    const unsubscribe = marketDataService.subscribe(({ markets: incomingMarkets, status, lastUpdate, streamStatus: incomingStreamStatus, latencyMs: incomingLatency }) => {
       if (!active) return;
       
       setDataConnectedStatus(status);
       setIsWebSocketActive(marketDataService.isWebSocketStreaming());
       setStreamStatus(incomingStreamStatus);
       setLastMarketDataUpdate(lastUpdate);
+      if (incomingLatency != null) {
+        setLatencyMs(incomingLatency);
+      }
+
+      // Build live price map for instant tick-by-tick paper trade execution
+      const livePriceMap: Record<string, number> = {};
 
       setMarkets(prevMarkets => {
         return prevMarkets.map(item => {
           const update = incomingMarkets[item.id];
-          if (!update || update.price == null) return item;
+          if (!update || update.price == null) {
+            livePriceMap[item.id] = item.price;
+            return item;
+          }
 
           const newPrice = update.price;
+          livePriceMap[item.id] = newPrice;
           const diff = newPrice - item.price;
           const direction = newPrice >= item.price ? 'up' : 'down';
           const newHigh = update.high24h != null ? update.high24h : Math.max(item.high24h, newPrice);
@@ -1105,6 +1117,36 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           };
         });
       });
+
+      // Instantly evaluate active paper trades & TP/SL triggers on real live ticks
+      try {
+        updateActivePaperTradesWithLivePrices(livePriceMap);
+      } catch (err) {
+        console.warn('[MarketContext] Error updating active paper trades on tick:', err);
+      }
+
+      // Dynamic Live Candle update for selected asset
+      const activeSelectedId = selectedSignalId;
+      const selectedUpdate = incomingMarkets[activeSelectedId];
+      if (selectedUpdate && selectedUpdate.price != null) {
+        const liveP = selectedUpdate.price;
+        setCandles(prevCandles => {
+          if (!prevCandles || prevCandles.length === 0) return prevCandles;
+          const lastIndex = prevCandles.length - 1;
+          const lastCandle = prevCandles[lastIndex];
+          if (lastCandle.close === liveP && lastCandle.high >= liveP && lastCandle.low <= liveP) {
+            return prevCandles;
+          }
+          const updated = [...prevCandles];
+          updated[lastIndex] = {
+            ...lastCandle,
+            close: liveP,
+            high: Math.max(lastCandle.high, liveP),
+            low: Math.min(lastCandle.low, liveP)
+          };
+          return updated;
+        });
+      }
 
       // Dynamic Signal Calibration: Automatically adjust signal entry, SL, and TP targets 
       // in real-time when the live price feed updates, keeping setups active and approved
@@ -1148,15 +1190,15 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       });
     });
 
-    // Start auto-refresh polling (every 4 seconds)
-    marketDataService.startAutoRefresh(4000);
+    // Start auto-refresh polling (every 1 second for true institutional speed)
+    marketDataService.startAutoRefresh(1000);
 
     return () => {
       active = false;
       unsubscribe();
       marketDataService.stopAutoRefresh();
     };
-  }, []);
+  }, [selectedSignalId, selectedTimeframe, newsStatus]);
 
   // Fetch live economic news & events from backend REST API
   const fetchNewsData = useCallback(async () => {
@@ -1830,6 +1872,7 @@ ${statusLabel}`;
         isWebSocketActive,
         streamStatus,
         lastMarketDataUpdate,
+        latencyMs,
         getTickDebug,
         refreshMarketData,
         telegramSettings,
