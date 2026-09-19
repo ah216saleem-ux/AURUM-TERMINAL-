@@ -292,16 +292,54 @@ class SignalGovernanceService {
       statusLabel = 'APPROVED SIGNAL ✅';
     }
 
+    // 3b. Entry Zone Proximity & Real Price Synchronization Check
+    const ep = signal.entryPrice;
+    const sl = signal.stopLoss;
+    const tp1 = signal.takeProfit;
+    const tp2 = signal.takeProfit2 || (isBuy ? signal.takeProfit * 1.02 : signal.takeProfit * 0.98);
+    const targetDist = Math.abs(tp1 - ep);
+
+    let priceCloseToEntry = true;
+    let priceDeviationReason: string | undefined;
+
+    if (signal.isExpired) {
+      priceCloseToEntry = false;
+      priceDeviationReason = 'Signal timeframe expired. Awaiting fresh cycle detection.';
+    } else if (isBuy) {
+      if (currentPrice >= tp1) {
+        priceCloseToEntry = false;
+        priceDeviationReason = `Target TP1 ($${tp1.toFixed(market.decimals)}) already reached at live price $${currentPrice.toFixed(market.decimals)}.`;
+      } else if (currentPrice <= sl) {
+        priceCloseToEntry = false;
+        priceDeviationReason = `Stop loss level ($${sl.toFixed(market.decimals)}) breached at live price $${currentPrice.toFixed(market.decimals)}.`;
+      } else if (targetDist > 0 && (currentPrice - ep) / targetDist > 0.40) {
+        priceCloseToEntry = false;
+        priceDeviationReason = `Live price ($${currentPrice.toFixed(market.decimals)}) moved >40% towards TP from entry ($${ep.toFixed(market.decimals)}). Awaiting pullback to entry zone.`;
+      }
+    } else if (isSell) {
+      if (currentPrice <= tp1) {
+        priceCloseToEntry = false;
+        priceDeviationReason = `Target TP1 ($${tp1.toFixed(market.decimals)}) already reached at live price $${currentPrice.toFixed(market.decimals)}.`;
+      } else if (currentPrice >= sl) {
+        priceCloseToEntry = false;
+        priceDeviationReason = `Stop loss level ($${sl.toFixed(market.decimals)}) breached at live price $${currentPrice.toFixed(market.decimals)}.`;
+      } else if (targetDist > 0 && (ep - currentPrice) / targetDist > 0.40) {
+        priceCloseToEntry = false;
+        priceDeviationReason = `Live price ($${currentPrice.toFixed(market.decimals)}) moved >40% towards TP from entry ($${ep.toFixed(market.decimals)}). Awaiting pullback to entry zone.`;
+      }
+    }
+
+    if (!priceCloseToEntry && status === 'APPROVED') {
+      status = 'WAIT';
+      statusLabel = 'WAIT ⏳';
+      waitReason = priceDeviationReason;
+    }
+
     // 4. Signal Lifecycle Stage Tracking
     // Generated -> Validated -> Approved -> Active -> TP1 HIT -> TP2 HIT -> SL HIT -> Expired
     let lifecycleStage: SignalLifecycleStage = 'APPROVED';
     let lifecycleStageLabel = 'Approved';
     let pnlR: number | undefined;
-
-    const ep = signal.entryPrice;
-    const sl = signal.stopLoss;
-    const tp1 = signal.takeProfit;
-    const tp2 = signal.takeProfit2 || signal.takeProfit * 1.02;
 
     if (signal.isExpired) {
       lifecycleStage = 'EXPIRED';

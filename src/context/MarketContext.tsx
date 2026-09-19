@@ -1105,6 +1105,47 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           };
         });
       });
+
+      // Dynamic Signal Calibration: Automatically adjust signal entry, SL, and TP targets 
+      // in real-time when the live price feed updates, keeping setups active and approved
+      setSignals(prevSignals => {
+        return prevSignals.map(sig => {
+          const update = incomingMarkets[sig.marketId];
+          if (!update || update.price == null) return sig;
+          
+          // If the asset is currently locked (active position running), preserve it completely
+          if (isAssetLocked(sig.marketId)) {
+            return sig;
+          }
+
+          // Check if signal entry price deviates from real-time live feed price (e.g. initial hardcoded levels)
+          const priceDiffRatio = Math.abs(sig.entryPrice - update.price) / update.price;
+          if (priceDiffRatio > 0.01) { // 1% drift threshold triggers auto-calibration
+            const setup = getTimeframeSetup(sig.marketId, selectedTimeframe, update.price);
+            
+            let stratCode: 'SMC' | 'TREND' | 'BREAKOUT' | 'LIQUIDITY' | 'MOMENTUM' = 'SMC';
+            if (setup.strategies.trendFollowing.emaAlignment !== 'Neutral') stratCode = 'TREND';
+            else if (setup.strategies.breakoutRetest.retestStatus !== 'N/A') stratCode = 'BREAKOUT';
+            else if (setup.strategies.liquidityReversal.sweepLevel !== 'N/A') stratCode = 'LIQUIDITY';
+
+            const learningAdj = getStrategyAdjustment(sig.marketId, selectedTimeframe, stratCode);
+            const isBlocked = newsStatus.isBlocked;
+            const riskLevel = newsStatus.isBlocked ? 'HIGH' : 'LOW';
+            const riskSummary = newsStatus.isBlocked ? newsStatus.message : 'Optimal news risk profile.';
+
+            const mapped = mapSetupToTradeSignal(setup, sig.marketId, sig.name, sig.symbol, isBlocked, riskLevel as any, riskSummary, learningAdj);
+            const forceStatus = isBlocked ? 'WAIT' : setup.signal;
+
+            return {
+              ...mapped,
+              type: forceStatus,
+              direction: forceStatus === 'BUY' ? 'LONG' : forceStatus === 'SELL' ? 'SHORT' : 'WAIT',
+              setupStrength: computeTradeSetupStrength({ ...mapped, type: forceStatus })
+            };
+          }
+          return sig;
+        });
+      });
     });
 
     // Start auto-refresh polling (every 4 seconds)

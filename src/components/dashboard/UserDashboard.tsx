@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Sparkles, 
   CheckCircle2, 
@@ -34,11 +34,24 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   onSendTelegram
 }) => {
   const [signalFilter, setSignalFilter] = useState<'APPROVED' | 'WAIT' | 'BLOCKED'>('APPROVED');
+  const [paperTrades, setPaperTrades] = useState(() => getPaperTradeRecords());
 
-  // Retrieve paper trade records and compute performance analytics
-  const paperTrades = useMemo(() => {
-    return getPaperTradeRecords();
+  // Listen to live paper trade sync updates
+  useEffect(() => {
+    const handleUpdate = () => {
+      setPaperTrades(getPaperTradeRecords());
+    };
+
+    window.addEventListener('paper-trades-updated', handleUpdate);
+    return () => {
+      window.removeEventListener('paper-trades-updated', handleUpdate);
+    };
   }, []);
+
+  // Also refresh when markets update
+  useEffect(() => {
+    setPaperTrades(getPaperTradeRecords());
+  }, [markets]);
 
   const analytics = useMemo(() => {
     return computePaperTradeAnalytics(paperTrades);

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   ShieldCheck, 
   Activity, 
@@ -40,10 +40,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onSendTelegram
 }) => {
   const [activeAdminSubTab, setActiveAdminSubTab] = useState<'ALL' | 'HEALTH' | 'ENGINES' | 'APPROVALS' | 'RISK' | 'AI' | 'PAPER' | 'REPORTS'>('ALL');
+  const [paperTrades, setPaperTrades] = useState(() => getPaperTradeRecords());
 
-  const paperTrades = useMemo(() => {
-    return getPaperTradeRecords();
+  // Listen to live paper trade sync updates
+  useEffect(() => {
+    const handleUpdate = () => {
+      setPaperTrades(getPaperTradeRecords());
+    };
+
+    window.addEventListener('paper-trades-updated', handleUpdate);
+    return () => {
+      window.removeEventListener('paper-trades-updated', handleUpdate);
+    };
   }, []);
+
+  // Also refresh when markets update
+  useEffect(() => {
+    setPaperTrades(getPaperTradeRecords());
+  }, [markets]);
 
   const analytics = useMemo(() => {
     return computePaperTradeAnalytics(paperTrades);

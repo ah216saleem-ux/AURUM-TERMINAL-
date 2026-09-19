@@ -65,10 +65,18 @@ export const UserTradeHistory: React.FC<UserTradeHistoryProps> = ({
 
               {/* Price details & Result */}
               <div className="text-right flex items-center gap-3">
-                <div className="hidden sm:block text-zinc-400 font-mono text-[11px]">
-                  <span>Entry {trade.entry}</span>
+                <div className="hidden md:flex flex-col text-right font-mono text-[10px] text-zinc-400 space-y-0.5">
+                  <div>
+                    <span>Entry: <strong>${trade.entry.toFixed(trade.entry > 100 ? 2 : 4)}</strong></span>
+                    <span className="text-zinc-600 px-1">|</span>
+                    <span>SL: <strong className="text-rose-400">${trade.stopLoss.toFixed(trade.stopLoss > 100 ? 2 : 4)}</strong></span>
+                    <span className="text-zinc-600 px-1">|</span>
+                    <span>TP: <strong className="text-emerald-400">${trade.tp1.toFixed(trade.tp1 > 100 ? 2 : 4)}</strong></span>
+                  </div>
                   {trade.closePrice && (
-                    <span className="text-zinc-500"> → Exit {trade.closePrice}</span>
+                    <div className="text-zinc-500">
+                      Exit Price: <strong className="text-amber-400">${trade.closePrice.toFixed(trade.closePrice > 100 ? 2 : 4)}</strong>
+                    </div>
                   )}
                 </div>
 
@@ -82,7 +90,7 @@ export const UserTradeHistory: React.FC<UserTradeHistoryProps> = ({
                   <span className={`font-mono font-black text-xs px-2 py-0.5 rounded ${
                     isWin ? 'bg-emerald-500 text-black' : 'bg-rose-500/80 text-white'
                   }`}>
-                    {pnlR > 0 ? `+${pnlR}R` : `${pnlR}R`}
+                    {pnlR > 0 ? `+${pnlR.toFixed(2)}R` : `${pnlR.toFixed(2)}R`}
                   </span>
                 </div>
               </div>

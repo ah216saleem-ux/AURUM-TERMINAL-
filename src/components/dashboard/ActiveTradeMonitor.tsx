@@ -13,16 +13,8 @@ export const ActiveTradeMonitor: React.FC<ActiveTradeMonitorProps> = ({
   markets,
   onSelectAsset
 }) => {
-  // Find all active trades or recently executed in-progress positions
-  const activeTrades = paperTrades.filter(t => t.result === 'ACTIVE');
-
-  // Fallback: If no trades marked ACTIVE, take the most recent 2 non-cancelled trades for live monitoring demonstration
-  const displayTrades = activeTrades.length > 0 
-    ? activeTrades 
-    : paperTrades.filter(t => t.result !== 'CANCELLED').slice(0, 2).map(t => ({
-        ...t,
-        result: 'ACTIVE' as const
-      }));
+  // Find all active trades or recently executed in-progress positions (no fake fallbacks)
+  const displayTrades = paperTrades.filter(t => t.result === 'ACTIVE' || t.result === 'TP1 HIT');
 
   return (
     <div className="space-y-3">
@@ -39,9 +31,14 @@ export const ActiveTradeMonitor: React.FC<ActiveTradeMonitorProps> = ({
       </div>
 
       {displayTrades.length === 0 ? (
-        <div className="p-8 text-center rounded-2xl bg-zinc-950/70 border border-zinc-800/80 text-zinc-500 text-xs">
-          <Clock className="w-6 h-6 mx-auto mb-2 text-zinc-600" />
-          <span>No active positions currently running. Awaiting approved signal triggers.</span>
+        <div className="p-8 text-center rounded-2xl bg-zinc-950/70 border border-zinc-800/80 text-zinc-400 text-xs space-y-2">
+          <Clock className="w-7 h-7 mx-auto mb-2 text-amber-400 animate-pulse" />
+          <div className="text-sm font-bold text-zinc-200 tracking-wide font-mono uppercase">
+            WAITING FOR HIGH QUALITY SETUP
+          </div>
+          <div className="text-zinc-500 font-sans max-w-sm mx-auto">
+            No active positions currently running. Real-time market execution engine is scanning for institutional confluence across all 7 governance gates.
+          </div>
         </div>
       ) : (
         <div className="space-y-3">
