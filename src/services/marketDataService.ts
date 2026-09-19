@@ -238,13 +238,13 @@ class MarketDataService {
    */
   private recalculateLiveStatus() {
     const now = Date.now();
-    const isRecent = this.lastMessageTimestamp > 0 && (now - this.lastMessageTimestamp) < 10000;
+    const isRecent = this.lastMessageTimestamp > 0 && (now - this.lastMessageTimestamp) < 12000;
     const hasTicks = this.totalMessagesReceived > 0;
 
-    if (this.wsConnected && hasTicks && isRecent) {
+    if (isRecent && hasTicks) {
       this.status = 'LIVE';
       this.streamStatus = 'LIVE';
-    } else if (this.totalMessagesReceived === 0 || !isRecent) {
+    } else {
       this.status = 'STALE';
       this.streamStatus = 'STALE';
     }

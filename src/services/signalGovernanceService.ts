@@ -300,36 +300,59 @@ class SignalGovernanceService {
     const targetDist = Math.abs(tp1 - ep);
 
     let priceCloseToEntry = true;
+    let isExpiredState = false;
     let priceDeviationReason: string | undefined;
+
+    // Validate current live price is inside entry zone
+    const entryMin = Math.min(signal.entryZone.min, signal.entryZone.max);
+    const entryMax = Math.max(signal.entryZone.min, signal.entryZone.max);
+    const isInsideEntryZone = currentPrice >= entryMin && currentPrice <= entryMax;
 
     if (signal.isExpired) {
       priceCloseToEntry = false;
+      isExpiredState = true;
       priceDeviationReason = 'Signal timeframe expired. Awaiting fresh cycle detection.';
     } else if (isBuy) {
       if (currentPrice >= tp1) {
         priceCloseToEntry = false;
-        priceDeviationReason = `Target TP1 ($${tp1.toFixed(market.decimals)}) already reached at live price $${currentPrice.toFixed(market.decimals)}.`;
+        isExpiredState = true;
+        priceDeviationReason = `Target TP1 ($${tp1.toFixed(market.decimals)}) already reached at live price $${currentPrice.toFixed(market.decimals)}. SETUP EXPIRED.`;
       } else if (currentPrice <= sl) {
         priceCloseToEntry = false;
-        priceDeviationReason = `Stop loss level ($${sl.toFixed(market.decimals)}) breached at live price $${currentPrice.toFixed(market.decimals)}.`;
+        isExpiredState = true;
+        priceDeviationReason = `Stop loss level ($${sl.toFixed(market.decimals)}) breached at live price $${currentPrice.toFixed(market.decimals)}. SETUP EXPIRED.`;
       } else if (targetDist > 0 && (currentPrice - ep) / targetDist > 0.40) {
         priceCloseToEntry = false;
-        priceDeviationReason = `Live price ($${currentPrice.toFixed(market.decimals)}) moved >40% towards TP from entry ($${ep.toFixed(market.decimals)}). Awaiting pullback to entry zone.`;
+        isExpiredState = true;
+        priceDeviationReason = `Live price ($${currentPrice.toFixed(market.decimals)}) moved too far (>40% towards TP) from entry ($${ep.toFixed(market.decimals)}). SETUP EXPIRED.`;
+      } else if (!isInsideEntryZone) {
+        priceCloseToEntry = false;
+        priceDeviationReason = `Live price ($${currentPrice.toFixed(market.decimals)}) is outside Entry Zone ($${entryMin.toFixed(market.decimals)} - $${entryMax.toFixed(market.decimals)}). Awaiting trigger.`;
       }
     } else if (isSell) {
       if (currentPrice <= tp1) {
         priceCloseToEntry = false;
-        priceDeviationReason = `Target TP1 ($${tp1.toFixed(market.decimals)}) already reached at live price $${currentPrice.toFixed(market.decimals)}.`;
+        isExpiredState = true;
+        priceDeviationReason = `Target TP1 ($${tp1.toFixed(market.decimals)}) already reached at live price $${currentPrice.toFixed(market.decimals)}. SETUP EXPIRED.`;
       } else if (currentPrice >= sl) {
         priceCloseToEntry = false;
-        priceDeviationReason = `Stop loss level ($${sl.toFixed(market.decimals)}) breached at live price $${currentPrice.toFixed(market.decimals)}.`;
+        isExpiredState = true;
+        priceDeviationReason = `Stop loss level ($${sl.toFixed(market.decimals)}) breached at live price $${currentPrice.toFixed(market.decimals)}. SETUP EXPIRED.`;
       } else if (targetDist > 0 && (ep - currentPrice) / targetDist > 0.40) {
         priceCloseToEntry = false;
-        priceDeviationReason = `Live price ($${currentPrice.toFixed(market.decimals)}) moved >40% towards TP from entry ($${ep.toFixed(market.decimals)}). Awaiting pullback to entry zone.`;
+        isExpiredState = true;
+        priceDeviationReason = `Live price ($${currentPrice.toFixed(market.decimals)}) moved too far (>40% towards TP) from entry ($${ep.toFixed(market.decimals)}). SETUP EXPIRED.`;
+      } else if (!isInsideEntryZone) {
+        priceCloseToEntry = false;
+        priceDeviationReason = `Live price ($${currentPrice.toFixed(market.decimals)}) is outside Entry Zone ($${entryMin.toFixed(market.decimals)} - $${entryMax.toFixed(market.decimals)}). Awaiting trigger.`;
       }
     }
 
-    if (!priceCloseToEntry && status === 'APPROVED') {
+    if (isExpiredState) {
+      status = 'BLOCKED';
+      statusLabel = 'EXPIRED 🔴';
+      waitReason = priceDeviationReason;
+    } else if (!priceCloseToEntry && status === 'APPROVED') {
       status = 'WAIT';
       statusLabel = 'WAIT ⏳';
       waitReason = priceDeviationReason;
@@ -341,7 +364,7 @@ class SignalGovernanceService {
     let lifecycleStageLabel = 'Approved';
     let pnlR: number | undefined;
 
-    if (signal.isExpired) {
+    if (signal.isExpired || isExpiredState) {
       lifecycleStage = 'EXPIRED';
       lifecycleStageLabel = 'Expired';
     } else if (isBuy) {
