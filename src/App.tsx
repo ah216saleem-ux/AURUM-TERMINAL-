@@ -33,6 +33,7 @@ import { ValidationMonitoringDashboardView } from './components/ValidationMonito
 import { BottomNavBar } from './components/BottomNavBar';
 import { MarketCategory, MarketItem } from './types';
 import { INITIAL_MARKETS } from './data/initialData';
+import { SpyOptionsSniperView } from './components/SpyOptionsSniperView';
 import { 
   Sparkles, 
   ShieldCheck, 
@@ -54,7 +55,8 @@ import {
   LogOut,
   Lock,
   Compass,
-  Cpu
+  Cpu,
+  Target
 } from 'lucide-react';
 import { GannIntradayEnginePanel } from './components/GannIntradayEnginePanel';
 import { MasterIntelligenceView } from './components/MasterIntelligenceView';
@@ -85,7 +87,7 @@ function MainApp() {
   const [selectedProfileAssetId, setSelectedProfileAssetId] = useState<string | null>(null);
   const [isScannerOpen, setIsScannerOpen] = useState<boolean>(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'MASTER' | 'SIGNALS' | 'GANN' | 'PAPER' | 'VALIDATION' | 'SCANNER' | 'NEWS' | 'RISK' | 'LEARNING' | 'HISTORY'>('DASHBOARD');
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'SPY' | 'MASTER' | 'SIGNALS' | 'GANN' | 'PAPER' | 'VALIDATION' | 'SCANNER' | 'NEWS' | 'RISK' | 'LEARNING' | 'HISTORY'>('DASHBOARD');
   const [categoryFilter, setCategoryFilter] = useState<MarketCategory | 'all'>('all');
   
   // Persistent Login & Direct Access Protection State
@@ -248,6 +250,7 @@ function MainApp() {
             <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-none text-[10.5px] font-mono-num font-bold">
               {[
                 { id: 'DASHBOARD', label: 'Dashboard', icon: Zap, adminOnly: false },
+                { id: 'SPY', label: 'SPY OPTIONS', icon: Target, adminOnly: false },
                 { id: 'MASTER', label: 'Master Intelligence', icon: Cpu, adminOnly: false },
                 { id: 'SIGNALS', label: 'Signals', icon: Sparkles, adminOnly: false },
                 { id: 'GANN', label: 'Gann Intraday', icon: Compass, adminOnly: false },
@@ -351,6 +354,9 @@ function MainApp() {
                 }}
                 onSendTelegram={sendSignalToTelegram}
               />
+            ) : activeTab === 'SPY' ? (
+              /* SPY 0DTE OPTIONS SNIPER VIEW */
+              <SpyOptionsSniperView />
             ) : activeTab === 'MASTER' ? (
               /* MASTER PERFORMANCE INTELLIGENCE ENGINE */
               <MasterIntelligenceView

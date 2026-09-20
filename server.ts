@@ -4,6 +4,7 @@ import { createServer as createViteServer } from 'vite';
 import { handleMarketDataRequest } from './server/marketDataRouter';
 import { handleNewsRequest } from './server/newsRouter';
 import { handleQwenRequest, handleQwenStatus } from './server/qwenRouter';
+import { handleSpySniperRequest } from './server/spySniperRouter';
 import { initWebSocketServer } from './server/websocketServer';
 
 async function startServer() {
@@ -31,6 +32,14 @@ async function startServer() {
     const handled = await handleMarketDataRequest(req, res);
     if (!handled) {
       res.status(404).json({ error: 'Market data route not found' });
+    }
+  });
+
+  // SPY Options Sniper API routes (Server-authoritative engine)
+  app.all('/api/spy-sniper*', async (req, res) => {
+    const handled = await handleSpySniperRequest(req, res);
+    if (!handled) {
+      res.status(404).json({ error: 'SPY sniper route not found' });
     }
   });
 
