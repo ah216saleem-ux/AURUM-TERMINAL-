@@ -6,6 +6,7 @@ import { handleNewsRequest } from './server/newsRouter';
 import { handleQwenRequest, handleQwenStatus } from './server/qwenRouter';
 import { handleSpySniperRequest } from './server/spySniperRouter';
 import { handleTerminalSignalsRequest } from './server/terminalSignalsRouter';
+import { handlePhaseXRequest } from './server/phaseXRouter';
 import { handleAdminAuthRequest } from './server/adminAuthRouter';
 import { initWebSocketServer } from './server/websocketServer';
 
@@ -58,6 +59,14 @@ async function startServer() {
     const handled = await handleTerminalSignalsRequest(req, res);
     if (!handled) {
       res.status(404).json({ error: 'Terminal signals route not found' });
+    }
+  });
+
+  // AURUM PHASE X — Market Cycle Intelligence (Wyckoff Engine) API routes
+  app.all('/api/phase-x*', async (req, res) => {
+    const handled = await handlePhaseXRequest(req, res);
+    if (!handled) {
+      res.status(404).json({ error: 'Phase X route not found' });
     }
   });
 

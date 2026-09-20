@@ -57,10 +57,12 @@ import {
   Unlock,
   Compass,
   Cpu,
-  Target
+  Target,
+  Orbit
 } from 'lucide-react';
 import { GannIntradayEnginePanel } from './components/GannIntradayEnginePanel';
 import { MasterIntelligenceView } from './components/MasterIntelligenceView';
+import { PhaseXView } from './components/phaseX/PhaseXView';
 import { InstitutionalLandingPage } from './components/InstitutionalLandingPage';
 import { SecureLoginPage } from './components/SecureLoginPage';
 import { AdminManagementPanel } from './components/AdminManagementPanel';
@@ -90,7 +92,7 @@ function MainApp() {
   const [selectedProfileAssetId, setSelectedProfileAssetId] = useState<string | null>(null);
   const [isScannerOpen, setIsScannerOpen] = useState<boolean>(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'SPY' | 'MASTER' | 'SIGNALS' | 'GANN' | 'PAPER' | 'VALIDATION' | 'SCANNER' | 'NEWS' | 'RISK' | 'LEARNING' | 'HISTORY'>('DASHBOARD');
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'SPY' | 'PHASE_X' | 'MASTER' | 'SIGNALS' | 'GANN' | 'PAPER' | 'VALIDATION' | 'SCANNER' | 'NEWS' | 'RISK' | 'LEARNING' | 'HISTORY'>('DASHBOARD');
   const [categoryFilter, setCategoryFilter] = useState<MarketCategory | 'all'>('all');
   
   // Persistent Login & Direct Access Protection State
@@ -331,6 +333,7 @@ function MainApp() {
               {[
                 { id: 'DASHBOARD', label: 'Dashboard', icon: Zap, adminOnly: false },
                 { id: 'SPY', label: 'SPY OPTIONS', icon: Target, adminOnly: false },
+                { id: 'PHASE_X', label: 'PHASE X', icon: Orbit, adminOnly: false },
                 { id: 'MASTER', label: 'Master Intelligence', icon: Cpu, adminOnly: true },
                 { id: 'SIGNALS', label: 'Signals', icon: Sparkles, adminOnly: false },
                 { id: 'GANN', label: 'Gann Intraday', icon: Compass, adminOnly: true },
@@ -467,6 +470,9 @@ function MainApp() {
             ) : activeTab === 'SPY' ? (
               /* SPY 0DTE OPTIONS SNIPER VIEW */
               <SpyOptionsSniperView />
+            ) : activeTab === 'PHASE_X' ? (
+              /* AURUM TERMINAL: PHASE X — MARKET CYCLE INTELLIGENCE (WYCKOFF CORE) */
+              <PhaseXView />
             ) : activeTab === 'MASTER' ? (
               /* MASTER PERFORMANCE INTELLIGENCE ENGINE */
               <MasterIntelligenceView
