@@ -31,12 +31,20 @@ export interface SpyOptionContract {
 }
 
 export interface SpyDataIntegrity {
+  spyProvider?: 'FINNHUB' | 'ALPACA' | 'YAHOO' | 'CBOE';
+  spyFeed?: 'REALTIME' | 'OPRA' | 'DELAYED' | 'STALE' | 'OFFLINE';
   spyDataStatus: 'LIVE' | 'DELAYED' | 'STALE';
+  spyDataAgeFormatted?: string;
   optionsDataStatus: 'LIVE' | 'DELAYED' | 'STALE';
   optionsFeedClassification: 'REALTIME_OPRA' | 'INDICATIVE' | 'DELAYED' | 'STALE' | 'OFFLINE' | 'UNKNOWN';
-  optionsProvider: 'ALPACA' | 'CBOE_DELAYED_FALLBACK';
+  optionsProvider: 'FINNHUB' | 'ALPACA' | 'CBOE_DELAYED_FALLBACK';
   optionsFeed: string;
-  sourceBadge: 'ALPACA OPRA' | 'ALPACA INDICATIVE' | 'CBOE DELAYED' | 'OFFLINE';
+  opraEntitled?: boolean;
+  chainStatus?: 'FRESH' | 'DELAYED' | 'UNAVAILABLE';
+  quoteStatus?: 'REALTIME' | 'DELAYED' | 'OFFLINE';
+  greeksStatus?: 'REALTIME' | 'UNAVAILABLE';
+  streamStatus?: 'WS_CONNECTED' | 'REST_FALLBACK' | 'OFFLINE';
+  sourceBadge: string;
   lastUpdateET: string;
   spyLatencySeconds: number;
   optionsLatencySeconds: number;
@@ -47,6 +55,37 @@ export interface SpyDataIntegrity {
   freshnessGatePassed: boolean;
   maxAcceptableLatencySeconds: number;
   cboeRawTimestamp: string;
+}
+
+export interface FinnhubHealth {
+  provider: 'FINNHUB';
+  keyConfigured: boolean;
+  authenticated: boolean;
+  spyDataAvailable: boolean;
+  latencySeconds: number;
+  dataAgeFormatted: string;
+  lastQuoteTimestampET: string;
+  lastError: string | null;
+}
+
+export interface ProviderDiagnosticResult {
+  finnhubKey: 'CONFIGURED' | 'MISSING';
+  finnhubAuth: 'PASS' | 'FAIL';
+  finnhubSpyData: 'PASS' | 'FAIL';
+  finnhubDataAge: string;
+  opraProvider: string;
+  opraAuth: 'PASS' | 'FAIL';
+  opraEntitlement: 'YES' | 'NO';
+  spy0DTEChain: 'PASS' | 'FAIL';
+  liveBidAsk: 'PASS' | 'FAIL';
+  greeks: 'PASS' | 'FAIL' | 'UNAVAILABLE';
+  cboeFallback: 'READY' | 'FAIL';
+  liveAlertReady: 'YES' | 'NO';
+  paperModeReady: 'YES' | 'NO';
+  finalSpyProvider: string;
+  finalOptionsProvider: string;
+  timestamp: number;
+  timestampET: string;
 }
 
 export interface SpyMarketSnapshot {
@@ -136,46 +175,89 @@ export interface SpyActiveTrade {
   iv: number | null;
 }
 
+export interface SpyUnderlyingSignal {
+  signalId: string;
+  type: 'SPY_UNDERLYING_SIGNAL';
+  direction: 'CALL' | 'PUT';
+  spyPrice: number;
+  entryPrice: number;
+  stopLossPrice: number;
+  target1Price: number;
+  target2Price: number;
+  timeframe: string; // "5M / 15M Intraday"
+  confidence: number;
+  setupType: string;
+  scores: {
+    marketStructure: number;
+    liquidity: number;
+    vwap: number;
+    openingRange: number;
+    volumeMomentum: number;
+    correlation: number;
+    riskTiming: number;
+  };
+  keyLevels: {
+    vwap: number;
+    orh: number;
+    orl: number;
+    pdh: number;
+    pdl: number;
+  };
+  generatedAt: number;
+  generatedAtET: string;
+  currentSpyPrice: number;
+  status: 'ACTIVE' | 'TARGET_1_HIT' | 'TARGET_2_HIT' | 'STOP_LOSS_HIT' | 'MANUAL_CLOSE' | 'EXPIRED';
+  currentPnlPoints: number;
+  currentPnlPercent: number;
+  target1Hit: boolean;
+  target2Hit: boolean;
+  stopHit: boolean;
+  completedAtET: string | null;
+  outcomeReason: string | null;
+  provider: string;
+}
+
 export interface SpyCompletedSignal {
   signalId: string;
   date: string;
   marketDateET: string;
   direction: 'CALL' | 'PUT';
-  strike: number;
-  contractSymbol: string;
-  entryPremium: number;
-  entryBid: number;
-  entryAsk: number;
-  entryMid: number;
-  entryLast: number;
-  entryTimestamp: string;
-  exitPremium: number;
-  exitBid: number;
-  exitAsk: number;
-  exitMid: number;
-  exitLast: number;
-  exitTimestamp: string;
-  PnLUSD: number;
-  PnLPercent: number;
-  result: 'TP_HIT' | 'SL_HIT' | 'TRAILING_SL_HIT' | 'MANUAL_CLOSE' | 'EXPIRED';
+  signalType?: 'SPY_UNDERLYING_SIGNAL';
+  spyPriceAtEntry?: number;
+  entryPrice?: number;
+  exitPrice?: number;
+  stopLossPrice?: number;
+  target1Price?: number;
+  target2Price?: number;
+  pnlPoints?: number;
+  pnlPercent: number;
+  result: 'TARGET_1_HIT' | 'TARGET_2_HIT' | 'STOP_LOSS_HIT' | 'MANUAL_CLOSE' | 'EXPIRED' | 'TP_HIT' | 'SL_HIT' | 'TRAILING_SL_HIT';
   confidence: number;
+  timeframe?: string;
   startedAtET: string;
   closedAtET: string;
   marketDataProvider: string;
-  optionsProvider: string;
-  optionsFeed: string;
-  feedClassification: string;
-  entryQuoteTimestamp: string;
-  entryLatencySeconds: number;
-  delta: number | null;
-  gamma: number | null;
-  theta: number | null;
-  iv: number | null;
+  outcomeReason?: string | null;
+  strike?: number;
+  contractSymbol?: string;
+  entryPremium?: number;
+  exitPremium?: number;
+  PnLUSD?: number;
+  PnLPercent?: number;
+  optionsProvider?: string;
+  optionsFeed?: string;
+  feedClassification?: string;
+  entryQuoteTimestamp?: string;
+  entryLatencySeconds?: number;
+  delta?: number | null;
+  gamma?: number | null;
+  theta?: number | null;
+  iv?: number | null;
 }
 
 export interface SpySessionState {
   sessionId: string;
-  status: 'READY' | 'SCANNING' | 'ACTIVE' | 'COMPLETE' | 'DAILY_LOCKED' | 'NEWS_LOCKED' | 'OFFLINE';
+  status: 'READY' | 'SCANNING' | 'ACTIVE' | 'COMPLETE' | 'DAILY_LOCKED' | 'NEWS_LOCKED' | 'MARKET_CLOSED' | 'DATA_UNAVAILABLE' | 'OFFLINE';
   selectedDuration: string;
   trailingStopMode: boolean;
   isLiveMode: boolean;
@@ -185,6 +267,7 @@ export interface SpySessionState {
   nextScanAt: number | null;
   scansCompleted: number;
   bestCandidate: SpyCandidate | null;
+  activeSignal?: SpyUnderlyingSignal | null;
   preflightError?: string | null;
 }
 
@@ -327,6 +410,7 @@ class SpySniperEngine {
           if (data.snapshot) this.snapshot = data.snapshot;
           if (Array.isArray(data.candidates)) this.candidates = data.candidates;
           if (data.providerHealth) this.providerHealth = data.providerHealth;
+          if (data.finnhubHealth) this.finnhubHealth = data.finnhubHealth;
           if (Array.isArray(data.history)) {
             this.signalHistory = data.history;
             try {
@@ -478,6 +562,24 @@ class SpySniperEngine {
 
   public getProviderHealth(): SpyProviderHealth | null {
     return this.providerHealth ? { ...this.providerHealth } : null;
+  }
+
+  private finnhubHealth: FinnhubHealth | null = null;
+
+  public getFinnhubHealth(): FinnhubHealth | null {
+    return this.finnhubHealth ? { ...this.finnhubHealth } : null;
+  }
+
+  public async getProviderDiagnostic(): Promise<ProviderDiagnosticResult | null> {
+    try {
+      const res = await fetch('/api/spy-sniper/diagnostic');
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.error('[SPY Sniper Client] Failed to fetch provider diagnostic:', e);
+    }
+    return null;
   }
 
   public async executeDryRun(): Promise<any> {

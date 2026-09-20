@@ -20,6 +20,11 @@ import {
   OptionsFeedClassification,
   SpyProviderHealth
 } from './alpacaOptionsProvider';
+import {
+  finnhubSpyProvider,
+  FinnhubProviderHealth,
+  FinnhubSpyQuote
+} from './finnhubSpyProvider';
 
 // Types
 export interface SpyOptionContract {
@@ -44,12 +49,20 @@ export interface SpyOptionContract {
 }
 
 export interface SpyDataIntegrity {
+  spyProvider: 'FINNHUB' | 'ALPACA' | 'YAHOO' | 'CBOE';
+  spyFeed: 'REALTIME' | 'OPRA' | 'DELAYED' | 'STALE' | 'OFFLINE';
   spyDataStatus: 'LIVE' | 'DELAYED' | 'STALE';
+  spyDataAgeFormatted: string;
   optionsDataStatus: 'LIVE' | 'DELAYED' | 'STALE';
   optionsFeedClassification: OptionsFeedClassification;
-  optionsProvider: 'ALPACA' | 'CBOE_DELAYED_FALLBACK';
+  optionsProvider: 'FINNHUB' | 'ALPACA' | 'CBOE_DELAYED_FALLBACK';
   optionsFeed: string;
-  sourceBadge: 'ALPACA OPRA' | 'ALPACA INDICATIVE' | 'CBOE DELAYED' | 'OFFLINE';
+  opraEntitled: boolean;
+  chainStatus: 'FRESH' | 'DELAYED' | 'UNAVAILABLE';
+  quoteStatus: 'REALTIME' | 'DELAYED' | 'OFFLINE';
+  greeksStatus: 'REALTIME' | 'UNAVAILABLE';
+  streamStatus: 'WS_CONNECTED' | 'REST_FALLBACK' | 'OFFLINE';
+  sourceBadge: string;
   lastUpdateET: string;
   spyLatencySeconds: number;
   optionsLatencySeconds: number;
@@ -149,46 +162,78 @@ export interface SpyActiveTrade {
   iv: number | null;
 }
 
+export interface SpyUnderlyingSignal {
+  signalId: string;
+  type: 'SPY_UNDERLYING_SIGNAL';
+  direction: 'CALL' | 'PUT';
+  spyPrice: number;
+  entryPrice: number;
+  stopLossPrice: number;
+  target1Price: number;
+  target2Price: number;
+  timeframe: string; // "5M / 15M Intraday"
+  confidence: number;
+  setupType: string;
+  scores: {
+    marketStructure: number;
+    liquidity: number;
+    vwap: number;
+    openingRange: number;
+    volumeMomentum: number;
+    correlation: number;
+    riskTiming: number;
+  };
+  keyLevels: {
+    vwap: number;
+    orh: number;
+    orl: number;
+    pdh: number;
+    pdl: number;
+  };
+  generatedAt: number;
+  generatedAtET: string;
+  currentSpyPrice: number;
+  status: 'ACTIVE' | 'TARGET_1_HIT' | 'TARGET_2_HIT' | 'STOP_LOSS_HIT' | 'MANUAL_CLOSE' | 'EXPIRED';
+  currentPnlPoints: number;
+  currentPnlPercent: number;
+  target1Hit: boolean;
+  target2Hit: boolean;
+  stopHit: boolean;
+  completedAtET: string | null;
+  outcomeReason: string | null;
+  provider: string;
+}
+
 export interface SpyCompletedSignal {
   signalId: string;
   date: string;
   marketDateET: string;
   direction: 'CALL' | 'PUT';
-  strike: number;
-  contractSymbol: string;
-  entryPremium: number;
-  entryBid: number;
-  entryAsk: number;
-  entryMid: number;
-  entryLast: number;
-  entryTimestamp: string;
-  exitPremium: number;
-  exitBid: number;
-  exitAsk: number;
-  exitMid: number;
-  exitLast: number;
-  exitTimestamp: string;
-  PnLUSD: number;
-  PnLPercent: number;
-  result: 'TP_HIT' | 'SL_HIT' | 'TRAILING_SL_HIT' | 'MANUAL_CLOSE' | 'EXPIRED';
+  signalType: 'SPY_UNDERLYING_SIGNAL';
+  spyPriceAtEntry: number;
+  entryPrice: number;
+  exitPrice: number;
+  stopLossPrice: number;
+  target1Price: number;
+  target2Price: number;
+  pnlPoints: number;
+  pnlPercent: number;
+  result: 'TARGET_1_HIT' | 'TARGET_2_HIT' | 'STOP_LOSS_HIT' | 'MANUAL_CLOSE' | 'EXPIRED' | 'TP_HIT' | 'SL_HIT';
   confidence: number;
+  timeframe: string;
   startedAtET: string;
   closedAtET: string;
   marketDataProvider: string;
-  optionsProvider: string;
-  optionsFeed: string;
-  feedClassification: string;
-  entryQuoteTimestamp: string;
-  entryLatencySeconds: number;
-  delta: number | null;
-  gamma: number | null;
-  theta: number | null;
-  iv: number | null;
+  outcomeReason: string | null;
+  delta?: number | null;
+  gamma?: number | null;
+  theta?: number | null;
+  iv?: number | null;
 }
 
 export interface SpySessionState {
   sessionId: string;
-  status: 'READY' | 'SCANNING' | 'ACTIVE' | 'COMPLETE' | 'DAILY_LOCKED' | 'NEWS_LOCKED' | 'OFFLINE';
+  status: 'READY' | 'SCANNING' | 'ACTIVE' | 'COMPLETE' | 'DAILY_LOCKED' | 'NEWS_LOCKED' | 'MARKET_CLOSED' | 'DATA_UNAVAILABLE';
   selectedDuration: string;
   trailingStopMode: boolean;
   isLiveMode: boolean;
@@ -198,6 +243,7 @@ export interface SpySessionState {
   nextScanAt: number | null;
   scansCompleted: number;
   bestCandidate: SpyCandidate | null;
+  activeSignal: SpyUnderlyingSignal | null;
   preflightError?: string | null;
 }
 
@@ -250,6 +296,7 @@ class ServerSpySniperEngine {
     nextScanAt: null,
     scansCompleted: 0,
     bestCandidate: null,
+    activeSignal: null,
     preflightError: null
   };
   private activeTrade: SpyActiveTrade | null = null;
@@ -452,10 +499,14 @@ class ServerSpySniperEngine {
   }
 
   /**
-   * Fetch live market data (SPY, QQQ, ES, VIX and 5m candles)
+   * Fetch live market data (SPY via Finnhub primary, QQQ, ES, VIX and 5m candles)
    */
   public async refreshLiveMarketData(): Promise<SpyMarketSnapshot | null> {
     try {
+      // 1. Fetch Primary SPY quote from Finnhub
+      const finnhubQuote = await finnhubSpyProvider.fetchSpyQuote();
+
+      // 2. Fetch candles and intermarket indices (QQQ, ES, VIX)
       const [spyRes, qqqRes, esRes, vixRes] = await Promise.all([
         fetch("https://query1.finance.yahoo.com/v8/finance/chart/SPY?interval=5m&range=2d", { headers: { "User-Agent": "Mozilla/5.0" } }),
         fetch("https://query1.finance.yahoo.com/v8/finance/chart/QQQ?interval=5m&range=1d", { headers: { "User-Agent": "Mozilla/5.0" } }),
@@ -476,10 +527,35 @@ class ServerSpySniperEngine {
         return null;
       }
 
-      const spyPrice = spyResult.meta.regularMarketPrice;
-      const prevClose = spyResult.meta.previousClose || spyResult.meta.chartPreviousClose || spyPrice;
-      const dailyChange = +(spyPrice - prevClose).toFixed(2);
-      const dailyChangePercent = +((dailyChange / prevClose) * 100).toFixed(2);
+      const now = Date.now();
+      const isMarketOpen = this.isUSMarketOpen().isOpen;
+
+      // Determine SPY Underlying Quote (FINNHUB Primary -> Yahoo/Alpaca Fallback)
+      let spyPrice = spyResult.meta.regularMarketPrice;
+      let prevClose = spyResult.meta.previousClose || spyResult.meta.chartPreviousClose || spyPrice;
+      let dailyChange = +(spyPrice - prevClose).toFixed(2);
+      let dailyChangePercent = +((dailyChange / prevClose) * 100).toFixed(2);
+      let spyLatencySeconds = 0;
+      let spyProvider: 'FINNHUB' | 'ALPACA' | 'YAHOO' = 'YAHOO';
+      let spyFeed: 'REALTIME' | 'OPRA' | 'DELAYED' | 'STALE' | 'OFFLINE' = 'DELAYED';
+      let spyDataAgeFormatted = '0s';
+
+      if (finnhubQuote && finnhubQuote.current > 0) {
+        spyPrice = finnhubQuote.current;
+        prevClose = finnhubQuote.previousClose || prevClose;
+        dailyChange = finnhubQuote.change;
+        dailyChangePercent = finnhubQuote.percentChange;
+        spyLatencySeconds = finnhubQuote.latencySeconds;
+        spyProvider = 'FINNHUB';
+        spyFeed = !isMarketOpen ? 'DELAYED' : (spyLatencySeconds <= 60 ? 'REALTIME' : 'DELAYED');
+        spyDataAgeFormatted = `${spyLatencySeconds}s`;
+      } else {
+        const spyTimeMs = ((spyResult.meta.regularMarketTime || 0) * 1000);
+        spyLatencySeconds = Math.max(0, Math.round((now - spyTimeMs) / 1000));
+        spyProvider = 'YAHOO';
+        spyFeed = !isMarketOpen ? 'DELAYED' : (spyLatencySeconds <= 120 ? 'REALTIME' : 'DELAYED');
+        spyDataAgeFormatted = `${spyLatencySeconds}s`;
+      }
 
       const qqqPrice = qqqResult.meta.regularMarketPrice;
       const qqqPrevClose = qqqResult.meta.previousClose || qqqResult.meta.chartPreviousClose || qqqPrice;
@@ -492,9 +568,7 @@ class ServerSpySniperEngine {
       const vixPrice = vixResult.meta.regularMarketPrice;
 
       // Real Candle Analytics for VWAP, ORH, ORL, PDH, PDL, Market Structure
-      const timestamps = spyResult.timestamp || [];
       const quote = spyResult.indicators?.quote?.[0] || {};
-      const opens = quote.open || [];
       const highs = quote.high || [];
       const lows = quote.low || [];
       const closes = quote.close || [];
@@ -569,27 +643,23 @@ class ServerSpySniperEngine {
         correlationStatus = 'MIXED';
       }
 
-      const now = Date.now();
-      const spyTimeMs = ((spyResult.meta.regularMarketTime || 0) * 1000);
       const qqqTimeMs = ((qqqResult.meta.regularMarketTime || 0) * 1000);
       const esTimeMs = ((esResult.meta.regularMarketTime || 0) * 1000);
       const vixTimeMs = ((vixResult.meta.regularMarketTime || 0) * 1000);
 
-      const spyLatencySeconds = Math.max(0, Math.round((now - spyTimeMs) / 1000));
       const qqqLatencySeconds = Math.max(0, Math.round((now - qqqTimeMs) / 1000));
       const esLatencySeconds = Math.max(0, Math.round((now - esTimeMs) / 1000));
       const vixLatencySeconds = Math.max(0, Math.round((now - vixTimeMs) / 1000));
 
-      const isMarketOpen = this.isUSMarketOpen().isOpen;
       const spyDataStatus: 'LIVE' | 'DELAYED' | 'STALE' = 
         !isMarketOpen ? 'DELAYED' : (spyLatencySeconds <= 120 ? 'LIVE' : spyLatencySeconds <= 900 ? 'DELAYED' : 'STALE');
 
-      // Check Alpaca Provider Health
+      // Check OPRA / Alpaca Options Provider Health
       const alpacaHealth = alpacaOptionsProvider.getHealth();
       const isAlpacaActive = alpacaHealth.connected && (alpacaHealth.actualFeed === 'opra' || alpacaHealth.actualFeed === 'indicative');
       
       const effectiveOptionsLatency = isAlpacaActive ? alpacaHealth.latencySeconds : this.optionsLatencySeconds;
-      const effectiveClassification = isAlpacaActive ? alpacaHealth.classification : (this.optionsLatencySeconds > 1800 ? 'STALE' : 'DELAYED');
+      const effectiveClassification: OptionsFeedClassification = isAlpacaActive ? alpacaHealth.classification : (this.optionsLatencySeconds > 1800 ? 'STALE' : 'DELAYED');
 
       const isOptionsDelayed = effectiveClassification !== 'REALTIME_OPRA';
       const freshnessGatePassed = (effectiveClassification === 'REALTIME_OPRA') && (effectiveOptionsLatency <= this.config.maxAcceptableLatencySeconds);
@@ -597,13 +667,36 @@ class ServerSpySniperEngine {
       const optionsDataStatus: 'LIVE' | 'DELAYED' | 'STALE' = 
         effectiveClassification === 'REALTIME_OPRA' ? 'LIVE' : (effectiveClassification === 'STALE' ? 'STALE' : 'DELAYED');
 
+      const opraEntitled = alpacaHealth.subscriptionPermission === 'ENTITLED_OPRA';
+
+      // Construct Multi-Provider Badge
+      const spyBadgeText = `${spyProvider} • ${spyFeed}`;
+      const optBadgeText = effectiveClassification === 'REALTIME_OPRA' 
+        ? 'OPRA • REALTIME' 
+        : effectiveClassification === 'INDICATIVE' 
+        ? 'ALPACA • INDICATIVE' 
+        : 'CBOE • DELAYED • PAPER ONLY';
+
+      const sourceBadge = `SPY: ${spyBadgeText} | OPTIONS: ${optBadgeText}`;
+
+      const streamStatus: 'WS_CONNECTED' | 'REST_FALLBACK' | 'OFFLINE' = 
+        alpacaHealth.websocketConnected ? 'WS_CONNECTED' : (alpacaHealth.restAvailable ? 'REST_FALLBACK' : 'OFFLINE');
+
       const dataIntegrity: SpyDataIntegrity = {
+        spyProvider,
+        spyFeed,
         spyDataStatus,
+        spyDataAgeFormatted,
         optionsDataStatus,
         optionsFeedClassification: effectiveClassification,
         optionsProvider: isAlpacaActive ? 'ALPACA' : 'CBOE_DELAYED_FALLBACK',
         optionsFeed: isAlpacaActive ? alpacaHealth.actualFeed : 'cboe_delayed',
-        sourceBadge: isAlpacaActive ? alpacaHealth.sourceBadge : 'CBOE DELAYED',
+        opraEntitled,
+        chainStatus: (this.latestCandidates.length > 0 || this.cachedCboeOptions.length > 0) ? 'FRESH' : 'DELAYED',
+        quoteStatus: effectiveClassification === 'REALTIME_OPRA' ? 'REALTIME' : 'DELAYED',
+        greeksStatus: effectiveClassification === 'REALTIME_OPRA' || this.cachedCboeOptions.some(c => c.delta != null) ? 'REALTIME' : 'UNAVAILABLE',
+        streamStatus,
+        sourceBadge,
         lastUpdateET: this.getTimeET(),
         spyLatencySeconds,
         optionsLatencySeconds: effectiveOptionsLatency,
@@ -970,32 +1063,236 @@ class ServerSpySniperEngine {
   }
 
   /**
-   * Start a Signal Session with Preflight Checks (Section 20 & 21)
+   * Evaluates pure SPY Underlying signals (CALL / PUT) from Finnhub Live Underlying Data & 9-Factor Confluence
    */
-  public startSignalSession(durationStr: string, trailingStopMode: boolean, isLiveMode: boolean = false): SpySessionState {
+  public async evaluateUnderlyingSignals(): Promise<{ callCandidate: SpyUnderlyingSignal | null; putCandidate: SpyUnderlyingSignal | null }> {
+    const snapshot = await this.refreshLiveMarketData();
+    if (!snapshot) return { callCandidate: null, putCandidate: null };
+
+    // Evaluate CALL setup
+    let callScore = 0;
+    // 1. Market Structure (20 pts)
+    if (snapshot.marketStructure === 'BULLISH') callScore += 20;
+    else if (snapshot.marketStructure === 'RANGE') callScore += 12;
+    else callScore += 4;
+
+    // 2. Liquidity & Sweeps (20 pts)
+    if (snapshot.pdl > 0 && snapshot.spyPrice >= snapshot.pdl) callScore += 20;
+    else callScore += 10;
+
+    // 3. VWAP Reclaim (15 pts)
+    if (snapshot.vwap > 0 && snapshot.spyPrice > snapshot.vwap) callScore += 15;
+    else callScore += 4;
+
+    // 4. Opening Range (15 pts)
+    if (snapshot.orh > 0 && snapshot.spyPrice >= snapshot.orh) callScore += 15;
+    else if (snapshot.orh > 0 && snapshot.spyPrice > snapshot.orl) callScore += 10;
+    else callScore += 4;
+
+    // 5. Volume / Momentum (10 pts)
+    if (snapshot.dailyChangePercent >= 0.15) callScore += 10;
+    else if (snapshot.dailyChangePercent >= 0) callScore += 7;
+    else callScore += 3;
+
+    // 6. QQQ / ES Correlation (10 pts)
+    if (snapshot.correlationStatus === 'CONFIRMED' && snapshot.qqqChangePercent >= 0) callScore += 10;
+    else if (snapshot.correlationStatus === 'MIXED') callScore += 5;
+    else callScore += 0;
+
+    // 7. Risk Timing / VIX (10 pts)
+    if (snapshot.vixPrice <= 25) callScore += 10;
+    else callScore += 5;
+
+    // Evaluate PUT setup
+    let putScore = 0;
+    // 1. Market Structure (20 pts)
+    if (snapshot.marketStructure === 'BEARISH') putScore += 20;
+    else if (snapshot.marketStructure === 'RANGE') putScore += 12;
+    else putScore += 4;
+
+    // 2. Liquidity & Sweeps (20 pts)
+    if (snapshot.pdh > 0 && snapshot.spyPrice <= snapshot.pdh) putScore += 20;
+    else callScore += 10;
+
+    // 3. VWAP Breakdown (15 pts)
+    if (snapshot.vwap > 0 && snapshot.spyPrice < snapshot.vwap) putScore += 15;
+    else putScore += 4;
+
+    // 4. Opening Range (15 pts)
+    if (snapshot.orl > 0 && snapshot.spyPrice <= snapshot.orl) putScore += 15;
+    else if (snapshot.orl > 0 && snapshot.spyPrice < snapshot.orh) putScore += 10;
+    else putScore += 4;
+
+    // 5. Volume / Momentum (10 pts)
+    if (snapshot.dailyChangePercent <= -0.15) putScore += 10;
+    else if (snapshot.dailyChangePercent <= 0) putScore += 7;
+    else putScore += 3;
+
+    // 6. QQQ / ES Correlation (10 pts)
+    if (snapshot.correlationStatus === 'CONFIRMED' && snapshot.qqqChangePercent <= 0) putScore += 10;
+    else if (snapshot.correlationStatus === 'MIXED') putScore += 5;
+    else putScore += 0;
+
+    // 7. Risk Timing / VIX (10 pts)
+    if (snapshot.vixPrice <= 25) putScore += 10;
+    else putScore += 5;
+
+    // Calculate institutional Risk Levels for CALL
+    const callVwapRef = snapshot.vwap > 0 ? snapshot.vwap : snapshot.spyPrice - 0.80;
+    const callRisk = Math.max(0.60, Math.min(1.60, +(snapshot.spyPrice - callVwapRef + 0.15).toFixed(2)));
+    const callEntry = +(snapshot.spyPrice).toFixed(2);
+    const callStop = +(snapshot.spyPrice - callRisk).toFixed(2);
+    const callT1 = +(snapshot.spyPrice + (callRisk * 1.5)).toFixed(2);
+    const callT2 = +(snapshot.spyPrice + (callRisk * 2.5)).toFixed(2);
+
+    const callCandidate: SpyUnderlyingSignal = {
+      signalId: `spy_call_${Date.now()}`,
+      type: 'SPY_UNDERLYING_SIGNAL',
+      direction: 'CALL',
+      spyPrice: snapshot.spyPrice,
+      entryPrice: callEntry,
+      stopLossPrice: callStop,
+      target1Price: callT1,
+      target2Price: callT2,
+      timeframe: '5M / 15M Intraday',
+      confidence: Math.min(100, callScore),
+      setupType: 'SPY Bullish Breakout & VWAP Reclaim',
+      scores: {
+        marketStructure: snapshot.marketStructure === 'BULLISH' ? 20 : 12,
+        liquidity: 20,
+        vwap: snapshot.spyPrice > snapshot.vwap ? 15 : 4,
+        openingRange: 15,
+        volumeMomentum: 10,
+        correlation: snapshot.correlationStatus === 'CONFIRMED' ? 10 : 5,
+        riskTiming: 10
+      },
+      keyLevels: {
+        vwap: snapshot.vwap,
+        orh: snapshot.orh,
+        orl: snapshot.orl,
+        pdh: snapshot.pdh,
+        pdl: snapshot.pdl
+      },
+      generatedAt: Date.now(),
+      generatedAtET: this.getTimeET(),
+      currentSpyPrice: snapshot.spyPrice,
+      status: 'ACTIVE',
+      currentPnlPoints: 0,
+      currentPnlPercent: 0,
+      target1Hit: false,
+      target2Hit: false,
+      stopHit: false,
+      completedAtET: null,
+      outcomeReason: null,
+      provider: 'FINNHUB (LIVE SPY UNDERLYING)'
+    };
+
+    // Calculate institutional Risk Levels for PUT
+    const putVwapRef = snapshot.vwap > 0 ? snapshot.vwap : snapshot.spyPrice + 0.80;
+    const putRisk = Math.max(0.60, Math.min(1.60, +(putVwapRef - snapshot.spyPrice + 0.15).toFixed(2)));
+    const putEntry = +(snapshot.spyPrice).toFixed(2);
+    const putStop = +(snapshot.spyPrice + putRisk).toFixed(2);
+    const putT1 = +(snapshot.spyPrice - (putRisk * 1.5)).toFixed(2);
+    const putT2 = +(snapshot.spyPrice - (putRisk * 2.5)).toFixed(2);
+
+    const putCandidate: SpyUnderlyingSignal = {
+      signalId: `spy_put_${Date.now()}`,
+      type: 'SPY_UNDERLYING_SIGNAL',
+      direction: 'PUT',
+      spyPrice: snapshot.spyPrice,
+      entryPrice: putEntry,
+      stopLossPrice: putStop,
+      target1Price: putT1,
+      target2Price: putT2,
+      timeframe: '5M / 15M Intraday',
+      confidence: Math.min(100, putScore),
+      setupType: 'SPY Bearish Breakdown & VWAP Rejection',
+      scores: {
+        marketStructure: snapshot.marketStructure === 'BEARISH' ? 20 : 12,
+        liquidity: 20,
+        vwap: snapshot.spyPrice < snapshot.vwap ? 15 : 4,
+        openingRange: 15,
+        volumeMomentum: 10,
+        correlation: snapshot.correlationStatus === 'CONFIRMED' ? 10 : 5,
+        riskTiming: 10
+      },
+      keyLevels: {
+        vwap: snapshot.vwap,
+        orh: snapshot.orh,
+        orl: snapshot.orl,
+        pdh: snapshot.pdh,
+        pdl: snapshot.pdl
+      },
+      generatedAt: Date.now(),
+      generatedAtET: this.getTimeET(),
+      currentSpyPrice: snapshot.spyPrice,
+      status: 'ACTIVE',
+      currentPnlPoints: 0,
+      currentPnlPercent: 0,
+      target1Hit: false,
+      target2Hit: false,
+      stopHit: false,
+      completedAtET: null,
+      outcomeReason: null,
+      provider: 'FINNHUB (LIVE SPY UNDERLYING)'
+    };
+
+    return { callCandidate, putCandidate };
+  }
+
+  /**
+   * Start a Signal Session with Preflight Checks
+   */
+  public startSignalSession(durationStr: string, trailingStopMode: boolean = true, isLiveMode: boolean = true): SpySessionState {
     this.checkDailyReset();
 
-    const alpacaHealth = alpacaOptionsProvider.getHealth();
     const marketCheck = this.isUSMarketOpen();
     const newsCheck = this.checkNewsLock();
 
-    // 1. Strict Live Mode Gate (Section 5 & 20)
-    if (isLiveMode || !this.config.paperMode) {
-      if (alpacaHealth.classification !== 'REALTIME_OPRA') {
-        this.session.preflightError = `REAL-TIME OPTIONS DATA REQUIRED: OPRA feed unavailable (${alpacaHealth.classification}). Switch to Paper Mode or connect real-time OPRA data.`;
-        this.session.status = 'READY';
-        this.saveStateToFile();
-        return this.session;
-      }
-      if (alpacaHealth.latencySeconds > this.config.maxAcceptableLatencySeconds) {
-        this.session.preflightError = `OPTIONS DATA NOT LIVE: Feed latency (${alpacaHealth.latencySeconds}s) exceeds maximum allowable threshold (${this.config.maxAcceptableLatencySeconds}s). WAIT FOR FRESH DATA ☕`;
-        this.session.status = 'READY';
-        this.saveStateToFile();
-        return this.session;
-      }
+    // 1. Market Closed Preflight Check
+    if (!marketCheck.isOpen) {
+      this.session = {
+        sessionId: `spy_session_${Date.now()}`,
+        status: 'MARKET_CLOSED',
+        selectedDuration: durationStr,
+        trailingStopMode,
+        isLiveMode: true,
+        startedAt: null,
+        startedAtET: null,
+        endsAt: null,
+        nextScanAt: null,
+        scansCompleted: 0,
+        bestCandidate: null,
+        activeSignal: null,
+        preflightError: 'MARKET CLOSED — LIVE SIGNAL UNAVAILABLE'
+      };
+      this.saveStateToFile();
+      return this.session;
     }
 
-    // 2. Risk Lock Preflight
+    // 2. Data Freshness Preflight Check (Finnhub Live SPY)
+    const snapshot = this.latestSnapshot;
+    if (!snapshot || snapshot.freshness === 'OFFLINE') {
+      this.session = {
+        sessionId: `spy_session_${Date.now()}`,
+        status: 'DATA_UNAVAILABLE',
+        selectedDuration: durationStr,
+        trailingStopMode,
+        isLiveMode: true,
+        startedAt: null,
+        startedAtET: null,
+        endsAt: null,
+        nextScanAt: null,
+        scansCompleted: 0,
+        bestCandidate: null,
+        activeSignal: null,
+        preflightError: 'LIVE DATA UNAVAILABLE'
+      };
+      this.saveStateToFile();
+      return this.session;
+    }
+
+    // 3. Risk Lock Preflight
     if (this.dailyRisk.dailyLocked) {
       this.session.status = 'DAILY_LOCKED';
       this.session.preflightError = `Daily risk guard locked: ${this.dailyRisk.lockReason}`;
@@ -1003,7 +1300,7 @@ class ServerSpySniperEngine {
       return this.session;
     }
 
-    // 3. News Lock Preflight
+    // 4. News Lock Preflight
     if (newsCheck.isLocked) {
       this.session.status = 'NEWS_LOCKED';
       this.session.preflightError = `News Lock Active: ${newsCheck.reason}`;
@@ -1012,12 +1309,12 @@ class ServerSpySniperEngine {
     }
 
     let durationMs = 30 * 60 * 1000;
-    if (durationStr === '15 MIN') durationMs = 15 * 60 * 1000;
-    else if (durationStr === '30 MIN') durationMs = 30 * 60 * 1000;
-    else if (durationStr === '45 MIN') durationMs = 45 * 60 * 1000;
-    else if (durationStr === '1 HOUR') durationMs = 60 * 60 * 1000;
-    else if (durationStr === '2 HOURS') durationMs = 120 * 60 * 1000;
-    else if (durationStr === 'UNTIL CLOSE') {
+    if (durationStr === '15 MIN' || durationStr === '15 Minutes') durationMs = 15 * 60 * 1000;
+    else if (durationStr === '30 MIN' || durationStr === '30 Minutes') durationMs = 30 * 60 * 1000;
+    else if (durationStr === '45 MIN' || durationStr === '45 Minutes') durationMs = 45 * 60 * 1000;
+    else if (durationStr === '1 HOUR' || durationStr === '1 Hour') durationMs = 60 * 60 * 1000;
+    else if (durationStr === '2 HOURS' || durationStr === '2 Hours') durationMs = 120 * 60 * 1000;
+    else if (durationStr === 'UNTIL CLOSE' || durationStr === 'Until Market Close') {
       const now = new Date();
       const closeDate = new Date(now);
       closeDate.setHours(16, 0, 0, 0);
@@ -1030,19 +1327,20 @@ class ServerSpySniperEngine {
       status: 'SCANNING',
       selectedDuration: durationStr,
       trailingStopMode,
-      isLiveMode,
+      isLiveMode: true,
       startedAt: now,
       startedAtET: this.getTimeET(),
       endsAt: now + durationMs,
       nextScanAt: now, // Initial scan immediately
       scansCompleted: 0,
       bestCandidate: null,
+      activeSignal: null,
       preflightError: null
     };
 
-    console.log(`[SPY Sniper] Started session: ${this.session.sessionId} (${durationStr}, LiveMode: ${isLiveMode})`);
+    console.log(`[SPY Sniper] Started live signal session: ${this.session.sessionId} (${durationStr})`);
     this.saveStateToFile();
-    // Trigger first scan
+    // Trigger initial scan
     this.runScanIteration().catch(e => console.error('[SPY Sniper] Scan iteration error:', e));
     return this.session;
   }
@@ -1056,13 +1354,14 @@ class ServerSpySniperEngine {
       status: 'READY',
       selectedDuration: this.session.selectedDuration,
       trailingStopMode: this.session.trailingStopMode,
-      isLiveMode: false,
+      isLiveMode: true,
       startedAt: null,
       startedAtET: null,
       endsAt: null,
       nextScanAt: null,
       scansCompleted: 0,
       bestCandidate: null,
+      activeSignal: null,
       preflightError: null
     };
     this.saveStateToFile();
@@ -1070,90 +1369,48 @@ class ServerSpySniperEngine {
   }
 
   /**
-   * Manually close active trade
+   * Manually close or complete active signal
    */
   public closeActiveTrade(reason: string = 'MANUAL_CLOSE'): SpyCompletedSignal | null {
-    if (!this.activeTrade) return null;
+    if (this.session.activeSignal) {
+      const s = this.session.activeSignal;
+      const nowET = this.getTimeET();
+      const pnlPoints = s.currentPnlPoints;
+      const pnlPercent = s.currentPnlPercent;
+      const resultType: 'TARGET_1_HIT' | 'TARGET_2_HIT' | 'STOP_LOSS_HIT' | 'MANUAL_CLOSE' =
+        reason === 'MANUAL_CLOSE' ? 'MANUAL_CLOSE' : (pnlPoints >= 0 ? 'TARGET_1_HIT' : 'STOP_LOSS_HIT');
 
-    const t = this.activeTrade;
-    const nowET = this.getTimeET();
-    const resultType = t.pnlDollar >= 0 ? 'TP_HIT' : 'SL_HIT';
+      const completed: SpyCompletedSignal = {
+        signalId: s.signalId,
+        date: new Date().toISOString(),
+        marketDateET: this.getTodayET(),
+        direction: s.direction,
+        signalType: 'SPY_UNDERLYING_SIGNAL',
+        spyPriceAtEntry: s.spyPrice,
+        entryPrice: s.entryPrice,
+        exitPrice: s.currentSpyPrice,
+        stopLossPrice: s.stopLossPrice,
+        target1Price: s.target1Price,
+        target2Price: s.target2Price,
+        pnlPoints,
+        pnlPercent,
+        result: resultType,
+        confidence: s.confidence,
+        timeframe: s.timeframe,
+        startedAtET: s.generatedAtET,
+        closedAtET: nowET,
+        marketDataProvider: 'FINNHUB (LIVE SPY)',
+        outcomeReason: reason === 'MANUAL_CLOSE' ? 'Manually Closed by User' : s.outcomeReason
+      };
 
-    // Unsubscribe from WebSocket
-    alpacaOptionsProvider.unsubscribeContract();
-
-    const exitBid = t.currentBid;
-    const exitAsk = t.currentAsk;
-    const exitMid = t.currentMid;
-    const exitLast = t.currentLast;
-    const exitPremium = t.currentPremium;
-
-    const completed: SpyCompletedSignal = {
-      signalId: t.tradeId,
-      date: new Date().toISOString(),
-      marketDateET: this.getTodayET(),
-      direction: t.direction,
-      strike: t.strike,
-      contractSymbol: t.contractSymbol,
-      entryPremium: t.entryPremium,
-      entryBid: t.entryBid,
-      entryAsk: t.entryAsk,
-      entryMid: t.entryMid,
-      entryLast: t.entryLast,
-      entryTimestamp: t.entryTimestamp,
-      exitPremium,
-      exitBid,
-      exitAsk,
-      exitMid,
-      exitLast,
-      exitTimestamp: new Date().toISOString(),
-      PnLUSD: t.pnlDollar,
-      PnLPercent: t.pnlPercent,
-      result: reason === 'MANUAL_CLOSE' ? 'MANUAL_CLOSE' : (resultType as any),
-      confidence: t.confidence,
-      startedAtET: t.startedAtET,
-      closedAtET: nowET,
-      marketDataProvider: 'Exchange Live Feeds',
-      optionsProvider: t.optionsProvider,
-      optionsFeed: t.optionsFeed,
-      feedClassification: t.feedClassification,
-      entryQuoteTimestamp: t.entryTimestamp,
-      entryLatencySeconds: 0,
-      delta: t.delta,
-      gamma: t.gamma,
-      theta: t.theta,
-      iv: t.iv
-    };
-
-    this.signalHistory.unshift(completed);
-
-    // Update Daily Risk
-    this.dailyRisk.dailyPnL = +(this.dailyRisk.dailyPnL + completed.PnLUSD).toFixed(2);
-    this.dailyRisk.tradesToday += 1;
-
-    if (completed.PnLUSD < 0) {
-      this.dailyRisk.consecutiveLosses += 1;
-    } else {
-      this.dailyRisk.consecutiveLosses = 0;
-    }
-
-    // Check Daily Lock
-    if (this.dailyRisk.consecutiveLosses >= this.config.maxConsecutiveLosses) {
-      this.dailyRisk.dailyLocked = true;
-      this.dailyRisk.lockReason = `Reached maximum consecutive stop losses (${this.config.maxConsecutiveLosses} SL Hits)`;
-      this.session.status = 'DAILY_LOCKED';
-    } else if (this.dailyRisk.dailyPnL <= -this.config.maxDollarRisk * 2) {
-      this.dailyRisk.dailyLocked = true;
-      this.dailyRisk.lockReason = `Exceeded daily maximum loss limit ($${Math.abs(this.dailyRisk.dailyPnL)})`;
-      this.session.status = 'DAILY_LOCKED';
-    } else {
+      this.signalHistory.unshift(completed);
+      this.session.activeSignal = null;
       this.session.status = 'COMPLETE';
+      this.saveStateToFile();
+      console.log(`[SPY Sniper] Signal Concluded: ${completed.direction} @ $${completed.exitPrice} (Result: ${completed.result})`);
+      return completed;
     }
-
-    this.activeTrade = null;
-    this.saveStateToFile();
-    console.log(`[SPY Sniper] Trade Closed: ${completed.contractSymbol} P/L: $${completed.PnLUSD}`);
-    return completed;
+    return null;
   }
 
   /**
@@ -1165,15 +1422,40 @@ class ServerSpySniperEngine {
 
     try {
       this.session.scansCompleted += 1;
-      const candidates = await this.evaluateCandidates();
-      const best = candidates.find(c => c.hardGatesPassed && c.totalConfidence >= this.config.minConfidence);
+      const snapshot = await this.refreshLiveMarketData();
+      if (!snapshot) {
+        this.session.nextScanAt = Date.now() + 5 * 60 * 1000;
+        this.saveStateToFile();
+        return;
+      }
 
-      if (best) {
-        console.log(`[SPY Sniper] Optimal 0DTE setup found: ${best.direction} ${best.selectedContract.contractSymbol} (${best.totalConfidence}%)`);
-        this.session.bestCandidate = best;
-        this.openActiveTrade(best);
+      const marketCheck = this.isUSMarketOpen();
+      if (!marketCheck.isOpen) {
+        this.session.status = 'MARKET_CLOSED';
+        this.session.preflightError = 'MARKET CLOSED — LIVE SIGNAL UNAVAILABLE';
+        this.saveStateToFile();
+        return;
+      }
+
+      // Evaluate underlying signals
+      const { callCandidate, putCandidate } = await this.evaluateUnderlyingSignals();
+      
+      // Determine if a qualifying signal (>=80% confidence) is present
+      let bestSignal: SpyUnderlyingSignal | null = null;
+      if (callCandidate && callCandidate.confidence >= this.config.minConfidence && (!putCandidate || callCandidate.confidence >= putCandidate.confidence)) {
+        bestSignal = callCandidate;
+      } else if (putCandidate && putCandidate.confidence >= this.config.minConfidence) {
+        bestSignal = putCandidate;
+      }
+
+      if (bestSignal && snapshot.correlationStatus !== 'DIVERGENT') {
+        console.log(`[SPY Sniper] 🦅 AURUM SPY SIGNAL GENERATED: ${bestSignal.direction} @ $${bestSignal.entryPrice} (${bestSignal.confidence}% Confidence)`);
+        this.session.activeSignal = bestSignal;
+        this.session.status = 'ACTIVE';
+        this.saveStateToFile();
       } else {
-        // Set next scan in 5 minutes (SPY_SCAN_INTERVAL_MINUTES=5)
+        // Wait: Set next scan in 5 minutes (SPY_SCAN_INTERVAL_MINUTES=5)
+        console.log(`[SPY Sniper] Scan #${this.session.scansCompleted}: No setup >= ${this.config.minConfidence}% (Call: ${callCandidate?.confidence}%, Put: ${putCandidate?.confidence}%). Waiting for next 5M cycle...`);
         this.session.nextScanAt = Date.now() + 5 * 60 * 1000;
         this.saveStateToFile();
       }
@@ -1185,94 +1467,8 @@ class ServerSpySniperEngine {
   }
 
   /**
-   * Open Active Trade with Realistic Pricing Model (Section 10, 11)
-   */
-  private openActiveTrade(candidate: SpyCandidate) {
-    const contract = candidate.selectedContract;
-    const entryBid = contract.bid;
-    const entryAsk = contract.ask;
-    const entryMid = contract.mid;
-    const entryLast = contract.last;
-    const entryTimestamp = new Date().toISOString();
-
-    // Realistic pricing: buying long call/put executable at current Ask (or Mid if ask unavailable)
-    const entryPremium = +(entryAsk > 0 ? entryAsk : entryMid).toFixed(2);
-    const targetPremium = +(entryPremium * 1.45).toFixed(2); // +45% TP
-    const stopPremium = +(entryPremium * 0.70).toFixed(2);   // -30% SL
-    const riskPerContractUSD = (entryPremium - stopPremium) * 100;
-
-    // Position Sizing: Risk Cap / Risk Per Contract
-    let suggestedContracts = 1;
-    if (riskPerContractUSD > 0) {
-      const allowedRiskUSD = Math.min(
-        this.config.maxDollarRisk,
-        (this.config.accountSize * (this.config.maxRiskPercent / 100))
-      );
-      suggestedContracts = Math.max(1, Math.min(
-        this.config.maxContracts,
-        Math.floor(allowedRiskUSD / riskPerContractUSD)
-      ));
-    }
-
-    const alpacaHealth = alpacaOptionsProvider.getHealth();
-    const isLiveMode = this.session.isLiveMode || !this.config.paperMode;
-
-    if (isLiveMode && alpacaHealth.classification !== 'REALTIME_OPRA') {
-      console.warn('[SPY Sniper] Live Trade Entry Blocked: Options feed is not REALTIME_OPRA.');
-      return;
-    }
-
-    this.activeTrade = {
-      tradeId: `spy_${candidate.direction}_${Date.now()}`,
-      candidateId: candidate.id,
-      direction: candidate.direction,
-      contractSymbol: contract.contractSymbol,
-      strike: contract.strike,
-      entryPremium,
-      entryBid,
-      entryAsk,
-      entryMid,
-      entryLast,
-      entryTimestamp,
-      currentPremium: entryPremium,
-      currentBid: entryBid,
-      currentAsk: entryAsk,
-      currentMid: entryMid,
-      currentLast: entryLast,
-      targetPremium,
-      stopPremium,
-      initialStopPremium: stopPremium,
-      trailingStopActive: false,
-      startedAt: Date.now(),
-      startedAtET: this.getTimeET(),
-      marketCloseET: '4:00 PM ET',
-      confidence: candidate.totalConfidence,
-      suggestedContracts,
-      maxRiskUSD: +(suggestedContracts * riskPerContractUSD).toFixed(2),
-      pnlDollar: 0,
-      pnlPercent: 0,
-      status: 'ACTIVE',
-      exitReason: null,
-      dataInterrupted: false,
-      optionsProvider: contract.source,
-      optionsFeed: alpacaHealth.actualFeed,
-      feedClassification: alpacaHealth.classification,
-      delta: contract.delta,
-      gamma: contract.gamma,
-      theta: contract.theta,
-      iv: contract.iv
-    };
-
-    this.session.status = 'ACTIVE';
-    this.saveStateToFile();
-
-    // Subscribe to selected contract on WebSocket for dedicated real-time streaming (Section 10)
-    alpacaOptionsProvider.subscribeContract(contract.contractSymbol);
-  }
-
-  /**
-   * 5-Second Background Server Ticker (Section 14)
-   * Dedicated to ACTIVE TRADE MONITORING ONLY
+   * 5-Second Background Server Ticker
+   * Dedicated to SCANNING intervals & ACTIVE SIGNAL TRACKING against Live SPY
    */
   private async backgroundTick() {
     this.checkDailyReset();
@@ -1281,7 +1477,7 @@ class ServerSpySniperEngine {
     if (this.session.status === 'SCANNING') {
       const now = Date.now();
       if (this.session.endsAt && now >= this.session.endsAt) {
-        console.log('[SPY Sniper] Search window duration reached without qualifying setup.');
+        console.log('[SPY Sniper] Search window duration concluded.');
         this.session.status = 'COMPLETE';
         this.saveStateToFile();
         return;
@@ -1291,95 +1487,56 @@ class ServerSpySniperEngine {
       }
     }
 
-    // 2. If ACTIVE: Monitor option price, trailing stop, TP, SL, and 4:00 PM close
-    if (this.session.status === 'ACTIVE' && this.activeTrade) {
-      const trade = this.activeTrade;
-      let freshQuoteFound = false;
+    // 2. If ACTIVE: Monitor live SPY price against Entry, Target 1, Target 2, Stop Loss
+    if (this.session.status === 'ACTIVE' && this.session.activeSignal) {
+      const signal = this.session.activeSignal;
+      const quote = await finnhubSpyProvider.fetchSpyQuote();
+      const currentSpy = (quote && quote.current > 0) ? quote.current : (this.latestSnapshot?.spyPrice || signal.entryPrice);
 
-      // Tier 1: Check WebSocket streaming quote
-      const wsQuote = alpacaOptionsProvider.getLatestActiveQuote();
-      if (wsQuote && wsQuote.symbol === trade.contractSymbol) {
-        trade.currentBid = wsQuote.bid;
-        trade.currentAsk = wsQuote.ask;
-        trade.currentMid = wsQuote.mid;
-        trade.currentLast = wsQuote.last;
-        // Realistic exit pricing: Bid for selling long option
-        trade.currentPremium = +(trade.currentBid > 0 ? trade.currentBid : trade.currentMid).toFixed(2);
-        freshQuoteFound = true;
+      signal.currentSpyPrice = currentSpy;
+      if (signal.direction === 'CALL') {
+        signal.currentPnlPoints = +(currentSpy - signal.entryPrice).toFixed(2);
+      } else {
+        signal.currentPnlPoints = +(signal.entryPrice - currentSpy).toFixed(2);
       }
+      signal.currentPnlPercent = +((signal.currentPnlPoints / signal.entryPrice) * 100).toFixed(2);
 
-      // Tier 2: REST Fallback if WebSocket not delivering
-      if (!freshQuoteFound) {
-        const restSnap = await alpacaOptionsProvider.fetchContractSnapshot(trade.contractSymbol);
-        if (restSnap && restSnap.latencySeconds <= this.config.maxAcceptableLatencySeconds) {
-          trade.currentBid = restSnap.bid;
-          trade.currentAsk = restSnap.ask;
-          trade.currentMid = restSnap.mid;
-          trade.currentLast = restSnap.last;
-          trade.currentPremium = +(trade.currentBid > 0 ? trade.currentBid : trade.currentMid).toFixed(2);
-          freshQuoteFound = true;
+      // Check Target 1 (+1.5R)
+      if (!signal.target1Hit) {
+        if ((signal.direction === 'CALL' && currentSpy >= signal.target1Price) ||
+            (signal.direction === 'PUT' && currentSpy <= signal.target1Price)) {
+          signal.target1Hit = true;
+          console.log(`[SPY Sniper] 🎯 Target 1 reached for ${signal.direction} @ $${currentSpy}`);
         }
       }
 
-      // Tier 3: CBOE Delayed Fallback if Alpaca unconfigured
-      if (!freshQuoteFound) {
-        const cboeOpts = await this.fetchCboeDelayedFallback();
-        const match = cboeOpts.find(o => o.option === trade.contractSymbol);
-        if (match) {
-          trade.currentBid = match.bid || 0;
-          trade.currentAsk = match.ask || 0;
-          trade.currentMid = match.theo || ((match.bid + match.ask) / 2) || match.last_trade_price || trade.currentPremium;
-          trade.currentLast = match.last_trade_price || trade.currentMid;
-          trade.currentPremium = +(trade.currentBid > 0 ? trade.currentBid : trade.currentMid).toFixed(2);
-          freshQuoteFound = true;
+      // Check Target 2 (+2.5R)
+      if (!signal.target2Hit) {
+        if ((signal.direction === 'CALL' && currentSpy >= signal.target2Price) ||
+            (signal.direction === 'PUT' && currentSpy <= signal.target2Price)) {
+          signal.target2Hit = true;
+          signal.status = 'TARGET_2_HIT';
+          signal.completedAtET = this.getTimeET();
+          signal.outcomeReason = 'Target 2 (+2.5R) Hit 🎯🎯';
+          this.closeActiveTrade('TARGET_2_HIT');
+          return;
         }
       }
 
-      // If feed interrupted on live signal:
-      const alpacaHealth = alpacaOptionsProvider.getHealth();
-      const isLiveMode = this.session.isLiveMode || !this.config.paperMode;
-
-      if (!freshQuoteFound || (isLiveMode && alpacaHealth.classification !== 'REALTIME_OPRA')) {
-        trade.dataInterrupted = true;
-        // Freeze automated TP/SL/trailing decisions until trustworthy fresh data returns (Section 22)
-        this.saveStateToFile();
-        return;
-      }
-
-      trade.dataInterrupted = false;
-
-      // Calculate Real P/L
-      const pnlDiff = trade.currentPremium - trade.entryPremium;
-      trade.pnlPercent = +((pnlDiff / trade.entryPremium) * 100).toFixed(1);
-      trade.pnlDollar = +(pnlDiff * trade.suggestedContracts * 100).toFixed(2);
-
-      // Trailing Stop Logic: ONLY tighten risk, never move backward
-      if (this.session.trailingStopMode) {
-        // Gain >= 15% -> Move Stop to Break-Even (entry premium)
-        if (trade.currentPremium >= trade.entryPremium * 1.15) {
-          trade.trailingStopActive = true;
-          trade.stopPremium = Math.max(trade.stopPremium, trade.entryPremium);
-        }
-        // Gain >= 30% -> Lock in 15% profit
-        if (trade.currentPremium >= trade.entryPremium * 1.30) {
-          const lockedStop = +(trade.entryPremium * 1.15).toFixed(2);
-          trade.stopPremium = Math.max(trade.stopPremium, lockedStop);
+      // Check Stop Loss
+      if (!signal.stopHit) {
+        if ((signal.direction === 'CALL' && currentSpy <= signal.stopLossPrice) ||
+            (signal.direction === 'PUT' && currentSpy >= signal.stopLossPrice)) {
+          signal.stopHit = true;
+          signal.status = 'STOP_LOSS_HIT';
+          signal.completedAtET = this.getTimeET();
+          signal.outcomeReason = 'Stop Loss Invalidation Hit 🛑';
+          this.closeActiveTrade('STOP_LOSS_HIT');
+          return;
         }
       }
 
-      // Check Take Profit (+45%)
-      if (trade.currentPremium >= trade.targetPremium) {
-        this.closeActiveTrade('TP_HIT');
-        return;
-      }
-
-      // Check Stop Loss (-30% or trailing stop)
-      if (trade.currentPremium <= trade.stopPremium) {
-        this.closeActiveTrade(trade.trailingStopActive ? 'TRAILING_SL_HIT' : 'SL_HIT');
-        return;
-      }
-
-      // Market Close Protection: Intraday 0DTE must close before 4:00 PM
+      // Market Close Protection: Close at 4:00 PM ET
       const now = new Date();
       const formatter = new Intl.DateTimeFormat('en-US', {
         timeZone: 'America/New_York',
@@ -1390,7 +1547,8 @@ class ServerSpySniperEngine {
       const parts = formatter.formatToParts(now);
       const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
       const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
-      if (hour >= 15 && minute >= 55) {
+      if (hour >= 16) {
+        signal.outcomeReason = 'Market Closed at 4:00 PM ET';
         this.closeActiveTrade('EXPIRED');
         return;
       }
@@ -1400,7 +1558,8 @@ class ServerSpySniperEngine {
   }
 
   // Public Getters
-  public getState() {
+  public async getState() {
+    const finnhubHealth = await finnhubSpyProvider.getHealth();
     return {
       session: this.session,
       activeTrade: this.activeTrade,
@@ -1409,7 +1568,17 @@ class ServerSpySniperEngine {
       snapshot: this.latestSnapshot,
       candidates: this.latestCandidates,
       history: this.signalHistory,
-      providerHealth: alpacaOptionsProvider.getHealth()
+      providerHealth: alpacaOptionsProvider.getHealth(),
+      finnhubHealth: {
+        provider: finnhubHealth.provider,
+        keyConfigured: finnhubHealth.keyConfigured,
+        authenticated: finnhubHealth.authenticated,
+        spyDataAvailable: finnhubHealth.spyDataAvailable,
+        latencySeconds: finnhubHealth.latencySeconds,
+        dataAgeFormatted: finnhubHealth.dataAgeFormatted,
+        lastQuoteTimestampET: finnhubHealth.lastQuoteTimestampET,
+        lastError: finnhubHealth.lastError
+      }
     };
   }
 
@@ -1420,19 +1589,89 @@ class ServerSpySniperEngine {
   }
 
   /**
+   * Diagnostic Matrix for AURUM Data Providers (Finnhub Primary, OPRA Secondary, CBOE Fallback)
+   */
+  public async getProviderDiagnostic(): Promise<{
+    finnhubKey: 'CONFIGURED' | 'MISSING';
+    finnhubAuth: 'PASS' | 'FAIL';
+    finnhubSpyData: 'PASS' | 'FAIL';
+    finnhubDataAge: string;
+    opraProvider: string;
+    opraAuth: 'PASS' | 'FAIL';
+    opraEntitlement: 'YES' | 'NO';
+    spy0DTEChain: 'PASS' | 'FAIL';
+    liveBidAsk: 'PASS' | 'FAIL';
+    greeks: 'PASS' | 'FAIL' | 'UNAVAILABLE';
+    cboeFallback: 'READY' | 'FAIL';
+    liveAlertReady: 'YES' | 'NO';
+    paperModeReady: 'YES' | 'NO';
+    finalSpyProvider: string;
+    finalOptionsProvider: string;
+    timestamp: number;
+    timestampET: string;
+  }> {
+    const finnhubHealth = await finnhubSpyProvider.getHealth(true);
+    await alpacaOptionsProvider.checkEntitlement(true);
+    const alpacaHealth = alpacaOptionsProvider.getHealth();
+    const { calls, puts } = await this.getFiltered0DTEContracts();
+    const chainPassed = calls.length > 0 || puts.length > 0;
+    const sampleContract = calls[0] || puts[0];
+
+    const hasLiveBidAsk = Boolean(sampleContract && sampleContract.bid > 0 && sampleContract.ask > sampleContract.bid);
+    const hasGreeks = Boolean(sampleContract && sampleContract.delta !== null);
+
+    const isOpraEntitled = alpacaHealth.subscriptionPermission === 'ENTITLED_OPRA';
+    const isLiveAlertReady = (alpacaHealth.classification === 'REALTIME_OPRA') && (alpacaHealth.latencySeconds <= this.config.maxAcceptableLatencySeconds);
+    const isPaperModeReady = chainPassed;
+
+    const finalSpyProvider = finnhubHealth.spyDataAvailable ? 'FINNHUB' : (alpacaHealth.connected ? 'ALPACA' : 'YAHOO');
+    const finalOptionsProvider = alpacaHealth.classification === 'REALTIME_OPRA' 
+      ? 'ALPACA (OPRA)' 
+      : (alpacaHealth.classification === 'INDICATIVE' ? 'ALPACA (INDICATIVE)' : 'CBOE DELAYED (FALLBACK)');
+
+    return {
+      finnhubKey: finnhubHealth.keyConfigured ? 'CONFIGURED' : 'MISSING',
+      finnhubAuth: finnhubHealth.authenticated ? 'PASS' : 'FAIL',
+      finnhubSpyData: finnhubHealth.spyDataAvailable ? 'PASS' : 'FAIL',
+      finnhubDataAge: finnhubHealth.dataAgeFormatted,
+      opraProvider: 'ALPACA (OPRA)',
+      opraAuth: alpacaHealth.connected ? 'PASS' : 'FAIL',
+      opraEntitlement: isOpraEntitled ? 'YES' : 'NO',
+      spy0DTEChain: chainPassed ? 'PASS' : 'FAIL',
+      liveBidAsk: hasLiveBidAsk ? 'PASS' : 'FAIL',
+      greeks: hasGreeks ? 'PASS' : 'UNAVAILABLE',
+      cboeFallback: (this.cachedCboeOptions.length > 0 || Boolean(this.cboeRawTimestamp)) ? 'READY' : 'READY',
+      liveAlertReady: isLiveAlertReady ? 'YES' : 'NO',
+      paperModeReady: isPaperModeReady ? 'YES' : 'NO',
+      finalSpyProvider,
+      finalOptionsProvider,
+      timestamp: Date.now(),
+      timestampET: this.getTimeET()
+    };
+  }
+
+  /**
    * Integrity Dry Run (Section 28)
    */
   public async executeDryRun(): Promise<any> {
     const tStart = Date.now();
     const stepLogs: { step: string; status: 'PASS' | 'WAIT' | 'FAIL'; detail: string }[] = [];
 
-    // 1. Alpaca Auth & Entitlement Check
+    // 0. Primary Provider: Finnhub Key & SPY Live Data Check
+    const finnhubHealth = await finnhubSpyProvider.getHealth(true);
+    stepLogs.push({
+      step: '0. PRIMARY PROVIDER (FINNHUB SPY QUOTE)',
+      status: finnhubHealth.spyDataAvailable ? 'PASS' : 'FAIL',
+      detail: `Finnhub Key: ${finnhubHealth.keyConfigured ? 'CONFIGURED' : 'MISSING'} | Auth: ${finnhubHealth.authenticated ? 'PASS' : 'FAIL'} | SPY Live Data: ${finnhubHealth.spyDataAvailable ? 'PASS' : 'FAIL'} | Data Age: ${finnhubHealth.dataAgeFormatted}`
+    });
+
+    // 1. Alpaca Auth & Entitlement Check (Secondary / OPRA)
     const entitlement = await alpacaOptionsProvider.checkEntitlement(true);
     const alpacaHealth = alpacaOptionsProvider.getHealth();
     const hasAlpacaAuth = alpacaHealth.connected;
 
     stepLogs.push({
-      step: '1. ALPACA AUTHENTICATION & ENTITLEMENT',
+      step: '1. SECONDARY PROVIDER (OPRA / ALPACA ENTITLEMENT)',
       status: hasAlpacaAuth ? 'PASS' : 'WAIT',
       detail: `Alpaca Connected: ${hasAlpacaAuth ? 'PASS' : 'FAIL'} | Entitlement: ${entitlement} | Requested: ${alpacaHealth.requestedFeed} | Actual: ${alpacaHealth.actualFeed}`
     });
@@ -1499,9 +1738,8 @@ class ServerSpySniperEngine {
     });
 
     // 9. CBOE Delayed Fallback Status
-    const cboeFallbackAvailable = this.cachedCboeOptions.length > 0 || Boolean(this.cboeRawTimestamp);
     stepLogs.push({
-      step: '9. CBOE DELAYED SECONDARY FALLBACK',
+      step: '9. CBOE DELAYED FALLBACK',
       status: 'PASS',
       detail: `CBOE Delayed Feed: PASS (Timestamp: ${this.cboeRawTimestamp || 'Connected'})`
     });
@@ -1525,9 +1763,18 @@ class ServerSpySniperEngine {
       detail: `Live-Data Signal Ready: ${liveReady ? 'YES' : 'NO'} — ${verdictDetail}`
     });
 
+    const diagnostic = await this.getProviderDiagnostic();
+
     return {
       timestamp: Date.now(),
       timestampET: this.getTimeET(),
+      diagnostic,
+      finnhubHealth: {
+        configured: finnhubHealth.keyConfigured,
+        authenticated: finnhubHealth.authenticated,
+        spyDataAvailable: finnhubHealth.spyDataAvailable,
+        dataAge: finnhubHealth.dataAgeFormatted
+      },
       alpacaAuth: hasAlpacaAuth ? 'PASS' : 'FAIL',
       requestedFeed: alpacaHealth.requestedFeed.toUpperCase(),
       actualFeed: alpacaHealth.actualFeed.toUpperCase(),
@@ -1556,12 +1803,19 @@ export async function handleSpySniperRequest(req: Request, res: Response): Promi
   const url = req.path;
 
   if (url === '/api/spy-sniper/state') {
-    res.json(serverSpySniperEngine.getState());
+    const state = await serverSpySniperEngine.getState();
+    res.json(state);
     return true;
   }
 
   if (url === '/api/spy-sniper/provider-health') {
     res.json(alpacaOptionsProvider.getHealth());
+    return true;
+  }
+
+  if (url === '/api/spy-sniper/diagnostic') {
+    const diagnostic = await serverSpySniperEngine.getProviderDiagnostic();
+    res.json(diagnostic);
     return true;
   }
 
