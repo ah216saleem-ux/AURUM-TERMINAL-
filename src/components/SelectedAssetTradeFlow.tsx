@@ -28,6 +28,7 @@ import { getNewsTradingStatus } from '../data/newsIntelligenceData';
 import { InteractiveCandleChart } from './InteractiveCandleChart';
 import { getAssetAiProfile } from '../data/multiAssetIntelligence';
 import { INITIAL_MARKETS } from '../data/initialData';
+import { TerminalTradeLockController } from './TerminalTradeLockController';
 
 interface SelectedAssetTradeFlowProps {
   market?: MarketItem | null;
@@ -165,16 +166,13 @@ ${setup.aiReason}`;
 
   return (
     <div className="w-full space-y-4 font-sans">
-      {/* =========================================================================
-          STEP 4: SELECTED ASSET SIGNAL
-          Asset Header with Live Price
-          BUY/SELL/WAIT
-          Entry
-          SL
-          TP (TP1, TP2, TP3)
-          Timeframe (interactive pills)
-          Confidence
-      ========================================================================= */}
+      {/* AURUM TERMINAL LIVE SIGNAL + TRADE LOCK CONTROLLER */}
+      <TerminalTradeLockController
+        market={market}
+        selectedTf={selectedTf}
+        onTimeframeSelect={(tf) => setSelectedTf(tf)}
+        onOpenChart={() => setShowChart(!showChart)}
+      />
       <div className="p-4 sm:p-5 rounded-3xl bg-[#0c0f1a] border border-amber-500/40 shadow-2xl relative overflow-hidden space-y-4 font-mono-num">
         {/* Ambient Top Glow */}
         <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-gradient-to-br from-amber-500/15 via-amber-400/5 to-transparent blur-3xl" />

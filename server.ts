@@ -5,6 +5,7 @@ import { handleMarketDataRequest } from './server/marketDataRouter';
 import { handleNewsRequest } from './server/newsRouter';
 import { handleQwenRequest, handleQwenStatus } from './server/qwenRouter';
 import { handleSpySniperRequest } from './server/spySniperRouter';
+import { handleTerminalSignalsRequest } from './server/terminalSignalsRouter';
 import { handleAdminAuthRequest } from './server/adminAuthRouter';
 import { initWebSocketServer } from './server/websocketServer';
 
@@ -49,6 +50,14 @@ async function startServer() {
     const handled = await handleSpySniperRequest(req, res);
     if (!handled) {
       res.status(404).json({ error: 'SPY sniper route not found' });
+    }
+  });
+
+  // AURUM Terminal Non-SPY Signals & Trade Lock API routes
+  app.all('/api/terminal-signals*', async (req, res) => {
+    const handled = await handleTerminalSignalsRequest(req, res);
+    if (!handled) {
+      res.status(404).json({ error: 'Terminal signals route not found' });
     }
   });
 

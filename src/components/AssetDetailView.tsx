@@ -38,6 +38,7 @@ import { databaseService } from '../services/databaseService';
 import { getCurrentMarketSession, getAssetVolatility } from '../utils/marketContextHelpers';
 import { ConnectionValidationCard } from './ConnectionValidationCard';
 import { LiveTickDebugPanel } from './LiveTickDebugPanel';
+import { TerminalTradeLockController } from './TerminalTradeLockController';
 
 interface AssetDetailViewProps {
   market?: MarketItem | null;
@@ -345,6 +346,14 @@ Status: ACTIVE`;
 
       {/* 1b. REAL-TIME TICK PIPELINE DEBUG PANEL */}
       <LiveTickDebugPanel assetId={liveMarket.id} />
+
+      {/* AURUM TERMINAL LIVE SIGNAL + TRADE LOCK CONTROLLER */}
+      <TerminalTradeLockController
+        market={liveMarket}
+        selectedTf={selectedTf}
+        onTimeframeSelect={(tf) => setSelectedTf(tf)}
+        onOpenChart={() => setShowChart(!showChart)}
+      />
 
       {/* Timeframe Selector Pills */}
       <div className="flex items-center gap-1 overflow-x-auto py-1 scrollbar-none font-mono-num text-[11px] font-bold">
