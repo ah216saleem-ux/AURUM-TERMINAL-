@@ -1,0 +1,1546 @@
+[
+  {
+    "id": "aud_1789920346125_fasgu",
+    "timestamp": 1789920346125,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "RISK_MANAGEMENT",
+    "ip": "127.0.0.1",
+    "detail": "Blocked unauthorized access to /api/admin/risk-management"
+  },
+  {
+    "id": "aud_1789920346125_ivxjp",
+    "timestamp": 1789920346125,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "GANN_INTRADAY",
+    "ip": "10.0.0.31",
+    "detail": "Blocked unauthorized access to /api/admin/gann-data"
+  },
+  {
+    "id": "aud_1789920346124_5qmjz",
+    "timestamp": 1789920346124,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "TEMPORARY_UNLOCK_SUCCESS",
+    "userId": "isolated_session_user",
+    "ip": "10.0.0.30",
+    "detail": "Temporary 30m unlock granted for module: ALL_PROTECTED"
+  },
+  {
+    "id": "aud_1789920346124_otn95",
+    "timestamp": 1789920346124,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "TEMPORARY_UNLOCK_FAILED",
+    "userId": "unknown",
+    "ip": "10.0.0.27",
+    "detail": "Failed password verification (Attempt 1/5)"
+  },
+  {
+    "id": "aud_1789920346123_avx15",
+    "timestamp": 1789920346123,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "GANN_INTRADAY",
+    "ip": "10.0.0.26",
+    "detail": "Blocked unauthorized access to /api/admin/gann-data"
+  },
+  {
+    "id": "aud_1789920346123_lmoze",
+    "timestamp": 1789920346123,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "TRADE_HISTORY",
+    "ip": "10.0.0.25",
+    "detail": "Blocked unauthorized access to /api/admin/trade-history"
+  },
+  {
+    "id": "aud_1789920346123_pkl9g",
+    "timestamp": 1789920346123,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "MASTER_INTELLIGENCE",
+    "ip": "10.0.0.24",
+    "detail": "Blocked unauthorized access to /api/admin/master-intelligence"
+  },
+  {
+    "id": "aud_1789920346122_vset2",
+    "timestamp": 1789920346122,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "VALIDATION_HEALTH",
+    "ip": "10.0.0.23",
+    "detail": "Blocked unauthorized access to /api/admin/validation-health"
+  },
+  {
+    "id": "aud_1789920346121_cwb60",
+    "timestamp": 1789920346121,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "AUDIT_LOGS",
+    "ip": "10.0.0.22",
+    "detail": "Blocked direct access to /api/admin/audit-logs"
+  },
+  {
+    "id": "aud_1789920346121_yvcyf",
+    "timestamp": 1789920346121,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "PAPER_TRADING",
+    "ip": "10.0.0.20",
+    "detail": "Blocked unauthorized access to /api/admin/paper-trading"
+  },
+  {
+    "id": "aud_1789920346120_59m8h",
+    "timestamp": 1789920346120,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "ADMIN_LOGOUT",
+    "userId": "valid_user",
+    "ip": "10.0.0.20",
+    "detail": "Admin unlock authorization manually revoked / logged out"
+  },
+  {
+    "id": "aud_1789920346119_zi423",
+    "timestamp": 1789920346119,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "TEMPORARY_UNLOCK_SUCCESS",
+    "userId": "valid_user",
+    "module": "ALL",
+    "ip": "10.0.0.20",
+    "detail": "Temporary 30m unlock granted for module: ALL"
+  },
+  {
+    "id": "aud_1789920346119_hmb3k",
+    "timestamp": 1789920346119,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "RATE_LIMIT_EXCEEDED",
+    "userId": "unknown",
+    "ip": "10.0.0.99",
+    "detail": "Brute-force protection: IP locked for 900s"
+  },
+  {
+    "id": "aud_1789920346119_rp9qm",
+    "timestamp": 1789920346119,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "RATE_LIMIT_EXCEEDED",
+    "userId": "unknown",
+    "ip": "10.0.0.99",
+    "detail": "Brute-force protection: IP locked for 900s"
+  },
+  {
+    "id": "aud_1789920346118_afvbl",
+    "timestamp": 1789920346118,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "TEMPORARY_UNLOCK_FAILED",
+    "userId": "attacker",
+    "ip": "10.0.0.99",
+    "detail": "Exceeded 5 failed attempts. Locked for 15 minutes."
+  },
+  {
+    "id": "aud_1789920346118_ymdcz",
+    "timestamp": 1789920346118,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "TEMPORARY_UNLOCK_FAILED",
+    "userId": "attacker",
+    "ip": "10.0.0.99",
+    "detail": "Failed password verification (Attempt 4/5)"
+  },
+  {
+    "id": "aud_1789920346117_ds143",
+    "timestamp": 1789920346117,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "TEMPORARY_UNLOCK_FAILED",
+    "userId": "attacker",
+    "ip": "10.0.0.99",
+    "detail": "Failed password verification (Attempt 3/5)"
+  },
+  {
+    "id": "aud_1789920346117_06lvp",
+    "timestamp": 1789920346117,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "TEMPORARY_UNLOCK_FAILED",
+    "userId": "attacker",
+    "ip": "10.0.0.99",
+    "detail": "Failed password verification (Attempt 2/5)"
+  },
+  {
+    "id": "aud_1789920346117_cy6a1",
+    "timestamp": 1789920346117,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "TEMPORARY_UNLOCK_FAILED",
+    "userId": "attacker",
+    "ip": "10.0.0.99",
+    "detail": "Failed password verification (Attempt 1/5)"
+  },
+  {
+    "id": "aud_1789920346116_fefyv",
+    "timestamp": 1789920346116,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "AUDIT_LOGS",
+    "ip": "10.0.0.1",
+    "detail": "Blocked direct access to /api/admin/audit-logs"
+  },
+  {
+    "id": "aud_1789920346115_2sx0a",
+    "timestamp": 1789920346115,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "TEMPORARY_UNLOCK_FAILED",
+    "userId": "user_auditor",
+    "ip": "10.0.0.18",
+    "detail": "Failed password verification (Attempt 1/5)"
+  },
+  {
+    "id": "aud_1789920346115_e8n9h",
+    "timestamp": 1789920346115,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "user_beta",
+    "ip": "10.0.0.17",
+    "detail": "Session mismatch: Token issued to user_alpha used by user_beta"
+  },
+  {
+    "id": "aud_1789920346114_l24tc",
+    "timestamp": 1789920346114,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "TEMPORARY_UNLOCK_SUCCESS",
+    "userId": "user_alpha",
+    "module": "GANN_INTRADAY",
+    "ip": "10.0.0.16",
+    "detail": "Temporary 30m unlock granted for module: GANN_INTRADAY"
+  },
+  {
+    "id": "aud_1789920346113_d7lqw",
+    "timestamp": 1789920346113,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "RISK_MANAGEMENT",
+    "ip": "10.0.0.15",
+    "detail": "Blocked unauthorized access to /api/admin/risk-management"
+  },
+  {
+    "id": "aud_1789920346113_0lqo7",
+    "timestamp": 1789920346113,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "RISK_MANAGEMENT",
+    "ip": "10.0.0.15",
+    "detail": "Blocked unauthorized access to /api/admin/risk-management"
+  },
+  {
+    "id": "aud_1789920346112_u4v4l",
+    "timestamp": 1789920346112,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "RISK_MANAGEMENT",
+    "ip": "10.0.0.15",
+    "detail": "Blocked unauthorized access to /api/admin/risk-management"
+  },
+  {
+    "id": "aud_1789920346112_ycdoi",
+    "timestamp": 1789920346112,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "RISK_MANAGEMENT",
+    "ip": "10.0.0.15",
+    "detail": "Blocked unauthorized access to /api/admin/risk-management"
+  },
+  {
+    "id": "aud_1789920346112_8yyf2",
+    "timestamp": 1789920346112,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "GANN_INTRADAY",
+    "ip": "10.0.0.14",
+    "detail": "Blocked unauthorized access to /api/admin/gann-data"
+  },
+  {
+    "id": "aud_1789920346111_ma5u9",
+    "timestamp": 1789920346111,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "MASTER_INTELLIGENCE",
+    "ip": "10.0.0.13",
+    "detail": "Blocked unauthorized access to /api/admin/master-intelligence"
+  },
+  {
+    "id": "aud_1789920346111_bu00q",
+    "timestamp": 1789920346111,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "AUDIT_LOGS",
+    "ip": "10.0.0.12",
+    "detail": "Blocked direct access to /api/admin/audit-logs"
+  },
+  {
+    "id": "aud_1789920346110_ff609",
+    "timestamp": 1789920346110,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "TRADE_HISTORY",
+    "ip": "10.0.0.12",
+    "detail": "Blocked unauthorized access to /api/admin/trade-history"
+  },
+  {
+    "id": "aud_1789920346110_39e95",
+    "timestamp": 1789920346110,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "RISK_MANAGEMENT",
+    "ip": "10.0.0.12",
+    "detail": "Blocked unauthorized access to /api/admin/risk-management"
+  },
+  {
+    "id": "aud_1789920346109_q7sg0",
+    "timestamp": 1789920346109,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "AI_LEARNING",
+    "ip": "10.0.0.12",
+    "detail": "Blocked unauthorized access to /api/admin/ai-learning"
+  },
+  {
+    "id": "aud_1789920346109_ees3p",
+    "timestamp": 1789920346109,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "VALIDATION_HEALTH",
+    "ip": "10.0.0.12",
+    "detail": "Blocked unauthorized access to /api/admin/validation-health"
+  },
+  {
+    "id": "aud_1789920346109_m48cl",
+    "timestamp": 1789920346109,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "PAPER_TRADING",
+    "ip": "10.0.0.12",
+    "detail": "Blocked unauthorized access to /api/admin/paper-trading"
+  },
+  {
+    "id": "aud_1789920346108_22du0",
+    "timestamp": 1789920346108,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "MASTER_INTELLIGENCE",
+    "ip": "10.0.0.12",
+    "detail": "Blocked unauthorized access to /api/admin/master-intelligence"
+  },
+  {
+    "id": "aud_1789920346108_48g3i",
+    "timestamp": 1789920346108,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "GANN_INTRADAY",
+    "ip": "10.0.0.12",
+    "detail": "Blocked unauthorized access to /api/admin/gann-data"
+  },
+  {
+    "id": "aud_1789920346107_glfd6",
+    "timestamp": 1789920346107,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "AUDIT_LOGS",
+    "ip": "10.0.0.11",
+    "detail": "Blocked direct access to /api/admin/audit-logs"
+  },
+  {
+    "id": "aud_1789920346107_7nya0",
+    "timestamp": 1789920346107,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "TRADE_HISTORY",
+    "ip": "10.0.0.11",
+    "detail": "Blocked unauthorized access to /api/admin/trade-history"
+  },
+  {
+    "id": "aud_1789920346107_7m95g",
+    "timestamp": 1789920346107,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "RISK_MANAGEMENT",
+    "ip": "10.0.0.11",
+    "detail": "Blocked unauthorized access to /api/admin/risk-management"
+  },
+  {
+    "id": "aud_1789920346107_8x84s",
+    "timestamp": 1789920346107,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "AI_LEARNING",
+    "ip": "10.0.0.11",
+    "detail": "Blocked unauthorized access to /api/admin/ai-learning"
+  },
+  {
+    "id": "aud_1789920346106_xgmxm",
+    "timestamp": 1789920346106,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "VALIDATION_HEALTH",
+    "ip": "10.0.0.11",
+    "detail": "Blocked unauthorized access to /api/admin/validation-health"
+  },
+  {
+    "id": "aud_1789920346106_xc5x4",
+    "timestamp": 1789920346106,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "PAPER_TRADING",
+    "ip": "10.0.0.11",
+    "detail": "Blocked unauthorized access to /api/admin/paper-trading"
+  },
+  {
+    "id": "aud_1789920346106_w52k0",
+    "timestamp": 1789920346106,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "MASTER_INTELLIGENCE",
+    "ip": "10.0.0.11",
+    "detail": "Blocked unauthorized access to /api/admin/master-intelligence"
+  },
+  {
+    "id": "aud_1789920346105_0kwdr",
+    "timestamp": 1789920346105,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "GANN_INTRADAY",
+    "ip": "10.0.0.11",
+    "detail": "Blocked unauthorized access to /api/admin/gann-data"
+  },
+  {
+    "id": "aud_1789920346105_ll88n",
+    "timestamp": 1789920346105,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "AUDIT_LOGS",
+    "ip": "10.0.0.10",
+    "detail": "Blocked direct access to /api/admin/audit-logs"
+  },
+  {
+    "id": "aud_1789920346104_iimvk",
+    "timestamp": 1789920346104,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "TRADE_HISTORY",
+    "ip": "10.0.0.10",
+    "detail": "Blocked unauthorized access to /api/admin/trade-history"
+  },
+  {
+    "id": "aud_1789920346104_uilxk",
+    "timestamp": 1789920346104,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "RISK_MANAGEMENT",
+    "ip": "10.0.0.10",
+    "detail": "Blocked unauthorized access to /api/admin/risk-management"
+  },
+  {
+    "id": "aud_1789920346103_xetvj",
+    "timestamp": 1789920346103,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "AI_LEARNING",
+    "ip": "10.0.0.10",
+    "detail": "Blocked unauthorized access to /api/admin/ai-learning"
+  },
+  {
+    "id": "aud_1789920346103_ane56",
+    "timestamp": 1789920346103,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "VALIDATION_HEALTH",
+    "ip": "10.0.0.10",
+    "detail": "Blocked unauthorized access to /api/admin/validation-health"
+  },
+  {
+    "id": "aud_1789920346103_1k5dm",
+    "timestamp": 1789920346103,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "PAPER_TRADING",
+    "ip": "10.0.0.10",
+    "detail": "Blocked unauthorized access to /api/admin/paper-trading"
+  },
+  {
+    "id": "aud_1789920346102_ihewz",
+    "timestamp": 1789920346102,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "MASTER_INTELLIGENCE",
+    "ip": "10.0.0.10",
+    "detail": "Blocked unauthorized access to /api/admin/master-intelligence"
+  },
+  {
+    "id": "aud_1789920346083_7rzfc",
+    "timestamp": 1789920346083,
+    "timestampET": "12:05:46 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "GANN_INTRADAY",
+    "ip": "10.0.0.10",
+    "detail": "Blocked unauthorized access to /api/admin/gann-data"
+  },
+  {
+    "id": "aud_1789920333995_04u6t",
+    "timestamp": 1789920333995,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "RISK_MANAGEMENT",
+    "ip": "127.0.0.1",
+    "detail": "Blocked unauthorized access to /api/admin/risk-management"
+  },
+  {
+    "id": "aud_1789920333995_uzl10",
+    "timestamp": 1789920333995,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "GANN_INTRADAY",
+    "ip": "10.0.0.31",
+    "detail": "Blocked unauthorized access to /api/admin/gann-data"
+  },
+  {
+    "id": "aud_1789920333994_469cp",
+    "timestamp": 1789920333994,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "TEMPORARY_UNLOCK_SUCCESS",
+    "userId": "isolated_session_user",
+    "ip": "10.0.0.30",
+    "detail": "Temporary 30m unlock granted for module: ALL_PROTECTED"
+  },
+  {
+    "id": "aud_1789920333993_gpuq8",
+    "timestamp": 1789920333993,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "TEMPORARY_UNLOCK_FAILED",
+    "userId": "unknown",
+    "ip": "10.0.0.27",
+    "detail": "Failed password verification (Attempt 1/5)"
+  },
+  {
+    "id": "aud_1789920333993_79ruz",
+    "timestamp": 1789920333993,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "GANN_INTRADAY",
+    "ip": "10.0.0.26",
+    "detail": "Blocked unauthorized access to /api/admin/gann-data"
+  },
+  {
+    "id": "aud_1789920333993_7ovsh",
+    "timestamp": 1789920333993,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "TRADE_HISTORY",
+    "ip": "10.0.0.25",
+    "detail": "Blocked unauthorized access to /api/admin/trade-history"
+  },
+  {
+    "id": "aud_1789920333992_ppn7r",
+    "timestamp": 1789920333992,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "MASTER_INTELLIGENCE",
+    "ip": "10.0.0.24",
+    "detail": "Blocked unauthorized access to /api/admin/master-intelligence"
+  },
+  {
+    "id": "aud_1789920333991_a4tt1",
+    "timestamp": 1789920333991,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "VALIDATION_HEALTH",
+    "ip": "10.0.0.23",
+    "detail": "Blocked unauthorized access to /api/admin/validation-health"
+  },
+  {
+    "id": "aud_1789920333991_bnnxq",
+    "timestamp": 1789920333991,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "AUDIT_LOGS",
+    "ip": "10.0.0.22",
+    "detail": "Blocked direct access to /api/admin/audit-logs"
+  },
+  {
+    "id": "aud_1789920333990_vd3vx",
+    "timestamp": 1789920333990,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "PAPER_TRADING",
+    "ip": "10.0.0.20",
+    "detail": "Blocked unauthorized access to /api/admin/paper-trading"
+  },
+  {
+    "id": "aud_1789920333990_1lr3p",
+    "timestamp": 1789920333990,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "ADMIN_LOGOUT",
+    "userId": "valid_user",
+    "ip": "10.0.0.20",
+    "detail": "Admin unlock authorization manually revoked / logged out"
+  },
+  {
+    "id": "aud_1789920333989_qwkb4",
+    "timestamp": 1789920333989,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "TEMPORARY_UNLOCK_SUCCESS",
+    "userId": "valid_user",
+    "module": "ALL",
+    "ip": "10.0.0.20",
+    "detail": "Temporary 30m unlock granted for module: ALL"
+  },
+  {
+    "id": "aud_1789920333989_t24xc",
+    "timestamp": 1789920333989,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "RATE_LIMIT_EXCEEDED",
+    "userId": "unknown",
+    "ip": "10.0.0.99",
+    "detail": "Brute-force protection: IP locked for 900s"
+  },
+  {
+    "id": "aud_1789920333988_qjdcd",
+    "timestamp": 1789920333988,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "RATE_LIMIT_EXCEEDED",
+    "userId": "unknown",
+    "ip": "10.0.0.99",
+    "detail": "Brute-force protection: IP locked for 900s"
+  },
+  {
+    "id": "aud_1789920333988_m89wl",
+    "timestamp": 1789920333988,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "TEMPORARY_UNLOCK_FAILED",
+    "userId": "attacker",
+    "ip": "10.0.0.99",
+    "detail": "Exceeded 5 failed attempts. Locked for 15 minutes."
+  },
+  {
+    "id": "aud_1789920333987_h1jv7",
+    "timestamp": 1789920333987,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "TEMPORARY_UNLOCK_FAILED",
+    "userId": "attacker",
+    "ip": "10.0.0.99",
+    "detail": "Failed password verification (Attempt 4/5)"
+  },
+  {
+    "id": "aud_1789920333987_w0jws",
+    "timestamp": 1789920333987,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "TEMPORARY_UNLOCK_FAILED",
+    "userId": "attacker",
+    "ip": "10.0.0.99",
+    "detail": "Failed password verification (Attempt 3/5)"
+  },
+  {
+    "id": "aud_1789920333987_9mv4z",
+    "timestamp": 1789920333987,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "TEMPORARY_UNLOCK_FAILED",
+    "userId": "attacker",
+    "ip": "10.0.0.99",
+    "detail": "Failed password verification (Attempt 2/5)"
+  },
+  {
+    "id": "aud_1789920333986_z3ts9",
+    "timestamp": 1789920333986,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "TEMPORARY_UNLOCK_FAILED",
+    "userId": "attacker",
+    "ip": "10.0.0.99",
+    "detail": "Failed password verification (Attempt 1/5)"
+  },
+  {
+    "id": "aud_1789920333986_f9mge",
+    "timestamp": 1789920333986,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "AUDIT_LOGS",
+    "ip": "10.0.0.1",
+    "detail": "Blocked direct access to /api/admin/audit-logs"
+  },
+  {
+    "id": "aud_1789920333986_vnhf5",
+    "timestamp": 1789920333986,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "TEMPORARY_UNLOCK_FAILED",
+    "userId": "user_auditor",
+    "ip": "10.0.0.18",
+    "detail": "Failed password verification (Attempt 1/5)"
+  },
+  {
+    "id": "aud_1789920333985_ha6ia",
+    "timestamp": 1789920333985,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "user_beta",
+    "ip": "10.0.0.17",
+    "detail": "Session mismatch: Token issued to user_alpha used by user_beta"
+  },
+  {
+    "id": "aud_1789920333985_4vohz",
+    "timestamp": 1789920333985,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "TEMPORARY_UNLOCK_SUCCESS",
+    "userId": "user_alpha",
+    "module": "GANN_INTRADAY",
+    "ip": "10.0.0.16",
+    "detail": "Temporary 30m unlock granted for module: GANN_INTRADAY"
+  },
+  {
+    "id": "aud_1789920333984_g8vi4",
+    "timestamp": 1789920333984,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "RISK_MANAGEMENT",
+    "ip": "10.0.0.15",
+    "detail": "Blocked unauthorized access to /api/admin/risk-management"
+  },
+  {
+    "id": "aud_1789920333984_qmaax",
+    "timestamp": 1789920333984,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "RISK_MANAGEMENT",
+    "ip": "10.0.0.15",
+    "detail": "Blocked unauthorized access to /api/admin/risk-management"
+  },
+  {
+    "id": "aud_1789920333983_stdtq",
+    "timestamp": 1789920333983,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "RISK_MANAGEMENT",
+    "ip": "10.0.0.15",
+    "detail": "Blocked unauthorized access to /api/admin/risk-management"
+  },
+  {
+    "id": "aud_1789920333983_o62dz",
+    "timestamp": 1789920333983,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "RISK_MANAGEMENT",
+    "ip": "10.0.0.15",
+    "detail": "Blocked unauthorized access to /api/admin/risk-management"
+  },
+  {
+    "id": "aud_1789920333983_qf689",
+    "timestamp": 1789920333983,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "GANN_INTRADAY",
+    "ip": "10.0.0.14",
+    "detail": "Blocked unauthorized access to /api/admin/gann-data"
+  },
+  {
+    "id": "aud_1789920333982_x08mk",
+    "timestamp": 1789920333982,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "MASTER_INTELLIGENCE",
+    "ip": "10.0.0.13",
+    "detail": "Blocked unauthorized access to /api/admin/master-intelligence"
+  },
+  {
+    "id": "aud_1789920333982_63z33",
+    "timestamp": 1789920333982,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "AUDIT_LOGS",
+    "ip": "10.0.0.12",
+    "detail": "Blocked direct access to /api/admin/audit-logs"
+  },
+  {
+    "id": "aud_1789920333982_ppiwp",
+    "timestamp": 1789920333982,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "TRADE_HISTORY",
+    "ip": "10.0.0.12",
+    "detail": "Blocked unauthorized access to /api/admin/trade-history"
+  },
+  {
+    "id": "aud_1789920333981_dbvdo",
+    "timestamp": 1789920333981,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "RISK_MANAGEMENT",
+    "ip": "10.0.0.12",
+    "detail": "Blocked unauthorized access to /api/admin/risk-management"
+  },
+  {
+    "id": "aud_1789920333981_um3x2",
+    "timestamp": 1789920333981,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "AI_LEARNING",
+    "ip": "10.0.0.12",
+    "detail": "Blocked unauthorized access to /api/admin/ai-learning"
+  },
+  {
+    "id": "aud_1789920333981_qcnsw",
+    "timestamp": 1789920333981,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "VALIDATION_HEALTH",
+    "ip": "10.0.0.12",
+    "detail": "Blocked unauthorized access to /api/admin/validation-health"
+  },
+  {
+    "id": "aud_1789920333981_8imoj",
+    "timestamp": 1789920333981,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "PAPER_TRADING",
+    "ip": "10.0.0.12",
+    "detail": "Blocked unauthorized access to /api/admin/paper-trading"
+  },
+  {
+    "id": "aud_1789920333980_kynaf",
+    "timestamp": 1789920333980,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "MASTER_INTELLIGENCE",
+    "ip": "10.0.0.12",
+    "detail": "Blocked unauthorized access to /api/admin/master-intelligence"
+  },
+  {
+    "id": "aud_1789920333980_05165",
+    "timestamp": 1789920333980,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "GANN_INTRADAY",
+    "ip": "10.0.0.12",
+    "detail": "Blocked unauthorized access to /api/admin/gann-data"
+  },
+  {
+    "id": "aud_1789920333980_8gxzf",
+    "timestamp": 1789920333980,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "AUDIT_LOGS",
+    "ip": "10.0.0.11",
+    "detail": "Blocked direct access to /api/admin/audit-logs"
+  },
+  {
+    "id": "aud_1789920333979_tjm98",
+    "timestamp": 1789920333979,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "TRADE_HISTORY",
+    "ip": "10.0.0.11",
+    "detail": "Blocked unauthorized access to /api/admin/trade-history"
+  },
+  {
+    "id": "aud_1789920333979_i1wlu",
+    "timestamp": 1789920333979,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "RISK_MANAGEMENT",
+    "ip": "10.0.0.11",
+    "detail": "Blocked unauthorized access to /api/admin/risk-management"
+  },
+  {
+    "id": "aud_1789920333979_td24h",
+    "timestamp": 1789920333979,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "AI_LEARNING",
+    "ip": "10.0.0.11",
+    "detail": "Blocked unauthorized access to /api/admin/ai-learning"
+  },
+  {
+    "id": "aud_1789920333979_2c10o",
+    "timestamp": 1789920333979,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "VALIDATION_HEALTH",
+    "ip": "10.0.0.11",
+    "detail": "Blocked unauthorized access to /api/admin/validation-health"
+  },
+  {
+    "id": "aud_1789920333978_0ijiz",
+    "timestamp": 1789920333978,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "PAPER_TRADING",
+    "ip": "10.0.0.11",
+    "detail": "Blocked unauthorized access to /api/admin/paper-trading"
+  },
+  {
+    "id": "aud_1789920333978_5buby",
+    "timestamp": 1789920333978,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "MASTER_INTELLIGENCE",
+    "ip": "10.0.0.11",
+    "detail": "Blocked unauthorized access to /api/admin/master-intelligence"
+  },
+  {
+    "id": "aud_1789920333978_cavle",
+    "timestamp": 1789920333978,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "GANN_INTRADAY",
+    "ip": "10.0.0.11",
+    "detail": "Blocked unauthorized access to /api/admin/gann-data"
+  },
+  {
+    "id": "aud_1789920333977_rb4hh",
+    "timestamp": 1789920333977,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "AUDIT_LOGS",
+    "ip": "10.0.0.10",
+    "detail": "Blocked direct access to /api/admin/audit-logs"
+  },
+  {
+    "id": "aud_1789920333977_jmq5y",
+    "timestamp": 1789920333977,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "TRADE_HISTORY",
+    "ip": "10.0.0.10",
+    "detail": "Blocked unauthorized access to /api/admin/trade-history"
+  },
+  {
+    "id": "aud_1789920333977_h0a6y",
+    "timestamp": 1789920333977,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "RISK_MANAGEMENT",
+    "ip": "10.0.0.10",
+    "detail": "Blocked unauthorized access to /api/admin/risk-management"
+  },
+  {
+    "id": "aud_1789920333976_grvja",
+    "timestamp": 1789920333976,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "AI_LEARNING",
+    "ip": "10.0.0.10",
+    "detail": "Blocked unauthorized access to /api/admin/ai-learning"
+  },
+  {
+    "id": "aud_1789920333976_xp9j2",
+    "timestamp": 1789920333976,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "VALIDATION_HEALTH",
+    "ip": "10.0.0.10",
+    "detail": "Blocked unauthorized access to /api/admin/validation-health"
+  },
+  {
+    "id": "aud_1789920333976_dsjts",
+    "timestamp": 1789920333976,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "PAPER_TRADING",
+    "ip": "10.0.0.10",
+    "detail": "Blocked unauthorized access to /api/admin/paper-trading"
+  },
+  {
+    "id": "aud_1789920333975_i6nfn",
+    "timestamp": 1789920333975,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "MASTER_INTELLIGENCE",
+    "ip": "10.0.0.10",
+    "detail": "Blocked unauthorized access to /api/admin/master-intelligence"
+  },
+  {
+    "id": "aud_1789920333957_680ld",
+    "timestamp": 1789920333957,
+    "timestampET": "12:05:33 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "GANN_INTRADAY",
+    "ip": "10.0.0.10",
+    "detail": "Blocked unauthorized access to /api/admin/gann-data"
+  },
+  {
+    "id": "aud_1789920317613_6l88k",
+    "timestamp": 1789920317613,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "GANN_INTRADAY",
+    "ip": "10.0.0.31",
+    "detail": "Blocked unauthorized access to /api/admin/gann-data"
+  },
+  {
+    "id": "aud_1789920317613_ihr31",
+    "timestamp": 1789920317613,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "TEMPORARY_UNLOCK_SUCCESS",
+    "userId": "isolated_session_user",
+    "ip": "10.0.0.30",
+    "detail": "Temporary 30m unlock granted for module: ALL_PROTECTED"
+  },
+  {
+    "id": "aud_1789920317612_c4f4f",
+    "timestamp": 1789920317612,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "TEMPORARY_UNLOCK_FAILED",
+    "userId": "unknown",
+    "ip": "10.0.0.27",
+    "detail": "Failed password verification (Attempt 1/5)"
+  },
+  {
+    "id": "aud_1789920317612_ogf4t",
+    "timestamp": 1789920317612,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "GANN_INTRADAY",
+    "ip": "10.0.0.26",
+    "detail": "Blocked unauthorized access to /api/admin/gann-data"
+  },
+  {
+    "id": "aud_1789920317612_k5r1t",
+    "timestamp": 1789920317612,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "TRADE_HISTORY",
+    "ip": "10.0.0.25",
+    "detail": "Blocked unauthorized access to /api/admin/trade-history"
+  },
+  {
+    "id": "aud_1789920317611_9itmi",
+    "timestamp": 1789920317611,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "MASTER_INTELLIGENCE",
+    "ip": "10.0.0.24",
+    "detail": "Blocked unauthorized access to /api/admin/master-intelligence"
+  },
+  {
+    "id": "aud_1789920317611_6mgcc",
+    "timestamp": 1789920317611,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "VALIDATION_HEALTH",
+    "ip": "10.0.0.23",
+    "detail": "Blocked unauthorized access to /api/admin/validation-health"
+  },
+  {
+    "id": "aud_1789920317610_m8tti",
+    "timestamp": 1789920317610,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "AUDIT_LOGS",
+    "ip": "10.0.0.22",
+    "detail": "Blocked direct access to /api/admin/audit-logs"
+  },
+  {
+    "id": "aud_1789920317610_9ioz8",
+    "timestamp": 1789920317610,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "PAPER_TRADING",
+    "ip": "10.0.0.20",
+    "detail": "Blocked unauthorized access to /api/admin/paper-trading"
+  },
+  {
+    "id": "aud_1789920317609_gdoee",
+    "timestamp": 1789920317609,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "ADMIN_LOGOUT",
+    "userId": "valid_user",
+    "ip": "10.0.0.20",
+    "detail": "Admin unlock authorization manually revoked / logged out"
+  },
+  {
+    "id": "aud_1789920317609_n718c",
+    "timestamp": 1789920317609,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "TEMPORARY_UNLOCK_SUCCESS",
+    "userId": "valid_user",
+    "module": "ALL",
+    "ip": "10.0.0.20",
+    "detail": "Temporary 30m unlock granted for module: ALL"
+  },
+  {
+    "id": "aud_1789920317608_ku2gx",
+    "timestamp": 1789920317608,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "TEMPORARY_UNLOCK_SUCCESS",
+    "userId": "user",
+    "ip": "fake.spoofed.ip.address",
+    "detail": "Temporary 30m unlock granted for module: ALL_PROTECTED"
+  },
+  {
+    "id": "aud_1789920317608_xzfr4",
+    "timestamp": 1789920317608,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "RATE_LIMIT_EXCEEDED",
+    "userId": "unknown",
+    "ip": "10.0.0.99",
+    "detail": "Brute-force protection: IP locked for 900s"
+  },
+  {
+    "id": "aud_1789920317608_sqe4i",
+    "timestamp": 1789920317608,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "TEMPORARY_UNLOCK_FAILED",
+    "userId": "attacker",
+    "ip": "10.0.0.99",
+    "detail": "Exceeded 5 failed attempts. Locked for 15 minutes."
+  },
+  {
+    "id": "aud_1789920317607_7xkmn",
+    "timestamp": 1789920317607,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "TEMPORARY_UNLOCK_FAILED",
+    "userId": "attacker",
+    "ip": "10.0.0.99",
+    "detail": "Failed password verification (Attempt 4/5)"
+  },
+  {
+    "id": "aud_1789920317607_guf27",
+    "timestamp": 1789920317607,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "TEMPORARY_UNLOCK_FAILED",
+    "userId": "attacker",
+    "ip": "10.0.0.99",
+    "detail": "Failed password verification (Attempt 3/5)"
+  },
+  {
+    "id": "aud_1789920317607_c233i",
+    "timestamp": 1789920317607,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "TEMPORARY_UNLOCK_FAILED",
+    "userId": "attacker",
+    "ip": "10.0.0.99",
+    "detail": "Failed password verification (Attempt 2/5)"
+  },
+  {
+    "id": "aud_1789920317607_vcuo9",
+    "timestamp": 1789920317607,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "TEMPORARY_UNLOCK_FAILED",
+    "userId": "attacker",
+    "ip": "10.0.0.99",
+    "detail": "Failed password verification (Attempt 1/5)"
+  },
+  {
+    "id": "aud_1789920317606_jr7dt",
+    "timestamp": 1789920317606,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "AUDIT_LOGS",
+    "ip": "10.0.0.1",
+    "detail": "Blocked direct access to /api/admin/audit-logs"
+  },
+  {
+    "id": "aud_1789920317606_pi192",
+    "timestamp": 1789920317606,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "TEMPORARY_UNLOCK_FAILED",
+    "userId": "user_auditor",
+    "ip": "10.0.0.18",
+    "detail": "Failed password verification (Attempt 1/5)"
+  },
+  {
+    "id": "aud_1789920317605_4vkmp",
+    "timestamp": 1789920317605,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "user_beta",
+    "ip": "10.0.0.17",
+    "detail": "Session mismatch: Token issued to user_alpha used by user_beta"
+  },
+  {
+    "id": "aud_1789920317605_bnnkx",
+    "timestamp": 1789920317605,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "TEMPORARY_UNLOCK_SUCCESS",
+    "userId": "user_alpha",
+    "module": "GANN_INTRADAY",
+    "ip": "10.0.0.16",
+    "detail": "Temporary 30m unlock granted for module: GANN_INTRADAY"
+  },
+  {
+    "id": "aud_1789920317604_4n8lo",
+    "timestamp": 1789920317604,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "RISK_MANAGEMENT",
+    "ip": "10.0.0.15",
+    "detail": "Blocked unauthorized access to /api/admin/risk-management"
+  },
+  {
+    "id": "aud_1789920317604_vigx4",
+    "timestamp": 1789920317604,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "RISK_MANAGEMENT",
+    "ip": "10.0.0.15",
+    "detail": "Blocked unauthorized access to /api/admin/risk-management"
+  },
+  {
+    "id": "aud_1789920317604_tgitm",
+    "timestamp": 1789920317604,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "RISK_MANAGEMENT",
+    "ip": "10.0.0.15",
+    "detail": "Blocked unauthorized access to /api/admin/risk-management"
+  },
+  {
+    "id": "aud_1789920317603_0s2ok",
+    "timestamp": 1789920317603,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "RISK_MANAGEMENT",
+    "ip": "10.0.0.15",
+    "detail": "Blocked unauthorized access to /api/admin/risk-management"
+  },
+  {
+    "id": "aud_1789920317603_zt1b6",
+    "timestamp": 1789920317603,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "GANN_INTRADAY",
+    "ip": "10.0.0.14",
+    "detail": "Blocked unauthorized access to /api/admin/gann-data"
+  },
+  {
+    "id": "aud_1789920317603_dmdtt",
+    "timestamp": 1789920317603,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "MASTER_INTELLIGENCE",
+    "ip": "10.0.0.13",
+    "detail": "Blocked unauthorized access to /api/admin/master-intelligence"
+  },
+  {
+    "id": "aud_1789920317603_dfznh",
+    "timestamp": 1789920317603,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "AUDIT_LOGS",
+    "ip": "10.0.0.12",
+    "detail": "Blocked direct access to /api/admin/audit-logs"
+  },
+  {
+    "id": "aud_1789920317602_r5svk",
+    "timestamp": 1789920317602,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "TRADE_HISTORY",
+    "ip": "10.0.0.12",
+    "detail": "Blocked unauthorized access to /api/admin/trade-history"
+  },
+  {
+    "id": "aud_1789920317602_q5lja",
+    "timestamp": 1789920317602,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "RISK_MANAGEMENT",
+    "ip": "10.0.0.12",
+    "detail": "Blocked unauthorized access to /api/admin/risk-management"
+  },
+  {
+    "id": "aud_1789920317602_1n31o",
+    "timestamp": 1789920317602,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "AI_LEARNING",
+    "ip": "10.0.0.12",
+    "detail": "Blocked unauthorized access to /api/admin/ai-learning"
+  },
+  {
+    "id": "aud_1789920317602_6ksmt",
+    "timestamp": 1789920317602,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "VALIDATION_HEALTH",
+    "ip": "10.0.0.12",
+    "detail": "Blocked unauthorized access to /api/admin/validation-health"
+  },
+  {
+    "id": "aud_1789920317602_mio6t",
+    "timestamp": 1789920317602,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "PAPER_TRADING",
+    "ip": "10.0.0.12",
+    "detail": "Blocked unauthorized access to /api/admin/paper-trading"
+  },
+  {
+    "id": "aud_1789920317601_w1so4",
+    "timestamp": 1789920317601,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "MASTER_INTELLIGENCE",
+    "ip": "10.0.0.12",
+    "detail": "Blocked unauthorized access to /api/admin/master-intelligence"
+  },
+  {
+    "id": "aud_1789920317601_esx4u",
+    "timestamp": 1789920317601,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "GANN_INTRADAY",
+    "ip": "10.0.0.12",
+    "detail": "Blocked unauthorized access to /api/admin/gann-data"
+  },
+  {
+    "id": "aud_1789920317601_gwp8p",
+    "timestamp": 1789920317601,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "AUDIT_LOGS",
+    "ip": "10.0.0.11",
+    "detail": "Blocked direct access to /api/admin/audit-logs"
+  },
+  {
+    "id": "aud_1789920317601_bcb0a",
+    "timestamp": 1789920317601,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "TRADE_HISTORY",
+    "ip": "10.0.0.11",
+    "detail": "Blocked unauthorized access to /api/admin/trade-history"
+  },
+  {
+    "id": "aud_1789920317600_lu1dl",
+    "timestamp": 1789920317600,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "RISK_MANAGEMENT",
+    "ip": "10.0.0.11",
+    "detail": "Blocked unauthorized access to /api/admin/risk-management"
+  },
+  {
+    "id": "aud_1789920317600_i9oo3",
+    "timestamp": 1789920317600,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "AI_LEARNING",
+    "ip": "10.0.0.11",
+    "detail": "Blocked unauthorized access to /api/admin/ai-learning"
+  },
+  {
+    "id": "aud_1789920317600_6ryaw",
+    "timestamp": 1789920317600,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "VALIDATION_HEALTH",
+    "ip": "10.0.0.11",
+    "detail": "Blocked unauthorized access to /api/admin/validation-health"
+  },
+  {
+    "id": "aud_1789920317600_0jfmf",
+    "timestamp": 1789920317600,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "PAPER_TRADING",
+    "ip": "10.0.0.11",
+    "detail": "Blocked unauthorized access to /api/admin/paper-trading"
+  },
+  {
+    "id": "aud_1789920317599_qxx6r",
+    "timestamp": 1789920317599,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "MASTER_INTELLIGENCE",
+    "ip": "10.0.0.11",
+    "detail": "Blocked unauthorized access to /api/admin/master-intelligence"
+  },
+  {
+    "id": "aud_1789920317599_nea7p",
+    "timestamp": 1789920317599,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "GANN_INTRADAY",
+    "ip": "10.0.0.11",
+    "detail": "Blocked unauthorized access to /api/admin/gann-data"
+  },
+  {
+    "id": "aud_1789920317599_1jv1w",
+    "timestamp": 1789920317599,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "AUDIT_LOGS",
+    "ip": "10.0.0.10",
+    "detail": "Blocked direct access to /api/admin/audit-logs"
+  },
+  {
+    "id": "aud_1789920317598_1qx6h",
+    "timestamp": 1789920317598,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "TRADE_HISTORY",
+    "ip": "10.0.0.10",
+    "detail": "Blocked unauthorized access to /api/admin/trade-history"
+  },
+  {
+    "id": "aud_1789920317598_a3fxk",
+    "timestamp": 1789920317598,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "RISK_MANAGEMENT",
+    "ip": "10.0.0.10",
+    "detail": "Blocked unauthorized access to /api/admin/risk-management"
+  },
+  {
+    "id": "aud_1789920317598_sevuo",
+    "timestamp": 1789920317598,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "AI_LEARNING",
+    "ip": "10.0.0.10",
+    "detail": "Blocked unauthorized access to /api/admin/ai-learning"
+  },
+  {
+    "id": "aud_1789920317597_674ej",
+    "timestamp": 1789920317597,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "VALIDATION_HEALTH",
+    "ip": "10.0.0.10",
+    "detail": "Blocked unauthorized access to /api/admin/validation-health"
+  },
+  {
+    "id": "aud_1789920317597_fj720",
+    "timestamp": 1789920317597,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "PAPER_TRADING",
+    "ip": "10.0.0.10",
+    "detail": "Blocked unauthorized access to /api/admin/paper-trading"
+  },
+  {
+    "id": "aud_1789920317597_prrzb",
+    "timestamp": 1789920317597,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "MASTER_INTELLIGENCE",
+    "ip": "10.0.0.10",
+    "detail": "Blocked unauthorized access to /api/admin/master-intelligence"
+  },
+  {
+    "id": "aud_1789920317579_xu1kk",
+    "timestamp": 1789920317579,
+    "timestampET": "12:05:17 PM ET",
+    "eventType": "PROTECTED_ROUTE_DENIED",
+    "userId": "unknown",
+    "module": "GANN_INTRADAY",
+    "ip": "10.0.0.10",
+    "detail": "Blocked unauthorized access to /api/admin/gann-data"
+  }
+]

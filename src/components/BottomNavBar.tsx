@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Zap, Radar, History, User } from 'lucide-react';
+import { Home, Zap, Radar, History, User, Lock } from 'lucide-react';
 import { useMarket } from '../context/MarketContext';
 
 interface BottomNavBarProps {
@@ -7,13 +7,17 @@ interface BottomNavBarProps {
   onTabChange: (tab: 'HOME' | 'SIGNALS' | 'SCANNER' | 'HISTORY' | 'ACCOUNT') => void;
   onOpenScanner: () => void;
   onOpenAccount: () => void;
+  isHistoryLocked?: boolean;
+  onLockedClick?: (moduleName: string) => void;
 }
 
 export const BottomNavBar: React.FC<BottomNavBarProps> = ({
   activeTab,
   onTabChange,
   onOpenScanner,
-  onOpenAccount
+  onOpenAccount,
+  isHistoryLocked = false,
+  onLockedClick
 }) => {
   const { watchlistAssetIds } = useMarket();
 
@@ -22,6 +26,12 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
       onOpenScanner();
     } else if (tabKey === 'ACCOUNT') {
       onOpenAccount();
+    } else if (tabKey === 'HISTORY' && isHistoryLocked) {
+      if (onLockedClick) {
+        onLockedClick('Trade History');
+      } else {
+        onTabChange(tabKey);
+      }
     } else {
       onTabChange(tabKey);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -69,13 +79,20 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
         {/* 4. History */}
         <button
           onClick={() => handleNavClick('HISTORY')}
-          className={`flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition cursor-pointer ${
+          className={`flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition cursor-pointer relative ${
             activeTab === 'HISTORY'
               ? 'text-amber-300 bg-amber-500/15 border border-amber-500/30'
-              : 'text-zinc-400 hover:text-white hover:bg-zinc-900/50'
+              : isHistoryLocked
+                ? 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/50'
+                : 'text-zinc-400 hover:text-white hover:bg-zinc-900/50'
           }`}
         >
-          <History className={`w-4 h-4 mb-0.5 ${activeTab === 'HISTORY' ? 'text-amber-400' : 'text-zinc-400'}`} />
+          <div className="relative">
+            <History className={`w-4 h-4 mb-0.5 ${activeTab === 'HISTORY' ? 'text-amber-400' : 'text-zinc-400'}`} />
+            {isHistoryLocked && (
+              <Lock className="w-2.5 h-2.5 text-amber-400 absolute -top-1 -right-2" />
+            )}
+          </div>
           <span className="truncate">History</span>
         </button>
 

@@ -1,0 +1,37 @@
+{
+  "config": {
+    "accountSize": 25000,
+    "maxRiskPercent": 2,
+    "maxDollarRisk": 500,
+    "maxContracts": 10,
+    "maxConsecutiveLosses": 2,
+    "minConfidence": 80,
+    "paperMode": true,
+    "maxAcceptableLatencySeconds": 180
+  },
+  "session": {
+    "sessionId": "spy_session_1789920093334",
+    "status": "SCANNING",
+    "selectedDuration": "30 MIN",
+    "trailingStopMode": true,
+    "isLiveMode": false,
+    "startedAt": 1789920093334,
+    "startedAtET": "12:01:33 PM ET",
+    "endsAt": 1789921893334,
+    "nextScanAt": 1789920093334,
+    "scansCompleted": 0,
+    "bestCandidate": null,
+    "preflightError": null
+  },
+  "activeTrade": null,
+  "signalHistory": [],
+  "dailyRisk": {
+    "marketDateET": "2026-09-20",
+    "dailyPnL": 0,
+    "consecutiveLosses": 0,
+    "tradesToday": 0,
+    "dailyLocked": false,
+    "lockReason": null
+  },
+  "updatedAt": 1789920093334
+}

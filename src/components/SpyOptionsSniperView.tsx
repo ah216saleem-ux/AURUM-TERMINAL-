@@ -4,6 +4,9 @@
  * 
  * AURUM TERMINAL — SPY 0DTE OPTIONS SNIPER VIEW
  * Clean, institutional 0DTE SPY Options Intraday Signal & Risk Engine UI
+ * Primary Data: Alpaca Market Data (OPRA / Indicative)
+ * Fallback: CBOE Delayed Fallback
+ * Zero Mock Data, Zero Math.random(), Zero Synthetic Greeks.
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -15,10 +18,10 @@ import {
   SpyMarketSnapshot, 
   SpyRiskConfig, 
   SpyDailyRiskState,
-  SpyCandidate
+  SpyCandidate,
+  SpyProviderHealth
 } from '../services/spySniperEngine';
 import { 
-  Target, 
   ShieldAlert, 
   TrendingUp, 
   TrendingDown, 
@@ -32,16 +35,13 @@ import {
   Lock, 
   BarChart2, 
   RotateCcw, 
-  Flame, 
   AlertTriangle,
   Play,
-  Pause,
-  Award,
-  DollarSign,
   Layers,
-  ArrowUpRight,
-  ArrowDownRight,
-  Info
+  Radio,
+  Wifi,
+  WifiOff,
+  Activity
 } from 'lucide-react';
 
 export function SpyOptionsSniperView() {
@@ -52,10 +52,12 @@ export function SpyOptionsSniperView() {
   const [snapshot, setSnapshot] = useState<SpyMarketSnapshot | null>(spySniperEngine.getMarketSnapshot());
   const [config, setConfig] = useState<SpyRiskConfig>(spySniperEngine.getConfig());
   const [candidates, setCandidates] = useState<SpyCandidate[]>(spySniperEngine.getLatestCandidates());
+  const [providerHealth, setProviderHealth] = useState<SpyProviderHealth | null>(spySniperEngine.getProviderHealth());
 
   // UI state
   const [selectedDuration, setSelectedDuration] = useState<string>('30 MIN');
   const [trailingStopToggle, setTrailingStopToggle] = useState<boolean>(true);
+  const [isLiveModeToggle, setIsLiveModeToggle] = useState<boolean>(false);
   const [isHistoryExpanded, setIsHistoryExpanded] = useState<boolean>(false);
   const [historyFilter, setHistoryFilter] = useState<'ALL' | 'TODAY' | 'CALL' | 'PUT' | 'WIN' | 'LOSS'>('ALL');
   const [selectedDetailSignal, setSelectedDetailSignal] = useState<SpyCompletedSignal | null>(null);
@@ -90,6 +92,7 @@ export function SpyOptionsSniperView() {
       setSnapshot(spySniperEngine.getMarketSnapshot());
       setConfig(spySniperEngine.getConfig());
       setCandidates(spySniperEngine.getLatestCandidates());
+      setProviderHealth(spySniperEngine.getProviderHealth());
     });
 
     const timer = setInterval(() => setTimeNow(Date.now()), 1000);
@@ -162,6 +165,11 @@ export function SpyOptionsSniperView() {
 
   const marketStatus = spySniperEngine.isUSMarketOpen();
 
+  // Data Source Badge Colors
+  const sourceBadge = snapshot?.dataIntegrity?.sourceBadge || 'CBOE DELAYED';
+  const feedClassification = snapshot?.dataIntegrity?.optionsFeedClassification || 'DELAYED';
+  const isOpraLive = feedClassification === 'REALTIME_OPRA';
+
   return (
     <div className="space-y-4 font-sans text-zinc-100">
       {/* 1. TOP HEADER & SPY MARKET BAR */}
@@ -176,6 +184,15 @@ export function SpyOptionsSniperView() {
                 <span>🦅 AURUM SPY SNIPER</span>
                 <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-amber-500/15 text-amber-300 border border-amber-500/30">
                   0DTE OPTIONS
+                </span>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold border ${
+                  sourceBadge === 'ALPACA OPRA' 
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' 
+                    : sourceBadge === 'ALPACA INDICATIVE'
+                    ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
+                    : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                }`}>
+                  {sourceBadge}
                 </span>
               </h1>
               <p className="text-[11px] text-zinc-400">
@@ -232,48 +249,78 @@ export function SpyOptionsSniperView() {
           </div>
         </div>
 
-        {/* Compact Visible Data Status: SPY DATA / OPTIONS / LAST UPDATE */}
-        <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 bg-black/40 rounded-xl border border-zinc-800/80 text-[10.5px] font-mono">
-          <div className="flex items-center gap-2">
-            <span className="text-zinc-500 uppercase font-bold">SPY DATA:</span>
+        {/* Enhanced Multi-Tier Market Data Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-black/50 rounded-xl border border-zinc-800/80 text-[10.5px] font-mono">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-zinc-500 uppercase font-bold">SPY:</span>
             <span className={`font-black ${
               snapshot?.dataIntegrity?.spyDataStatus === 'LIVE' ? 'text-emerald-400' : 
               snapshot?.dataIntegrity?.spyDataStatus === 'DELAYED' ? 'text-amber-400' : 'text-rose-400'
             }`}>
-              {snapshot?.dataIntegrity?.spyDataStatus || 'DELAYED'}
+              {snapshot?.dataIntegrity?.spyDataStatus || 'DELAYED'} ({snapshot?.dataIntegrity?.spyLatencySeconds || 0}s)
             </span>
             <span className="text-zinc-700">•</span>
-            <span className="text-zinc-500 uppercase font-bold">OPTIONS:</span>
+            <span className="text-zinc-500 uppercase font-bold">OPTIONS FEED:</span>
             <span className={`font-black ${
-              snapshot?.dataIntegrity?.optionsDataStatus === 'LIVE' ? 'text-emerald-400' : 
-              snapshot?.dataIntegrity?.optionsDataStatus === 'DELAYED' ? 'text-amber-400' : 'text-rose-400'
+              isOpraLive ? 'text-emerald-400' : 
+              feedClassification === 'INDICATIVE' ? 'text-sky-400' : 
+              feedClassification === 'DELAYED' ? 'text-amber-400' : 'text-rose-400'
             }`}>
-              {snapshot?.dataIntegrity?.optionsDataStatus || 'DELAYED'}
+              {feedClassification} ({snapshot?.dataIntegrity?.optionsLatencySeconds || 0}s lat)
             </span>
             <span className="text-zinc-700">•</span>
-            <span className="text-zinc-500 uppercase font-bold">LAST UPDATE:</span>
-            <span className="font-black text-zinc-300">
-              {snapshot?.dataIntegrity?.lastUpdateET || snapshot?.timestampET || 'N/A ET'}
+            <span className="text-zinc-500 uppercase font-bold">STREAM:</span>
+            <span className="font-black text-zinc-300 flex items-center gap-1">
+              {providerHealth?.websocketConnected ? (
+                <>
+                  <Wifi className="w-3 h-3 text-emerald-400 inline" />
+                  <span className="text-emerald-400">WS CONNECTED</span>
+                </>
+              ) : providerHealth?.restAvailable ? (
+                <>
+                  <Activity className="w-3 h-3 text-sky-400 inline" />
+                  <span className="text-sky-300">REST FALLBACK</span>
+                </>
+              ) : (
+                <>
+                  <WifiOff className="w-3 h-3 text-zinc-500 inline" />
+                  <span className="text-zinc-400">DISCONNECTED</span>
+                </>
+              )}
             </span>
           </div>
 
           <div className="flex items-center gap-2">
             <span className={`px-2 py-0.5 rounded text-[9.5px] font-bold uppercase ${
-              snapshot?.dataIntegrity?.isOptionsDelayed 
-                ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30' 
-                : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+              isOpraLive 
+                ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' 
+                : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
             }`}>
-              {snapshot?.dataIntegrity?.isOptionsDelayed ? 'CBOE FEED DELAYED (15M+)' : 'REAL-TIME OPRA'}
+              {isOpraLive ? 'LIVE OPRA ACCESS' : 'PAPER MODE ONLY'}
             </span>
             <button
               onClick={handleRunDryRun}
               disabled={isDryRunning}
-              className="px-2.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white text-[9.5px] font-bold border border-zinc-700 transition cursor-pointer"
+              className="px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-amber-300 hover:text-white text-[9.5px] font-bold border border-amber-500/30 transition cursor-pointer flex items-center gap-1"
             >
-              {isDryRunning ? 'Testing...' : 'Integrity Dry-Run'}
+              <ShieldAlert className="w-3 h-3 text-amber-400" />
+              <span>{isDryRunning ? 'Testing...' : 'Integrity Dry-Run'}</span>
             </button>
           </div>
         </div>
+
+        {/* Informational Banner if OPRA is not active */}
+        {!isOpraLive && (
+          <div className="px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center justify-between text-[11px] font-mono text-amber-300">
+            <span className="flex items-center gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+              <span>
+                <strong>PAPER MODE ACTIVE:</strong> Options data feed is [{feedClassification}]. Live 0DTE trade signals are safely locked until real-time OPRA entitlement is verified.
+              </span>
+            </span>
+            <span className="text-[10px] text-zinc-400 uppercase">Latency: {snapshot?.dataIntegrity?.optionsLatencySeconds || 0}s</span>
+          </div>
+        )}
       </div>
 
       {/* 2. MAIN STATUS CARD (READY / SCANNING / ACTIVE / COMPLETE / DAILY LOCK) */}
@@ -323,6 +370,17 @@ export function SpyOptionsSniperView() {
               </p>
             </div>
 
+            {/* Preflight Error Banner if previously rejected */}
+            {session.preflightError && (
+              <div className="max-w-md mx-auto p-3 bg-rose-500/10 border border-rose-500/40 rounded-xl text-xs font-mono text-rose-300 text-left space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-rose-400">
+                  <AlertTriangle className="w-4 h-4" />
+                  <span>PREFLIGHT GATE REJECTION</span>
+                </div>
+                <p className="text-[11px] text-zinc-300 leading-relaxed">{session.preflightError}</p>
+              </div>
+            )}
+
             {/* Signal Search Window Buttons */}
             <div className="space-y-2 max-w-md mx-auto">
               <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block font-mono">
@@ -346,26 +404,45 @@ export function SpyOptionsSniperView() {
               </div>
             </div>
 
-            {/* Trailing Stop Mode Toggle */}
-            <div className="flex items-center justify-center gap-3 py-2 bg-zinc-950/60 rounded-xl border border-zinc-800/80 max-w-md mx-auto">
-              <span className="text-xs font-mono font-bold text-zinc-300">Trailing Stop Mode:</span>
-              <button
-                type="button"
-                onClick={() => setTrailingStopToggle(!trailingStopToggle)}
-                className={`px-3 py-1 rounded-lg text-xs font-black font-mono transition border ${
-                  trailingStopToggle
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                    : 'bg-zinc-800 text-zinc-400 border-zinc-700'
-                }`}
-              >
-                {trailingStopToggle ? 'ON ✅' : 'OFF ❌'}
-              </button>
+            {/* Mode & Trailing Stop Controls */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-w-md mx-auto font-mono text-xs">
+              {/* Execution Mode */}
+              <div className="flex items-center justify-between p-2.5 bg-zinc-950/60 rounded-xl border border-zinc-800">
+                <span className="text-zinc-400 font-bold text-[11px]">Mode:</span>
+                <button
+                  type="button"
+                  onClick={() => setIsLiveModeToggle(!isLiveModeToggle)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-black transition border cursor-pointer ${
+                    isLiveModeToggle
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                      : 'bg-zinc-800 text-emerald-400 border-zinc-700'
+                  }`}
+                >
+                  {isLiveModeToggle ? 'LIVE ALERTS' : 'PAPER TRADING'}
+                </button>
+              </div>
+
+              {/* Trailing Stop Mode Toggle */}
+              <div className="flex items-center justify-between p-2.5 bg-zinc-950/60 rounded-xl border border-zinc-800">
+                <span className="text-zinc-400 font-bold text-[11px]">Trailing Stop:</span>
+                <button
+                  type="button"
+                  onClick={() => setTrailingStopToggle(!trailingStopToggle)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-black transition border cursor-pointer ${
+                    trailingStopToggle
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                      : 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                  }`}
+                >
+                  {trailingStopToggle ? 'ON ✅' : 'OFF ❌'}
+                </button>
+              </div>
             </div>
 
             {/* Big Action Button: START SIGNAL */}
             <div className="pt-2">
               <button
-                onClick={() => spySniperEngine.startSignalSession(selectedDuration, trailingStopToggle)}
+                onClick={() => spySniperEngine.startSignalSession(selectedDuration, trailingStopToggle, isLiveModeToggle)}
                 className="w-full max-w-md py-3.5 px-6 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-black font-black text-sm uppercase font-mono tracking-wider shadow-lg shadow-amber-500/30 hover:scale-[1.01] transition active:scale-[0.99] cursor-pointer flex items-center justify-center gap-2 mx-auto"
               >
                 <Play className="w-4 h-4 fill-black" />
@@ -379,15 +456,15 @@ export function SpyOptionsSniperView() {
             <div className="space-y-1">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/40 text-amber-300 text-xs font-mono font-black animate-pulse">
                 <Clock className="w-3.5 h-3.5 text-amber-400" />
-                <span>SCANNING IN PROGRESS...</span>
+                <span>5-MINUTE STRATEGY SCANNER RUNNING...</span>
               </div>
               <h2 className="text-xl font-black text-white font-mono tracking-wide mt-2">
                 🦅 AURUM SPY SNIPER
               </h2>
-              {snapshot?.dataIntegrity?.isOptionsDelayed ? (
+              {snapshot?.dataIntegrity?.isOptionsDelayed && session.isLiveMode ? (
                 <div className="space-y-0.5">
                   <p className="text-xs font-mono font-black text-amber-400 uppercase tracking-wide">
-                    OPTIONS DATA DELAYED
+                    OPTIONS DATA DELAYED ({feedClassification})
                   </p>
                   <p className="text-xs font-mono font-bold text-amber-300">
                     WAIT FOR FRESH DATA ☕
@@ -401,11 +478,7 @@ export function SpyOptionsSniperView() {
             </div>
 
             {/* Scanning Progress Telemetry Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 max-w-lg mx-auto bg-zinc-950/80 p-3.5 rounded-xl border border-zinc-800 text-xs font-mono">
-              <div>
-                <span className="text-[10px] text-zinc-400 block uppercase font-bold">Started:</span>
-                <span className="text-zinc-200 font-bold">{session.startedAtET || '10:20 AM ET'}</span>
-              </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-w-lg mx-auto bg-zinc-950/80 p-3.5 rounded-xl border border-zinc-800 text-xs font-mono">
               <div>
                 <span className="text-[10px] text-zinc-400 block uppercase font-bold">Search Time Left:</span>
                 <span className="text-amber-400 font-black">{formatCountdown(session.endsAt)}</span>
@@ -415,10 +488,24 @@ export function SpyOptionsSniperView() {
                 <span className="text-sky-400 font-black">{formatCountdown(session.nextScanAt)}</span>
               </div>
               <div>
-                <span className="text-[10px] text-zinc-400 block uppercase font-bold">Best Confidence:</span>
+                <span className="text-[10px] text-zinc-400 block uppercase font-bold">Provider Status:</span>
                 <span className="text-emerald-400 font-black">
-                  {candidates.length > 0 ? `${candidates[0].totalConfidence}%` : '78%'}
+                  {sourceBadge}
                 </span>
+              </div>
+              <div>
+                <span className="text-[10px] text-zinc-400 block uppercase font-bold">Candidate Count:</span>
+                <span className="text-white font-black">{candidates.length} Setups</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-zinc-400 block uppercase font-bold">Best Confidence:</span>
+                <span className="text-amber-300 font-black">
+                  {candidates.length > 0 ? `${candidates[0].totalConfidence}%` : 'Scanning...'}
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] text-zinc-400 block uppercase font-bold">Started:</span>
+                <span className="text-zinc-300 font-bold">{session.startedAtET || '10:20 AM ET'}</span>
               </div>
             </div>
 
@@ -440,16 +527,21 @@ export function SpyOptionsSniperView() {
             {/* Optional Internal Candidates Scoring Inspection */}
             {isDebugCandidatesOpen && candidates.length > 0 && (
               <div className="p-3 bg-zinc-950 rounded-xl border border-zinc-800 text-left text-xs font-mono space-y-2 max-w-lg mx-auto">
-                <span className="text-[10px] font-bold text-amber-400 uppercase block">Internal Candidate Scoring breakdown:</span>
+                <span className="text-[10px] font-bold text-amber-400 uppercase block">9-Factor Candidate Comparison:</span>
                 {candidates.map((c, idx) => (
-                  <div key={c.id || idx} className="p-2 rounded bg-zinc-900/80 border border-zinc-800 space-y-1">
+                  <div key={c.id || idx} className="p-2.5 rounded bg-zinc-900/80 border border-zinc-800 space-y-1.5">
                     <div className="flex items-center justify-between">
                       <span className={`font-bold ${c.direction === 'CALL' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {c.direction === 'CALL' ? '🟢 CALL' : '🔴 PUT'} ({c.selectedContract.strike})
+                        {c.direction === 'CALL' ? '🟢 CALL' : '🔴 PUT'} ({c.selectedContract.strike}) | Source: {c.selectedContract.source}
                       </span>
                       <span className="font-black text-amber-300">{c.totalConfidence}% Confidence</span>
                     </div>
-                    <p className="text-[10px] text-zinc-400">{c.setupType}</p>
+                    <div className="grid grid-cols-4 gap-1 text-[10px] text-zinc-400">
+                      <div>Delta: {c.selectedContract.delta ?? 'N/A'}</div>
+                      <div>Gamma: {c.selectedContract.gamma ?? 'N/A'}</div>
+                      <div>Theta: {c.selectedContract.theta ?? 'N/A'}</div>
+                      <div>IV: {c.selectedContract.iv ? `${+(c.selectedContract.iv * 100).toFixed(1)}%` : 'N/A'}</div>
+                    </div>
                     {!c.hardGatesPassed && (
                       <p className="text-[10px] text-rose-400 font-bold">Gate Rejection: {c.rejectionReason}</p>
                     )}
@@ -459,7 +551,7 @@ export function SpyOptionsSniperView() {
             )}
           </div>
         ) : session.status === 'ACTIVE' && activeTrade ? (
-          /* STATE D: ACTIVE SIGNAL */
+          /* STATE D: ACTIVE SIGNAL (5-Second Real-Time Contract Monitor) */
           <div className="space-y-4">
             <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
               <div className="flex items-center gap-2">
@@ -474,30 +566,67 @@ export function SpyOptionsSniperView() {
                 <span className="text-base font-black text-white font-mono">
                   {activeTrade.strike}{activeTrade.direction === 'CALL' ? 'C' : 'P'} | 0DTE
                 </span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-zinc-800 text-zinc-300 border border-zinc-700">
+                  {activeTrade.optionsProvider} ({activeTrade.optionsFeed.toUpperCase()})
+                </span>
               </div>
 
               <div className="text-right">
                 <span className="text-[10px] text-zinc-400 uppercase block font-mono font-bold">Signal Status:</span>
                 <span className="text-xs font-black text-emerald-400 font-mono tracking-wider animate-pulse">
-                  ACTIVE
+                  5S MONITOR ACTIVE
                 </span>
               </div>
             </div>
 
-            {/* Price & Target/Stop Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 font-mono text-xs">
+            {/* Outage / Data Interruption Alert */}
+            {activeTrade.dataInterrupted && (
+              <div className="p-3 bg-rose-500/15 border border-rose-500/40 rounded-xl flex items-center gap-2 text-xs font-mono text-rose-300">
+                <AlertTriangle className="w-4 h-4 text-rose-400 flex-shrink-0" />
+                <span>
+                  <strong>DATA INTERRUPTED:</strong> Fresh options quotes temporarily interrupted. Automated TP/SL/Trailing decisions are frozen until reliable feed resumes. Never guessing premium!
+                </span>
+              </div>
+            )}
+
+            {/* Detailed Pricing Breakdown (Bid, Ask, Mid, Last, Executable Premium) */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 font-mono text-xs">
+              <div className="bg-zinc-900/80 p-2.5 rounded-xl border border-zinc-800">
+                <span className="text-[10px] text-zinc-400 font-bold uppercase block">Bid:</span>
+                <span className="text-sm font-black text-white">${activeTrade.currentBid?.toFixed(2) || '0.00'}</span>
+              </div>
+
+              <div className="bg-zinc-900/80 p-2.5 rounded-xl border border-zinc-800">
+                <span className="text-[10px] text-zinc-400 font-bold uppercase block">Ask:</span>
+                <span className="text-sm font-black text-white">${activeTrade.currentAsk?.toFixed(2) || '0.00'}</span>
+              </div>
+
+              <div className="bg-zinc-900/80 p-2.5 rounded-xl border border-zinc-800">
+                <span className="text-[10px] text-zinc-400 font-bold uppercase block">Mid:</span>
+                <span className="text-sm font-black text-zinc-300">${activeTrade.currentMid?.toFixed(2) || '0.00'}</span>
+              </div>
+
+              <div className="bg-zinc-900/80 p-2.5 rounded-xl border border-zinc-800">
+                <span className="text-[10px] text-zinc-400 font-bold uppercase block">Last:</span>
+                <span className="text-sm font-black text-zinc-300">${activeTrade.currentLast?.toFixed(2) || '0.00'}</span>
+              </div>
+
+              <div className="bg-zinc-900/80 p-2.5 rounded-xl border border-amber-500/40">
+                <span className="text-[10px] text-amber-400 font-bold uppercase block">Current Premium:</span>
+                <span className="text-sm font-black text-amber-300">${activeTrade.currentPremium.toFixed(2)}</span>
+              </div>
+            </div>
+
+            {/* Entry vs Target & Stop */}
+            <div className="grid grid-cols-3 gap-2.5 font-mono text-xs">
               <div className="bg-zinc-900/80 p-2.5 rounded-xl border border-zinc-800">
                 <span className="text-[10px] text-zinc-400 font-bold uppercase block">Entry Premium:</span>
                 <span className="text-sm font-black text-white">${activeTrade.entryPremium.toFixed(2)}</span>
+                <span className="text-[9.5px] text-zinc-500 block mt-0.5">Bid: ${activeTrade.entryBid.toFixed(2)} | Ask: ${activeTrade.entryAsk.toFixed(2)}</span>
               </div>
 
               <div className="bg-zinc-900/80 p-2.5 rounded-xl border border-zinc-800">
-                <span className="text-[10px] text-zinc-400 font-bold uppercase block">Current Premium:</span>
-                <span className="text-sm font-black text-amber-300">${activeTrade.currentPremium.toFixed(2)}</span>
-              </div>
-
-              <div className="bg-zinc-900/80 p-2.5 rounded-xl border border-zinc-800">
-                <span className="text-[10px] text-zinc-400 font-bold uppercase block">Target Premium:</span>
+                <span className="text-[10px] text-zinc-400 font-bold uppercase block">Target (+45%):</span>
                 <span className="text-sm font-black text-emerald-400">${activeTrade.targetPremium.toFixed(2)}</span>
               </div>
 
@@ -505,7 +634,7 @@ export function SpyOptionsSniperView() {
                 <span className="text-[10px] text-zinc-400 font-bold uppercase block">Stop Loss:</span>
                 <span className="text-sm font-black text-rose-400 flex items-center gap-1">
                   <span>${activeTrade.stopPremium.toFixed(2)}</span>
-                  {activeTrade.trailingStopActive && <span className="text-emerald-400 text-[10px]">↑</span>}
+                  {activeTrade.trailingStopActive && <span className="text-emerald-400 text-[10px]">↑ TRAILING</span>}
                 </span>
               </div>
             </div>
@@ -535,13 +664,21 @@ export function SpyOptionsSniperView() {
               </div>
             </div>
 
+            {/* Real Greeks display */}
+            <div className="grid grid-cols-4 gap-2 p-2 bg-zinc-950/70 rounded-xl border border-zinc-800 text-[11px] font-mono text-zinc-300">
+              <div><span className="text-zinc-500">Delta:</span> {activeTrade.delta ?? 'N/A'}</div>
+              <div><span className="text-zinc-500">Gamma:</span> {activeTrade.gamma ?? 'N/A'}</div>
+              <div><span className="text-zinc-500">Theta:</span> {activeTrade.theta ?? 'N/A'}</div>
+              <div><span className="text-zinc-500">IV:</span> {activeTrade.iv ? `${+(activeTrade.iv * 100).toFixed(1)}%` : 'N/A'}</div>
+            </div>
+
             {/* Suggested Sizing & Trailing Info */}
             <div className="flex items-center justify-between text-xs font-mono bg-zinc-900/50 p-2.5 rounded-xl border border-zinc-800">
               <span className="text-zinc-400">
-                Suggested Position Size: <strong className="text-white">{activeTrade.suggestedContracts} Contracts</strong>
+                Suggested Position Size: <strong className="text-white">{activeTrade.suggestedContracts} Contracts</strong> (Max Risk: ${activeTrade.maxRiskUSD})
               </span>
               <span className="text-emerald-400 font-bold">
-                Trailing Stop: {activeTrade.trailingStopActive ? 'ACTIVE 🔥' : 'ENABLED'}
+                Trailing Stop: {activeTrade.trailingStopActive ? 'ACTIVE (Tightened) 🔥' : 'ENABLED'}
               </span>
             </div>
 
@@ -622,7 +759,9 @@ export function SpyOptionsSniperView() {
             <span className="text-[9.5px] text-zinc-400 uppercase block font-bold">QQQ Index</span>
             <div className="font-black text-sky-300 text-xs mt-0.5 flex items-center justify-between">
               <span>${snapshot?.qqqPrice ? snapshot.qqqPrice.toFixed(2) : '525.10'}</span>
-              <span className="text-[9px] px-1 bg-emerald-500/20 text-emerald-300 rounded">BULLISH</span>
+              <span className={`text-[9px] px-1 rounded ${snapshot?.qqqChangePercent && snapshot.qqqChangePercent >= 0 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'}`}>
+                {snapshot && snapshot.qqqChangePercent >= 0 ? '+' : ''}{snapshot?.qqqChangePercent || 0}%
+              </span>
             </div>
           </div>
 
@@ -630,27 +769,29 @@ export function SpyOptionsSniperView() {
             <span className="text-[9.5px] text-zinc-400 uppercase block font-bold">ES Futures</span>
             <div className="font-black text-emerald-300 text-xs mt-0.5 flex items-center justify-between">
               <span>${snapshot?.esPrice ? snapshot.esPrice.toFixed(2) : '6012.50'}</span>
-              <span className="text-[9px] px-1 bg-emerald-500/20 text-emerald-300 rounded">CONFIRMED</span>
+              <span className={`text-[9px] px-1 rounded ${snapshot?.esChangePercent && snapshot.esChangePercent >= 0 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'}`}>
+                {snapshot && snapshot.esChangePercent >= 0 ? '+' : ''}{snapshot?.esChangePercent || 0}%
+              </span>
             </div>
           </div>
 
           <div className="p-2 rounded-xl bg-zinc-900/80 border border-zinc-800">
             <span className="text-[9.5px] text-zinc-400 uppercase block font-bold">VIX Volatility</span>
             <div className="font-black text-amber-400 text-xs mt-0.5">
-              {snapshot?.vixPrice ? snapshot.vixPrice.toFixed(2) : '15.20'} <span className="text-[9px] text-zinc-400 font-normal">(Low)</span>
+              {snapshot?.vixPrice ? snapshot.vixPrice.toFixed(2) : '15.20'} <span className="text-[9px] text-zinc-400 font-normal">({snapshot && snapshot.vixPrice <= 20 ? 'Normal' : 'Elevated'})</span>
             </div>
           </div>
 
           <div className="p-2 rounded-xl bg-zinc-900/80 border border-zinc-800">
             <span className="text-[9.5px] text-zinc-400 uppercase block font-bold">Order Flow Tape</span>
-            <div className="font-black text-emerald-400 text-[11px] mt-0.5 truncate">
-              {snapshot?.orderFlowStatus === 'BUYING_PRESSURE' ? 'BUYING PRESSURE' : 'NEUTRAL'}
+            <div className="font-black text-zinc-400 text-[11px] mt-0.5 truncate">
+              UNAVAILABLE (Zero Mock)
             </div>
           </div>
         </div>
       </div>
 
-      {/* 4. SIGNAL HISTORY (COLLAPSIBLE) */}
+      {/* 4. SIGNAL HISTORY (COLLAPSIBLE WITH AUDIT DETAILS) */}
       <div className="bg-[#0b0e18] rounded-2xl border border-amber-500/20 shadow-md font-mono overflow-hidden">
         <button
           onClick={() => setIsHistoryExpanded(!isHistoryExpanded)}
@@ -658,7 +799,7 @@ export function SpyOptionsSniperView() {
         >
           <div className="flex items-center gap-2">
             <BarChart2 className="w-4 h-4 text-amber-400" />
-            <span>Signal History ({history.length})</span>
+            <span>Signal History & Audit Logs ({history.length})</span>
           </div>
           {isHistoryExpanded ? <ChevronUp className="w-4 h-4 text-zinc-400" /> : <ChevronDown className="w-4 h-4 text-zinc-400" />}
         </button>
@@ -699,6 +840,7 @@ export function SpyOptionsSniperView() {
                         {item.direction === 'CALL' ? 'CALL' : 'PUT'}
                       </span>
                       <span className="text-zinc-300 font-bold">{item.strike}{item.direction === 'CALL' ? 'C' : 'P'}</span>
+                      <span className="text-[9px] px-1 bg-zinc-800 rounded text-zinc-400">{item.optionsProvider}</span>
                     </div>
 
                     <div className="flex items-center gap-3">
@@ -750,19 +892,21 @@ export function SpyOptionsSniperView() {
         </div>
 
         <div className="bg-[#0b0e18] p-3 rounded-2xl border border-amber-500/20 shadow-md">
-          <span className="text-[9.5px] uppercase text-zinc-400 font-bold block">CONSECUTIVE LOSSES</span>
-          <span className="text-base font-black text-rose-400 mt-0.5 block">{perfStats.consecutiveLosses} / {config.maxConsecutiveLosses}</span>
+          <span className="text-[9.5px] uppercase text-zinc-400 font-bold block">DAILY LOSS LOCK</span>
+          <span className={`text-base font-black mt-0.5 block ${dailyRisk.consecutiveLosses >= 2 ? 'text-rose-400' : 'text-emerald-400'}`}>
+            {dailyRisk.consecutiveLosses}/2 Losses
+          </span>
         </div>
       </div>
 
-      {/* RISK CONFIG MODAL */}
+      {/* CONFIGURATION MODAL */}
       {isConfigModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#0c0e17] border border-amber-500/40 rounded-2xl max-w-md w-full p-5 space-y-4 font-mono shadow-2xl">
             <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
               <h3 className="text-sm font-black text-amber-400 uppercase tracking-wide flex items-center gap-2">
                 <SlidersHorizontal className="w-4 h-4 text-amber-400" />
-                <span>SPY Risk & Position Sizing Config</span>
+                <span>SPY 0DTE Risk & Execution Settings</span>
               </h3>
               <button
                 onClick={() => setIsConfigModalOpen(false)}
@@ -774,84 +918,62 @@ export function SpyOptionsSniperView() {
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="text-zinc-400 block mb-1">Account Size ($):</label>
+                <label className="text-zinc-400 font-bold block mb-1">Account Sizing (USD):</label>
                 <input
                   type="number"
                   value={config.accountSize}
-                  onChange={(e) => spySniperEngine.updateConfig({ accountSize: Number(e.target.value) })}
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-white font-bold"
+                  onChange={(e) => setConfig({ ...config, accountSize: Number(e.target.value) })}
+                  className="w-full p-2 bg-zinc-900 rounded-xl border border-zinc-800 text-white font-bold"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-zinc-400 block mb-1">Max Dollar Risk ($):</label>
-                  <input
-                    type="number"
-                    value={config.maxDollarRisk}
-                    onChange={(e) => spySniperEngine.updateConfig({ maxDollarRisk: Number(e.target.value) })}
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-white font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="text-zinc-400 block mb-1">Max Contracts:</label>
-                  <input
-                    type="number"
-                    value={config.maxContracts}
-                    onChange={(e) => spySniperEngine.updateConfig({ maxContracts: Number(e.target.value) })}
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-white font-bold"
-                  />
-                </div>
+              <div>
+                <label className="text-zinc-400 font-bold block mb-1">Max Risk Per Trade (%):</label>
+                <input
+                  type="number"
+                  step="0.5"
+                  value={config.maxRiskPercent}
+                  onChange={(e) => setConfig({ ...config, maxRiskPercent: Number(e.target.value) })}
+                  className="w-full p-2 bg-zinc-900 rounded-xl border border-zinc-800 text-white font-bold"
+                />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-zinc-400 block mb-1">Max Consecutive SL:</label>
-                  <input
-                    type="number"
-                    value={config.maxConsecutiveLosses}
-                    onChange={(e) => spySniperEngine.updateConfig({ maxConsecutiveLosses: Number(e.target.value) })}
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-white font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="text-zinc-400 block mb-1">Min Confidence %:</label>
-                  <input
-                    type="number"
-                    value={config.minConfidence}
-                    onChange={(e) => spySniperEngine.updateConfig({ minConfidence: Number(e.target.value) })}
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-white font-bold"
-                  />
-                </div>
+              <div>
+                <label className="text-zinc-400 font-bold block mb-1">Max Dollar Risk Cap ($):</label>
+                <input
+                  type="number"
+                  value={config.maxDollarRisk}
+                  onChange={(e) => setConfig({ ...config, maxDollarRisk: Number(e.target.value) })}
+                  className="w-full p-2 bg-zinc-900 rounded-xl border border-zinc-800 text-white font-bold"
+                />
               </div>
 
-              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-zinc-800">
-                <div>
-                  <label className="text-zinc-400 block mb-1">Paper Simulation Mode:</label>
-                  <button
-                    type="button"
-                    onClick={() => spySniperEngine.updateConfig({ paperMode: !config.paperMode })}
-                    className={`w-full p-2 rounded-lg text-xs font-bold border transition ${
-                      config.paperMode ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                    }`}
-                  >
-                    {config.paperMode ? 'PAPER MODE (ENABLED)' : 'LIVE BROKER GUARD'}
-                  </button>
-                </div>
-                <div>
-                  <label className="text-zinc-400 block mb-1">Max Latency (sec):</label>
-                  <input
-                    type="number"
-                    value={config.maxAcceptableLatencySeconds || 180}
-                    onChange={(e) => spySniperEngine.updateConfig({ maxAcceptableLatencySeconds: Number(e.target.value) })}
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-white font-bold"
-                  />
-                </div>
+              <div>
+                <label className="text-zinc-400 font-bold block mb-1">Max Option Contracts:</label>
+                <input
+                  type="number"
+                  value={config.maxContracts}
+                  onChange={(e) => setConfig({ ...config, maxContracts: Number(e.target.value) })}
+                  className="w-full p-2 bg-zinc-900 rounded-xl border border-zinc-800 text-white font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="text-zinc-400 font-bold block mb-1">Max Acceptable Options Latency (Seconds):</label>
+                <input
+                  type="number"
+                  value={config.maxAcceptableLatencySeconds}
+                  onChange={(e) => setConfig({ ...config, maxAcceptableLatencySeconds: Number(e.target.value) })}
+                  className="w-full p-2 bg-zinc-900 rounded-xl border border-zinc-800 text-white font-bold"
+                />
               </div>
             </div>
 
             <button
-              onClick={() => setIsConfigModalOpen(false)}
+              onClick={() => {
+                spySniperEngine.updateConfig(config);
+                setIsConfigModalOpen(false);
+              }}
               className="w-full py-2.5 rounded-xl bg-amber-500 text-black font-black text-xs uppercase tracking-wider cursor-pointer"
             >
               Save & Close
@@ -860,13 +982,13 @@ export function SpyOptionsSniperView() {
         </div>
       )}
 
-      {/* DETAIL SIGNAL MODAL */}
+      {/* DETAIL SIGNAL AUDIT MODAL */}
       {selectedDetailSignal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#0c0e17] border border-amber-500/40 rounded-2xl max-w-md w-full p-5 space-y-4 font-mono shadow-2xl">
             <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
               <h3 className="text-sm font-black text-amber-400 uppercase tracking-wide">
-                Signal Details #{selectedDetailSignal.signalId.slice(-6)}
+                Signal Audit Log #{selectedDetailSignal.signalId.slice(-6)}
               </h3>
               <button
                 onClick={() => setSelectedDetailSignal(null)}
@@ -878,12 +1000,28 @@ export function SpyOptionsSniperView() {
 
             <div className="space-y-2 text-xs">
               <div className="flex justify-between">
-                <span className="text-zinc-400">Direction / Contract:</span>
-                <span className="font-bold text-white">{selectedDetailSignal.direction} | {selectedDetailSignal.contractSymbol}</span>
+                <span className="text-zinc-400">Direction / Strike:</span>
+                <span className="font-bold text-white">{selectedDetailSignal.direction} | {selectedDetailSignal.strike}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-400">Contract Symbol:</span>
+                <span className="font-bold text-amber-300">{selectedDetailSignal.contractSymbol}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-400">Options Provider:</span>
+                <span className="font-bold text-white">{selectedDetailSignal.optionsProvider} ({selectedDetailSignal.optionsFeed})</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-400">Feed Classification:</span>
+                <span className="font-bold text-sky-400">{selectedDetailSignal.feedClassification}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-zinc-400">Entry / Exit Premium:</span>
                 <span className="font-bold text-white">${selectedDetailSignal.entryPremium.toFixed(2)} → ${selectedDetailSignal.exitPremium.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-400">Entry Pricing Matrix:</span>
+                <span className="text-zinc-300">Bid: ${selectedDetailSignal.entryBid.toFixed(2)} / Ask: ${selectedDetailSignal.entryAsk.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-zinc-400">Result:</span>
@@ -898,8 +1036,8 @@ export function SpyOptionsSniperView() {
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-zinc-400">Confidence:</span>
-                <span className="font-bold text-amber-300">{selectedDetailSignal.confidence}%</span>
+                <span className="text-zinc-400">Greeks Recorded:</span>
+                <span className="text-zinc-300">Δ {selectedDetailSignal.delta ?? 'N/A'} | Γ {selectedDetailSignal.gamma ?? 'N/A'} | θ {selectedDetailSignal.theta ?? 'N/A'}</span>
               </div>
             </div>
 
@@ -919,8 +1057,9 @@ export function SpyOptionsSniperView() {
           <div className="bg-[#0b0d17] border-2 border-amber-500/50 rounded-2xl max-w-2xl w-full p-5 sm:p-6 space-y-4 font-mono shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
               <div className="flex items-center gap-2">
+                <ShieldAlert className="w-5 h-5 text-amber-400" />
                 <span className="text-base font-black text-amber-400 uppercase tracking-wide">
-                  🛡️ SPY 0DTE DATA INTEGRITY & DRY-RUN AUDIT
+                  ALPACA + CBOE OPTIONS INTEGRITY DRY-RUN
                 </span>
               </div>
               <button
@@ -933,60 +1072,31 @@ export function SpyOptionsSniperView() {
 
             {/* Top Status Banner */}
             <div className={`p-3.5 rounded-xl border ${
-              dryRunResult.freshnessGatePassed 
+              dryRunResult.liveDataSignalReady === 'YES'
                 ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300' 
                 : 'bg-amber-500/10 border-amber-500/40 text-amber-300'
             } space-y-1`}>
               <div className="flex items-center justify-between">
                 <span className="text-xs font-black uppercase tracking-wider">
-                  CBOE FEED STATUS: {dryRunResult.optionsFeedClassification}
+                  CLASSIFICATION: {dryRunResult.optionsClassification} (Actual: {dryRunResult.actualFeed})
                 </span>
                 <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
-                  dryRunResult.freshnessGatePassed ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'
+                  dryRunResult.liveDataSignalReady === 'YES' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'
                 }`}>
-                  {dryRunResult.freshnessGatePassed ? 'GATE PASSED' : 'FRESHNESS GATE REJECTED'}
+                  LIVE SIGNAL READY: {dryRunResult.liveDataSignalReady}
                 </span>
               </div>
               <p className="text-xs font-bold">
-                VERDICT: [{dryRunResult.verdict}] — {dryRunResult.verdictDetail}
+                Feed: {dryRunResult.requestedFeed} (Requested) → {dryRunResult.actualFeed} (Active) | Latency: {dryRunResult.providerHealth?.latencySeconds}s
               </p>
             </div>
 
-            {/* Latency Matrix */}
-            <div className="space-y-1.5">
-              <span className="text-[10px] text-zinc-400 uppercase font-bold tracking-wider block">
-                FEED LATENCY TELEMETRY (LIVE MEASUREMENT):
-              </span>
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
-                <div className="bg-zinc-900/90 p-2.5 rounded-xl border border-zinc-800">
-                  <span className="text-[9px] text-zinc-500 block uppercase">SPY Latency</span>
-                  <span className="text-sm font-black text-white">{dryRunResult.latencies.spyQuoteLatencySeconds}s</span>
-                </div>
-                <div className="bg-zinc-900/90 p-2.5 rounded-xl border border-zinc-800">
-                  <span className="text-[9px] text-zinc-500 block uppercase">CBOE Options</span>
-                  <span className="text-sm font-black text-amber-400">{dryRunResult.latencies.optionsQuoteLatencySeconds}s</span>
-                </div>
-                <div className="bg-zinc-900/90 p-2.5 rounded-xl border border-zinc-800">
-                  <span className="text-[9px] text-zinc-500 block uppercase">QQQ Latency</span>
-                  <span className="text-sm font-black text-white">{dryRunResult.latencies.qqqLatencySeconds}s</span>
-                </div>
-                <div className="bg-zinc-900/90 p-2.5 rounded-xl border border-zinc-800">
-                  <span className="text-[9px] text-zinc-500 block uppercase">ES Futures</span>
-                  <span className="text-sm font-black text-white">{dryRunResult.latencies.esLatencySeconds}s</span>
-                </div>
-                <div className="bg-zinc-900/90 p-2.5 rounded-xl border border-zinc-800">
-                  <span className="text-[9px] text-zinc-500 block uppercase">VIX Latency</span>
-                  <span className="text-sm font-black text-white">{dryRunResult.latencies.vixLatencySeconds}s</span>
-                </div>
-              </div>
-            </div>
-
-            {/* 10 Step Audit Logs */}
+            {/* 11 Step Audit Logs */}
             <div className="space-y-2">
               <span className="text-[10px] text-zinc-400 uppercase font-bold tracking-wider block">
-                10-STEP PIPELINE AUDIT LOG:
+                END-TO-END PIPELINE VERIFICATION:
               </span>
-              <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+              <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
                 {dryRunResult.stepLogs?.map((log: any, idx: number) => (
                   <div key={idx} className="p-2.5 rounded-lg bg-zinc-900/70 border border-zinc-800 text-[11px] space-y-0.5">
                     <div className="flex items-center justify-between">

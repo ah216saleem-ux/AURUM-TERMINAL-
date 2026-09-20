@@ -5,14 +5,23 @@ import { handleMarketDataRequest } from './server/marketDataRouter';
 import { handleNewsRequest } from './server/newsRouter';
 import { handleQwenRequest, handleQwenStatus } from './server/qwenRouter';
 import { handleSpySniperRequest } from './server/spySniperRouter';
+import { handleAdminAuthRequest } from './server/adminAuthRouter';
 import { initWebSocketServer } from './server/websocketServer';
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  // Middleware for body parsing
+  // Body parser is already mounted
   app.use(express.json());
+
+  // Admin Security & Protected Module Routes
+  app.all(['/api/auth/admin*', '/api/admin*'], async (req, res) => {
+    const handled = await handleAdminAuthRequest(req, res);
+    if (!handled) {
+      res.status(404).json({ error: 'Admin route not found' });
+    }
+  });
 
   // Qwen AI analysis routes
   app.get('/api/qwen-status', async (req, res) => {

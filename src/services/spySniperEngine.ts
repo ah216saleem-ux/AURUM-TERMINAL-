@@ -4,7 +4,8 @@
  * 
  * AURUM TERMINAL — SPY 0DTE OPTIONS SNIPER CLIENT ENGINE
  * Connected to Server-Authoritative Engine (/api/spy-sniper/*)
- * Real CBOE Options Exchange + Yahoo Real-Time Quotes & Candles
+ * Primary: Alpaca Options (OPRA / Indicative)
+ * Fallback: CBOE Delayed (CBOE_DELAYED_FALLBACK)
  * Zero Mock Data, Zero Math.random(), Zero Synthetic Greeks.
  */
 
@@ -20,18 +21,22 @@ export interface SpyOptionContract {
   last: number;
   volume: number;
   openInterest: number;
-  iv: number;
-  delta: number;
-  gamma: number;
-  theta: number;
-  vega: number;
+  iv: number | null;
+  delta: number | null;
+  gamma: number | null;
+  theta: number | null;
+  vega: number | null;
   source: string;
+  latencySeconds?: number;
 }
 
 export interface SpyDataIntegrity {
   spyDataStatus: 'LIVE' | 'DELAYED' | 'STALE';
   optionsDataStatus: 'LIVE' | 'DELAYED' | 'STALE';
-  optionsFeedClassification: 'REAL-TIME' | 'DELAYED' | 'UNKNOWN';
+  optionsFeedClassification: 'REALTIME_OPRA' | 'INDICATIVE' | 'DELAYED' | 'STALE' | 'OFFLINE' | 'UNKNOWN';
+  optionsProvider: 'ALPACA' | 'CBOE_DELAYED_FALLBACK';
+  optionsFeed: string;
+  sourceBadge: 'ALPACA OPRA' | 'ALPACA INDICATIVE' | 'CBOE DELAYED' | 'OFFLINE';
   lastUpdateET: string;
   spyLatencySeconds: number;
   optionsLatencySeconds: number;
@@ -97,7 +102,16 @@ export interface SpyActiveTrade {
   contractSymbol: string;
   strike: number;
   entryPremium: number;
+  entryBid: number;
+  entryAsk: number;
+  entryMid: number;
+  entryLast: number;
+  entryTimestamp: string;
   currentPremium: number;
+  currentBid: number;
+  currentAsk: number;
+  currentMid: number;
+  currentLast: number;
   targetPremium: number;
   stopPremium: number;
   initialStopPremium: number;
@@ -112,6 +126,14 @@ export interface SpyActiveTrade {
   pnlPercent: number;
   status: 'ACTIVE' | 'CLOSED';
   exitReason: string | null;
+  dataInterrupted?: boolean;
+  optionsProvider: string;
+  optionsFeed: string;
+  feedClassification: string;
+  delta: number | null;
+  gamma: number | null;
+  theta: number | null;
+  iv: number | null;
 }
 
 export interface SpyCompletedSignal {
@@ -122,13 +144,33 @@ export interface SpyCompletedSignal {
   strike: number;
   contractSymbol: string;
   entryPremium: number;
+  entryBid: number;
+  entryAsk: number;
+  entryMid: number;
+  entryLast: number;
+  entryTimestamp: string;
   exitPremium: number;
+  exitBid: number;
+  exitAsk: number;
+  exitMid: number;
+  exitLast: number;
+  exitTimestamp: string;
   PnLUSD: number;
   PnLPercent: number;
   result: 'TP_HIT' | 'SL_HIT' | 'TRAILING_SL_HIT' | 'MANUAL_CLOSE' | 'EXPIRED';
   confidence: number;
   startedAtET: string;
   closedAtET: string;
+  marketDataProvider: string;
+  optionsProvider: string;
+  optionsFeed: string;
+  feedClassification: string;
+  entryQuoteTimestamp: string;
+  entryLatencySeconds: number;
+  delta: number | null;
+  gamma: number | null;
+  theta: number | null;
+  iv: number | null;
 }
 
 export interface SpySessionState {
@@ -136,12 +178,14 @@ export interface SpySessionState {
   status: 'READY' | 'SCANNING' | 'ACTIVE' | 'COMPLETE' | 'DAILY_LOCKED' | 'NEWS_LOCKED' | 'OFFLINE';
   selectedDuration: string;
   trailingStopMode: boolean;
+  isLiveMode: boolean;
   startedAt: number | null;
   startedAtET: string | null;
   endsAt: number | null;
   nextScanAt: number | null;
   scansCompleted: number;
   bestCandidate: SpyCandidate | null;
+  preflightError?: string | null;
 }
 
 export interface SpyDailyRiskState {
@@ -164,10 +208,26 @@ export interface SpyRiskConfig {
   maxAcceptableLatencySeconds: number;
 }
 
+export interface SpyProviderHealth {
+  provider: string;
+  requestedFeed: string;
+  actualFeed: string;
+  classification: 'REALTIME_OPRA' | 'INDICATIVE' | 'DELAYED' | 'STALE' | 'OFFLINE' | 'UNKNOWN';
+  connected: boolean;
+  websocketConnected: boolean;
+  streamDegraded: boolean;
+  restAvailable: boolean;
+  latencySeconds: number;
+  lastQuoteTime: string | null;
+  sourceBadge: 'ALPACA OPRA' | 'ALPACA INDICATIVE' | 'CBOE DELAYED' | 'OFFLINE';
+  activeContractSubscribed: string | null;
+  notes: string;
+}
+
 const STORAGE_KEYS = {
-  CLIENT_SESSION: 'aurum_spy_session_v3',
-  CLIENT_HISTORY: 'aurum_spy_history_v3',
-  CLIENT_CONFIG: 'aurum_spy_config_v3'
+  CLIENT_SESSION: 'aurum_spy_session_v4',
+  CLIENT_HISTORY: 'aurum_spy_history_v4',
+  CLIENT_CONFIG: 'aurum_spy_config_v4'
 };
 
 class SpySniperEngine {
@@ -176,12 +236,14 @@ class SpySniperEngine {
     status: 'READY',
     selectedDuration: '30 MIN',
     trailingStopMode: true,
+    isLiveMode: false,
     startedAt: null,
     startedAtET: null,
     endsAt: null,
     nextScanAt: null,
     scansCompleted: 0,
-    bestCandidate: null
+    bestCandidate: null,
+    preflightError: null
   };
   private activeTrade: SpyActiveTrade | null = null;
   private signalHistory: SpyCompletedSignal[] = [];
@@ -195,6 +257,7 @@ class SpySniperEngine {
   };
   private snapshot: SpyMarketSnapshot | null = null;
   private candidates: SpyCandidate[] = [];
+  private providerHealth: SpyProviderHealth | null = null;
   private config: SpyRiskConfig = {
     accountSize: 25000,
     maxRiskPercent: 2.0,
@@ -206,11 +269,11 @@ class SpySniperEngine {
     maxAcceptableLatencySeconds: 180
   };
 
-  private listeners: Set<() => void> = new Set();
+  private listeners: (() => void)[] = [];
   private syncTimer: any = null;
 
   constructor() {
-    this.loadLocalStorage();
+    this.loadFromStorage();
     this.startSyncLoop();
   }
 
@@ -228,7 +291,7 @@ class SpySniperEngine {
     return `${y}-${m}-${d}`;
   }
 
-  private loadLocalStorage() {
+  private loadFromStorage() {
     try {
       const savedConfig = localStorage.getItem(STORAGE_KEYS.CLIENT_CONFIG);
       if (savedConfig) this.config = { ...this.config, ...JSON.parse(savedConfig) };
@@ -236,21 +299,22 @@ class SpySniperEngine {
       const savedHistory = localStorage.getItem(STORAGE_KEYS.CLIENT_HISTORY);
       if (savedHistory) this.signalHistory = JSON.parse(savedHistory);
     } catch (e) {
-      console.error('[SPY Sniper Client] Error reading localStorage:', e);
+      console.error('[SPY Sniper Client] Storage load error:', e);
     }
   }
 
-  public subscribe(cb: () => void): () => void {
-    this.listeners.add(cb);
-    return () => this.listeners.delete(cb);
+  public subscribe(listener: () => void) {
+    this.listeners.push(listener);
+    return () => {
+      this.listeners = this.listeners.filter(l => l !== listener);
+    };
   }
 
   private notify() {
-    this.listeners.forEach(cb => cb());
+    this.listeners.forEach(l => l());
   }
 
   private startSyncLoop() {
-    // Poll server state every 2 seconds
     const fetchState = async () => {
       try {
         const res = await fetch('/api/spy-sniper/state');
@@ -262,6 +326,7 @@ class SpySniperEngine {
           if (data.config) this.config = data.config;
           if (data.snapshot) this.snapshot = data.snapshot;
           if (Array.isArray(data.candidates)) this.candidates = data.candidates;
+          if (data.providerHealth) this.providerHealth = data.providerHealth;
           if (Array.isArray(data.history)) {
             this.signalHistory = data.history;
             try {
@@ -271,7 +336,6 @@ class SpySniperEngine {
           this.notify();
         }
       } catch (err) {
-        // If network temporarily drops, mark freshness as STALE/OFFLINE
         if (this.snapshot) {
           this.snapshot.freshness = 'STALE';
           this.notify();
@@ -315,22 +379,24 @@ class SpySniperEngine {
     return { isOpen: true, reason: 'Market is Open' };
   }
 
-  // Session Actions (Sent to Server)
-  public async startSignalSession(duration: string, trailingStopMode: boolean) {
+  // Session Actions
+  public async startSignalSession(duration: string, trailingStopMode: boolean, isLiveMode: boolean = false) {
     try {
       const res = await fetch('/api/spy-sniper/session/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ duration, trailingStopMode })
+        body: JSON.stringify({ duration, trailingStopMode, isLiveMode })
       });
       if (res.ok) {
         const updatedSession = await res.json();
         this.session = updatedSession;
         this.notify();
+        return updatedSession;
       }
     } catch (e) {
       console.error('[SPY Sniper Client] Failed to start signal session:', e);
     }
+    return this.session;
   }
 
   public async cancelSignalSession() {
@@ -408,6 +474,10 @@ class SpySniperEngine {
 
   public getLatestCandidates(): SpyCandidate[] {
     return [...this.candidates];
+  }
+
+  public getProviderHealth(): SpyProviderHealth | null {
+    return this.providerHealth ? { ...this.providerHealth } : null;
   }
 
   public async executeDryRun(): Promise<any> {
