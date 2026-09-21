@@ -51,10 +51,10 @@
       },
       "generatedAt": 1790003522986,
       "generatedAtET": "11:12:02 AM ET",
-      "currentSpyPrice": 769.91,
+      "currentSpyPrice": 770,
       "status": "ACTIVE",
-      "currentPnlPoints": 0.45,
-      "currentPnlPercent": 0.06,
+      "currentPnlPoints": 0.54,
+      "currentPnlPercent": 0.07,
       "target1Hit": false,
       "target2Hit": false,
       "stopHit": false,
@@ -74,5 +74,5 @@
     "dailyLocked": false,
     "lockReason": null
   },
-  "updatedAt": 1790003799882
+  "updatedAt": 1790004237822
 }
