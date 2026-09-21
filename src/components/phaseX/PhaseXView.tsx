@@ -30,7 +30,8 @@ import {
   KeyRound,
   X,
   ShieldCheck,
-  CheckCircle2
+  CheckCircle2,
+  Database
 } from 'lucide-react';
 
 // Supported Non-SPY Assets for Phase X
@@ -66,6 +67,7 @@ export const PhaseXView: React.FC = () => {
   // Collapsible States for Admin Panels
   const [showEngineDetails1, setShowEngineDetails1] = useState<boolean>(false);
   const [showEngineDetails2, setShowEngineDetails2] = useState<boolean>(false);
+  const [showEngineDetails5, setShowEngineDetails5] = useState<boolean>(false);
   const [showEngineDetails3, setShowEngineDetails3] = useState<boolean>(false);
 
   // Get active market from context for live price display
@@ -166,6 +168,7 @@ export const PhaseXView: React.FC = () => {
     setIsAdminAuthenticated(false);
     setShowEngineDetails1(false);
     setShowEngineDetails2(false);
+    setShowEngineDetails5(false);
     setShowEngineDetails3(false);
   };
 
@@ -190,6 +193,16 @@ export const PhaseXView: React.FC = () => {
     }
   };
 
+  const handleTogglePanel5 = () => {
+    if (!isAdminAuthenticated) {
+      setAdminAuthError(null);
+      setAdminPasswordInput('');
+      setShowAdminModal(true);
+    } else {
+      setShowEngineDetails5(prev => !prev);
+    }
+  };
+
   const handleTogglePanel3 = () => {
     if (!isAdminAuthenticated) {
       setAdminAuthError(null);
@@ -202,38 +215,82 @@ export const PhaseXView: React.FC = () => {
 
   // Helper for formatting user-facing WAIT display states strictly without revealing internal strategy terms
   const getWaitDisplayInfo = (result: PhaseXResult): { title: string; subtitle: string } => {
-    if (result.executionStatus === 'MISSED_ENTRY' || result.waitReasonCode === 'ENTRY_EXTENDED') {
-      return {
-        title: 'MISSED ENTRY — DO NOT CHASE',
-        subtitle: 'Waiting for the next qualified opportunity.'
-      };
-    }
+    const cleanState = result.phase5QualityGate?.cleanWaitState || result.displayStatusLabel;
 
-    if (result.waitReasonCode === 'STALE_FEED' || result.waitReasonCode === 'INSUFFICIENT_DATA') {
+    if (cleanState === 'WAIT — MARKET DATA' || result.waitReasonCode === 'STALE_FEED' || result.waitReasonCode === 'INSUFFICIENT_DATA') {
       return {
         title: 'WAIT — MARKET DATA',
         subtitle: 'Waiting for verified market data.'
       };
     }
 
-    if (result.waitReasonCode === 'LOW_CONFIDENCE') {
+    if (cleanState === 'WAIT — STRUCTURAL INVALIDATION' || result.waitReasonCode === 'STRUCTURE_INVALIDATED') {
       return {
-        title: 'WAIT — CONFIRMATION WEAK',
-        subtitle: 'Additional market confirmation is required.'
+        title: 'WAIT — STRUCTURAL INVALIDATION',
+        subtitle: 'Market structure invalidates setup direction.'
       };
     }
 
-    if (result.waitReasonCode === 'RISK_STRUCTURE_UNSUITABLE') {
+    if (cleanState === 'WAIT — RISK NOT QUALIFIED' || result.waitReasonCode === 'RISK_STRUCTURE_UNSUITABLE') {
       return {
         title: 'WAIT — RISK NOT QUALIFIED',
-        subtitle: 'Current market structure does not provide a protected trade setup.'
+        subtitle: 'Stop loss or risk anchor cannot be safely placed outside noise.'
       };
     }
 
-    if (result.waitReasonCode === 'RR_NOT_VIABLE') {
+    if (cleanState === 'WAIT — R:R NOT VIABLE' || result.waitReasonCode === 'RR_NOT_VIABLE') {
       return {
         title: 'WAIT — R:R NOT VIABLE',
-        subtitle: 'Current structure does not provide sufficient reward relative to risk.'
+        subtitle: 'Target path does not provide qualified 2R/3R reward relative to risk.'
+      };
+    }
+
+    if (cleanState === 'WAIT — EXTREME VOLATILITY' || result.waitReasonCode === 'EXTREME_VOLATILITY') {
+      return {
+        title: 'WAIT — EXTREME VOLATILITY',
+        subtitle: 'Current market volatility exceeds safety threshold (>2.5x ATR).'
+      };
+    }
+
+    if (cleanState === 'WAIT — SPREAD UNSAFE') {
+      return {
+        title: 'WAIT — SPREAD UNSAFE',
+        subtitle: 'Spread is too wide relative to risk distance (>15%).'
+      };
+    }
+
+    if (cleanState === 'WAIT — EVENT RISK') {
+      return {
+        title: 'WAIT — EVENT RISK',
+        subtitle: 'High-impact economic release imminent. Capital protected.'
+      };
+    }
+
+    if (cleanState === 'WAIT — ENTRY INVALID') {
+      return {
+        title: 'WAIT — ENTRY INVALID',
+        subtitle: 'Pre-entry structure invalidated prior to execution trigger.'
+      };
+    }
+
+    if (cleanState === 'MISSED ENTRY — DO NOT CHASE' || result.executionStatus === 'MISSED_ENTRY' || result.waitReasonCode === 'ENTRY_EXTENDED') {
+      return {
+        title: 'MISSED ENTRY — DO NOT CHASE',
+        subtitle: 'Price moved beyond entry threshold. Waiting for next opportunity.'
+      };
+    }
+
+    if (cleanState === 'WAIT — CONFIRMATION WEAK' || result.waitReasonCode === 'LOW_CONFIDENCE') {
+      return {
+        title: 'WAIT — CONFIRMATION WEAK',
+        subtitle: 'Additional confirmation is required (Trade Confidence < 75%).'
+      };
+    }
+
+    if (cleanState === 'WAIT — DUPLICATE SETUP') {
+      return {
+        title: 'WAIT — DUPLICATE SETUP',
+        subtitle: 'Active setup already under live risk management.'
       };
     }
 
@@ -249,7 +306,7 @@ export const PhaseXView: React.FC = () => {
     }
 
     return {
-      title: 'WAIT — SETUP NOT CONFIRMED',
+      title: cleanState || 'WAIT — SETUP NOT CONFIRMED',
       subtitle: 'PHASE X is scanning for a high-confidence entry.'
     };
   };
@@ -273,11 +330,11 @@ export const PhaseXView: React.FC = () => {
                 PHASE X
               </h1>
               <span className="px-2 py-0.5 rounded-full text-[9.5px] font-mono font-bold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                PHASE 4 ENGINE
+                PHASE 5 ENGINE
               </span>
             </div>
             <p className="text-[11px] text-zinc-400 font-medium">
-              Market Cycle Intelligence • Precision Entry • Protected SL & Take Profit • Live Trade Management
+              Market Cycle Intelligence • Precision Entry • Protected SL & Take Profit • Live Trade Management • Final Quality Gate
             </p>
           </div>
         </div>
@@ -618,6 +675,65 @@ export const PhaseXView: React.FC = () => {
                 </div>
               </div>
             )}
+
+            {/* Real Data Lineage & Data Provenance Matrix (Admin Only) */}
+            {analysisResult.engineDetails.dataProvenance && (
+              <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/30 space-y-2">
+                <div className="flex items-center justify-between border-b border-cyan-500/20 pb-1.5">
+                  <span className="text-cyan-300 font-bold uppercase text-[10px] flex items-center gap-1.5">
+                    <Database className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Real Market Data Lineage & Data Provenance Audit</span>
+                  </span>
+                  <span className={`px-2 py-0.5 rounded text-[9.5px] font-bold uppercase border ${
+                    analysisResult.engineDetails.dataProvenance.realDataStatus === 'VERIFIED'
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                      : analysisResult.engineDetails.dataProvenance.realDataStatus === 'DEGRADED'
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                      : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                  }`}>
+                    {analysisResult.engineDetails.dataProvenance.realDataStatus}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10.5px]">
+                  <div className="p-2 rounded-lg bg-black/40 border border-zinc-800/60">
+                    <span className="text-zinc-400 font-semibold block text-[10px]">Live Data Provider:</span>
+                    <span className="font-bold text-cyan-300">{analysisResult.engineDetails.dataProvenance.liveDataProvider}</span>
+                  </div>
+                  <div className="p-2 rounded-lg bg-black/40 border border-zinc-800/60">
+                    <span className="text-zinc-400 font-semibold block text-[10px]">Instrument / Symbol:</span>
+                    <span className="font-bold text-white">{analysisResult.engineDetails.dataProvenance.instrumentSymbol}</span>
+                  </div>
+                  <div className="p-2 rounded-lg bg-black/40 border border-zinc-800/60">
+                    <span className="text-zinc-400 font-semibold block text-[10px]">Bid/Ask Availability:</span>
+                    <span className="font-bold text-zinc-200">{analysisResult.engineDetails.dataProvenance.bidAskAvailability}</span>
+                  </div>
+                  <div className="p-2 rounded-lg bg-black/40 border border-zinc-800/60">
+                    <span className="text-zinc-400 font-semibold block text-[10px]">Tick Age / Freshness:</span>
+                    <span className="font-bold text-emerald-300">
+                      {analysisResult.engineDetails.dataProvenance.tickAgeFormatted} • {analysisResult.engineDetails.dataProvenance.dataFreshnessStatus}
+                    </span>
+                  </div>
+                  <div className="p-2 rounded-lg bg-black/40 border border-zinc-800/60 col-span-2">
+                    <span className="text-zinc-400 font-semibold block text-[10px]">Candle Data Sources (5M to 4H):</span>
+                    <span className="font-bold text-zinc-200 text-[10px]">
+                      5M: {analysisResult.engineDetails.dataProvenance.candleSource5M}<br />
+                      15M: {analysisResult.engineDetails.dataProvenance.candleSource15M}<br />
+                      1H/4H: {analysisResult.engineDetails.dataProvenance.candleSource1H}
+                    </span>
+                  </div>
+                  <div className="p-2 rounded-lg bg-black/40 border border-zinc-800/60">
+                    <span className="text-zinc-400 font-semibold block text-[10px]">Fallback Provider Used:</span>
+                    <span className={`font-bold ${analysisResult.engineDetails.dataProvenance.fallbackProviderUsed ? 'text-amber-300' : 'text-emerald-400'}`}>
+                      {analysisResult.engineDetails.dataProvenance.fallbackProviderUsed ? 'YES' : 'NO'}
+                    </span>
+                  </div>
+                  <div className="p-2 rounded-lg bg-black/40 border border-zinc-800/60">
+                    <span className="text-zinc-400 font-semibold block text-[10px]">Data Gaps Detected:</span>
+                    <span className="font-bold text-emerald-400">{analysisResult.engineDetails.dataProvenance.dataGapsDetails}</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -854,7 +970,292 @@ export const PhaseXView: React.FC = () => {
         )}
       </div>
 
-      {/* 7. ADMIN PANEL 3: PHASE 4 VERIFICATION & ENGINE HISTORY (Locked for normal user) */}
+      {/* 7. ADMIN PANEL: PHASE 5 ENGINE DETAILS (Final Signal Quality & Execution Gate) */}
+      <div className="rounded-2xl bg-[#090b14] border border-amber-500/30 overflow-hidden shadow-lg font-mono">
+        <button
+          onClick={handleTogglePanel5}
+          className="w-full p-3.5 flex items-center justify-between text-xs font-bold text-zinc-300 hover:text-amber-300 transition cursor-pointer bg-gradient-to-r from-[#0d101d] to-[#080911]"
+        >
+          <div className="flex items-center gap-2">
+            {isAdminAuthenticated ? (
+              <LockOpen className="w-4 h-4 text-emerald-400 shrink-0" />
+            ) : (
+              <Lock className="w-4 h-4 text-amber-400 shrink-0" />
+            )}
+            <span className="uppercase tracking-wider font-extrabold text-white">
+              {isAdminAuthenticated ? '🔓' : '🔒'} PHASE 5 ENGINE DETAILS
+            </span>
+            <span className="text-[10px] text-zinc-400 font-normal">
+              (Final Signal Quality & Execution Gate)
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {!isAdminAuthenticated && (
+              <span className="px-2 py-0.5 rounded text-[9.5px] font-bold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                LOCKED
+              </span>
+            )}
+            {isAdminAuthenticated ? (
+              showEngineDetails5 ? <ChevronUp className="w-4 h-4 text-amber-400" /> : <ChevronDown className="w-4 h-4 text-zinc-400" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-zinc-500" />
+            )}
+          </div>
+        </button>
+
+        {isAdminAuthenticated && showEngineDetails5 && analysisResult && (
+          <div className="p-4 pt-2 border-t border-zinc-800/80 space-y-3 text-[11px] text-zinc-300 bg-[#07080f]">
+            {/* Gate Evaluation Result Banner */}
+            <div className={`p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${
+              analysisResult.phase5QualityGate?.finalGateStatus === 'APPROVED'
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+            }`}>
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
+                <div>
+                  <span className="font-bold text-[11px] block">
+                    PHASE 5 DETERMINISTIC GATE: {analysisResult.phase5QualityGate?.finalGateStatus || 'REJECTED'}
+                  </span>
+                  <span className="text-[10px] text-zinc-400">
+                    Fail-Closed Arbitration • 17 Quality Dimensions • 11 Priority Tiers
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className={`px-2 py-0.5 rounded text-[9.5px] font-bold uppercase border ${
+                  analysisResult.phase5QualityGate?.finalGateStatus === 'APPROVED'
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                    : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                }`}>
+                  GATE: {analysisResult.phase5QualityGate?.finalGateStatus || 'REJECTED'}
+                </span>
+                <span className="px-2 py-0.5 rounded text-[9.5px] font-bold uppercase bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                  DATA: {analysisResult.phase5QualityGate?.liveDataStatus || 'VERIFIED'}
+                </span>
+              </div>
+            </div>
+
+            {/* Primary Rejection & Clean Wait State if Rejected */}
+            {analysisResult.phase5QualityGate?.finalGateStatus === 'REJECTED' && (
+              <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-[10.5px] flex items-center justify-between">
+                <div>
+                  <span className="font-bold block">
+                    Priority #{analysisResult.phase5QualityGate.rejectionPriority || 1} Reason: {analysisResult.phase5QualityGate.primaryRejectionReason}
+                  </span>
+                  <span className="text-[10px] text-zinc-400">
+                    Clean Wait Output: <strong className="text-white">{analysisResult.phase5QualityGate.cleanWaitState}</strong>
+                  </span>
+                </div>
+                <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-200 font-bold text-[9.5px]">
+                  FAIL-CLOSED
+                </span>
+              </div>
+            )}
+
+            {/* 17 Quality Dimensions Grid */}
+            <div className="space-y-1.5">
+              <div className="text-[10.5px] font-bold text-zinc-400 uppercase tracking-wider flex items-center justify-between">
+                <span>Phase 5 Deterministic Quality Checks (17 Attributes)</span>
+                <span className="text-[10px] text-amber-400">Priority Tiers 1–11</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-[10px]">
+                {/* 1. Market Data Status */}
+                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-400 font-semibold">1. Market Data Feed:</span>
+                    <span className={`font-bold ${analysisResult.phase5QualityGate?.liveDataStatus === 'VERIFIED' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {analysisResult.phase5QualityGate?.liveDataStatus || 'VERIFIED'}
+                    </span>
+                  </div>
+                  <span className="text-zinc-500 text-[9.5px]">Tick Age: {analysisResult.phase5QualityGate?.tickAgeFormatted || '0.0s'}</span>
+                </div>
+
+                {/* 2. 4H Macro Bias */}
+                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-400 font-semibold">2. 4H Macro Bias:</span>
+                    <span className={`font-bold ${analysisResult.phase5QualityGate?.alignment4H === 'ALIGNED' ? 'text-emerald-400' : analysisResult.phase5QualityGate?.alignment4H === 'CONFLICTING' ? 'text-rose-400' : 'text-zinc-300'}`}>
+                      {analysisResult.phase5QualityGate?.alignment4H || 'NEUTRAL'}
+                    </span>
+                  </div>
+                  <span className="text-zinc-500 text-[9.5px] truncate block">{analysisResult.phase5QualityGate?.alignment4HDetails}</span>
+                </div>
+
+                {/* 3. 1H Wyckoff Phase */}
+                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-400 font-semibold">3. 1H Wyckoff Phase:</span>
+                    <span className={`font-bold ${analysisResult.phase5QualityGate?.alignment1H === 'ALIGNED' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {analysisResult.phase5QualityGate?.alignment1H || 'ALIGNED'}
+                    </span>
+                  </div>
+                  <span className="text-zinc-500 text-[9.5px] truncate block">{analysisResult.phase5QualityGate?.alignment1HDetails}</span>
+                </div>
+
+                {/* 4. 30M Confirmation */}
+                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-400 font-semibold">4. 30M Confirmation:</span>
+                    <span className={`font-bold ${analysisResult.phase5QualityGate?.confirmation30M === 'CONFIRMED' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      {analysisResult.phase5QualityGate?.confirmation30M || 'UNCONFIRMED'}
+                    </span>
+                  </div>
+                  <span className="text-zinc-500 text-[9.5px] truncate block">{analysisResult.phase5QualityGate?.confirmation30MDetails}</span>
+                </div>
+
+                {/* 5. 15M Trigger */}
+                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-400 font-semibold">5. 15M Micro Trigger:</span>
+                    <span className={`font-bold ${analysisResult.phase5QualityGate?.execution15M === 'TRIGGERED' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      {analysisResult.phase5QualityGate?.execution15M || 'PENDING'}
+                    </span>
+                  </div>
+                  <span className="text-zinc-500 text-[9.5px] truncate block">{analysisResult.phase5QualityGate?.execution15MDetails}</span>
+                </div>
+
+                {/* 6. 5M SL Anchor */}
+                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-400 font-semibold">6. 5M Structural Anchor:</span>
+                    <span className={`font-bold ${analysisResult.phase5QualityGate?.riskValidation5M === 'VALID' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {analysisResult.phase5QualityGate?.riskValidation5M || 'VALID'}
+                    </span>
+                  </div>
+                  <span className="text-zinc-500 text-[9.5px] truncate block">{analysisResult.phase5QualityGate?.riskValidation5MDetails}</span>
+                </div>
+
+                {/* 7. Entry Invalidation */}
+                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-400 font-semibold">7. Entry Structure:</span>
+                    <span className={`font-bold ${analysisResult.phase5QualityGate?.entryValidation === 'VALID' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {analysisResult.phase5QualityGate?.entryValidation || 'VALID'}
+                    </span>
+                  </div>
+                  <span className="text-zinc-500 text-[9.5px] truncate block">{analysisResult.phase5QualityGate?.entryValidationDetails}</span>
+                </div>
+
+                {/* 8. Anti-Chase Validation (<0.5 ATR) */}
+                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-400 font-semibold">8. Anti-Chase (&lt;0.5 ATR):</span>
+                    <span className={`font-bold ${analysisResult.phase5QualityGate?.antiChaseValidation === 'PASS' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {analysisResult.phase5QualityGate?.antiChaseValidation || 'PASS'}
+                    </span>
+                  </div>
+                  <span className="text-zinc-500 text-[9.5px] truncate block">{analysisResult.phase5QualityGate?.antiChaseDetails}</span>
+                </div>
+
+                {/* 9. Stop Loss Safety */}
+                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-400 font-semibold">9. SL Placement Safety:</span>
+                    <span className={`font-bold ${analysisResult.phase5QualityGate?.slValidation === 'SAFE' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {analysisResult.phase5QualityGate?.slValidation || 'SAFE'}
+                    </span>
+                  </div>
+                  <span className="text-zinc-500 text-[9.5px] truncate block">{analysisResult.phase5QualityGate?.slValidationDetails}</span>
+                </div>
+
+                {/* 10. Noise Wick Validation */}
+                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-400 font-semibold">10. Noise Wick Clearance:</span>
+                    <span className={`font-bold ${analysisResult.phase5QualityGate?.noiseValidation === 'OUTSIDE_NOISE_WICK' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {analysisResult.phase5QualityGate?.noiseValidation || 'OUTSIDE_NOISE_WICK'}
+                    </span>
+                  </div>
+                  <span className="text-zinc-500 text-[9.5px] truncate block">{analysisResult.phase5QualityGate?.noiseValidationDetails}</span>
+                </div>
+
+                {/* 11. TP1 Viability (>=2R) */}
+                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-400 font-semibold">11. TP1 Path (≥2R):</span>
+                    <span className={`font-bold ${analysisResult.phase5QualityGate?.tp1Validation === 'QUALIFIED_2R' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {analysisResult.phase5QualityGate?.tp1Validation || 'QUALIFIED_2R'}
+                    </span>
+                  </div>
+                  <span className="text-zinc-500 text-[9.5px] truncate block">{analysisResult.phase5QualityGate?.tp1ValidationDetails}</span>
+                </div>
+
+                {/* 12. TP2 Viability (>=3R) */}
+                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-400 font-semibold">12. TP2 Path (≥3R):</span>
+                    <span className={`font-bold ${analysisResult.phase5QualityGate?.tp2Validation === 'QUALIFIED_3R' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {analysisResult.phase5QualityGate?.tp2Validation || 'QUALIFIED_3R'}
+                    </span>
+                  </div>
+                  <span className="text-zinc-500 text-[9.5px] truncate block">{analysisResult.phase5QualityGate?.tp2ValidationDetails}</span>
+                </div>
+
+                {/* 13. R:R Synthesis */}
+                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-400 font-semibold">13. R:R Viability Synthesis:</span>
+                    <span className={`font-bold ${analysisResult.phase5QualityGate?.rrValidation === 'QUALIFIED' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {analysisResult.phase5QualityGate?.rrValidation || 'QUALIFIED'}
+                    </span>
+                  </div>
+                  <span className="text-zinc-500 text-[9.5px] truncate block">{analysisResult.phase5QualityGate?.rrValidationDetails}</span>
+                </div>
+
+                {/* 14. Volatility Regime */}
+                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-400 font-semibold">14. Volatility Threshold:</span>
+                    <span className={`font-bold ${analysisResult.phase5QualityGate?.volatilityStatus === 'SAFE' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {analysisResult.phase5QualityGate?.volatilityStatus || 'SAFE'}
+                    </span>
+                  </div>
+                  <span className="text-zinc-500 text-[9.5px] truncate block">{analysisResult.phase5QualityGate?.volatilityDetails}</span>
+                </div>
+
+                {/* 15. Spread Safety */}
+                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-400 font-semibold">15. Spread Fraction (&lt;15%):</span>
+                    <span className={`font-bold ${analysisResult.phase5QualityGate?.spreadStatus === 'SAFE' ? 'text-emerald-400' : analysisResult.phase5QualityGate?.spreadStatus === 'LIMITED' ? 'text-amber-300' : 'text-rose-400'}`}>
+                      {analysisResult.phase5QualityGate?.spreadStatus || 'SAFE'}
+                    </span>
+                  </div>
+                  <span className="text-zinc-500 text-[9.5px] truncate block">{analysisResult.phase5QualityGate?.spreadDetails}</span>
+                </div>
+
+                {/* 16. Event Risk / News Gate */}
+                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-400 font-semibold">16. Event Risk (±15m):</span>
+                    <span className={`font-bold ${analysisResult.phase5QualityGate?.newsEventStatus === 'CLEAR' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {analysisResult.phase5QualityGate?.newsEventStatus || 'CLEAR'}
+                    </span>
+                  </div>
+                  <span className="text-zinc-500 text-[9.5px] truncate block">{analysisResult.phase5QualityGate?.newsEventDetails}</span>
+                </div>
+
+                {/* 17. Trade Confidence */}
+                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-400 font-semibold">17. Confidence Gate (≥75%):</span>
+                    <span className={`font-bold ${analysisResult.phase5QualityGate?.tradeConfidenceStatus === 'QUALIFIED' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      {analysisResult.phase5QualityGate?.tradeConfidenceScore || 0}% ({analysisResult.phase5QualityGate?.tradeConfidenceStatus || 'WEAK'})
+                    </span>
+                  </div>
+                  <span className="text-zinc-500 text-[9.5px]">Threshold: Minimum 75 pts required</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 8. ADMIN PANEL: PHASE 5 & 4 VERIFICATION & ENGINE HISTORY (Locked for normal user) */}
       <div className="rounded-2xl bg-[#090b14] border border-amber-500/30 overflow-hidden shadow-lg font-mono">
         <button
           onClick={handleTogglePanel3}
@@ -867,10 +1268,10 @@ export const PhaseXView: React.FC = () => {
               <Lock className="w-4 h-4 text-amber-400 shrink-0" />
             )}
             <span className="uppercase tracking-wider font-extrabold text-white">
-              {isAdminAuthenticated ? '🔓' : '🔒'} PHASE 4 VERIFICATION & ENGINE SUITE
+              {isAdminAuthenticated ? '🔓' : '🔒'} PHASE 5 & 4 VERIFICATION & ENGINE SUITE
             </span>
             <span className="text-[10px] text-zinc-400 font-normal">
-              (Deterministic Testing & Historical Executions)
+              (Deterministic Quality Gate, Lifecycle Testing & Trade Records)
             </span>
           </div>
 

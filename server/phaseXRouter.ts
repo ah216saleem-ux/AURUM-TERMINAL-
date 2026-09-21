@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'http';
-import { analyzePhaseX, cancelPhaseXSetup, getPhaseXTradeHistory, runPhase4VerificationSuite } from './phaseXEngine';
+import { analyzePhaseX, cancelPhaseXSetup, getPhaseXTradeHistory, runPhase4VerificationSuite, runPhase5VerificationSuite } from './phaseXEngine';
 import { ASSET_CONFIGS } from './marketDataRouter';
 
 interface AttemptTracker {
@@ -121,7 +121,7 @@ export async function handlePhaseXRequest(req: IncomingMessage, res: ServerRespo
       res.end(JSON.stringify({
         status: 'ONLINE',
         module: 'AURUM PHASE X — Market Cycle Intelligence',
-        phase: 'PHASE 4 — LIVE TRADE MANAGEMENT & CAPITAL PROTECTION ENGINE',
+        phase: 'PHASE 5 — FINAL SIGNAL QUALITY & EXECUTION GATE',
         supportedAssets: ASSET_CONFIGS.filter(a => a.id !== 'spy' && a.id !== 'spy-options').map(a => ({
           id: a.id,
           symbol: a.symbol,
@@ -129,13 +129,20 @@ export async function handlePhaseXRequest(req: IncomingMessage, res: ServerRespo
           category: a.category
         })),
         internalTimeframes: ['4H', '1H', '30M', '15M', '5M'],
-        executionLayer: 'Live Real-Time Tick Evaluation & Level-Locked Risk Protection',
+        executionLayer: 'Deterministic Multi-Tier Verification & Level-Locked Ready Signal Gate',
         timestamp: Date.now()
       }));
       return true;
     }
 
-    if (pathname === '/api/phase-x/verify-phase4' || pathname === '/api/phase-x/verify') {
+    if (pathname === '/api/phase-x/verify-phase5' || pathname === '/api/phase-x/verify') {
+      const report = runPhase5VerificationSuite();
+      res.statusCode = 200;
+      res.end(JSON.stringify(report));
+      return true;
+    }
+
+    if (pathname === '/api/phase-x/verify-phase4') {
       const report = runPhase4VerificationSuite();
       res.statusCode = 200;
       res.end(JSON.stringify(report));

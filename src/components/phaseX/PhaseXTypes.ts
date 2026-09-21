@@ -88,6 +88,104 @@ export interface PhaseXLiveTradeDetails {
   partialExitPctAtTP1: number;
 }
 
+export interface PhaseXDataProvenance {
+  liveDataProvider: string;
+  instrumentSymbol: string;
+  livePrice: number;
+  bidAskAvailability: 'VERIFIED' | 'LIMITED' | 'UNAVAILABLE';
+  lastTickTimestamp: number;
+  tickAgeMs: number;
+  tickAgeFormatted: string;
+  candleSource5M: string;
+  candleSource15M: string;
+  candleSource30M: string;
+  candleSource1H: string;
+  candleSource4H: string;
+  lastClosedCandleTimestamp: number;
+  historicalDataRange: string;
+  dataFreshnessStatus: 'FRESH' | 'STALE' | 'OFFLINE';
+  dataGapsDetected: boolean;
+  dataGapsDetails: string;
+  fallbackProviderUsed: boolean;
+  fallbackProviderName: string;
+  realDataStatus: 'VERIFIED' | 'DEGRADED' | 'UNAVAILABLE';
+}
+
+export type Phase5GateStatus = 'APPROVED' | 'REJECTED' | 'ACTIVE';
+
+export interface Phase5QualityGateResult {
+  finalGateStatus: Phase5GateStatus;
+  liveDataStatus: 'VERIFIED' | 'STALE' | 'INSUFFICIENT' | 'DISRUPTED';
+  tickAgeMs: number;
+  tickAgeFormatted: string;
+  alignment4H: 'ALIGNED' | 'CONFLICTING' | 'NEUTRAL';
+  alignment4HDetails: string;
+  alignment1H: 'ALIGNED' | 'CONFLICTING';
+  alignment1HDetails: string;
+  confirmation30M: 'CONFIRMED' | 'UNCONFIRMED';
+  confirmation30MDetails: string;
+  execution15M: 'TRIGGERED' | 'PENDING' | 'INVALIDATED';
+  execution15MDetails: string;
+  riskValidation5M: 'VALID' | 'INVALID';
+  riskValidation5MDetails: string;
+  entryValidation: 'VALID' | 'INVALID' | 'OUT_OF_BOUNDS';
+  entryValidationDetails: string;
+  antiChaseValidation: 'PASS' | 'CHASING_DETECTED' | 'MISSED_ENTRY';
+  antiChaseDetails: string;
+  slValidation: 'PROTECTED' | 'UNSAFE' | 'COMPROMISED';
+  slValidationDetails: string;
+  noiseValidation: 'PASS' | 'INSIDE_NOISE_WICK';
+  noiseValidationDetails: string;
+  tp1Validation: 'VALID_2R+' | 'LESS_THAN_2R' | 'OBSTACLE_DETECTED';
+  tp1ValidationDetails: string;
+  tp2Validation: 'VALID_3R+' | 'LESS_THAN_3R' | 'TARGET_INVALID';
+  tp2ValidationDetails: string;
+  rrValidation: 'QUALIFIED' | 'REJECTED';
+  rrValidationDetails: string;
+  volatilityStatus: 'SAFE' | 'EXTREME_VOLATILITY';
+  volatilityDetails: string;
+  spreadStatus: 'SAFE' | 'UNSAFE' | 'LIMITED';
+  spreadDetails: string;
+  newsEventStatus: 'CLEAR' | 'EVENT_RISK_IMMINENT' | 'LIMITED';
+  newsEventDetails: string;
+  tradeConfidenceScore: number;
+  tradeConfidenceStatus: 'QUALIFIED' | 'WEAK';
+  setupId: string;
+  setupAgeCandles: number;
+  setupAgeFormatted: string;
+  expirationStatus: 'NOT_EXPIRED' | 'EXPIRED';
+  finalDecision: 'READY' | 'WAIT' | 'ACTIVE';
+  primaryRejectionReason: string | null;
+  rejectionPriority: number | null;
+  cleanWaitState: string | null;
+  lockedAtTimestamp?: number;
+}
+
+export interface Phase5VerificationTestCase {
+  scenarioId: string;
+  scenarioName: string;
+  isTestData: true;
+  inputCondition: string;
+  expectedGateStatus: 'APPROVED' | 'REJECTED';
+  expectedWaitReason: string | null;
+  actualGateStatus: 'APPROVED' | 'REJECTED';
+  actualWaitReason: string | null;
+  passed: boolean;
+}
+
+export interface Phase5VerificationReport {
+  timestamp: number;
+  system: string;
+  overallStatus: 'PASS' | 'FAIL';
+  checklist: Array<{
+    id: string;
+    title: string;
+    status: 'PASS' | 'FAIL' | 'LIMITED';
+    details: string;
+  }>;
+  testCases: Phase5VerificationTestCase[];
+}
+
 export interface PhaseXEngineDetails {
   detectedPhase: string;
   phaseConfidence: number;
@@ -184,6 +282,8 @@ export interface PhaseXEngineDetails {
     macroRangeLow: number;
   };
   liveTradeDetails?: PhaseXLiveTradeDetails;
+  dataProvenance?: PhaseXDataProvenance;
+  phase5QualityGate?: Phase5QualityGateResult;
 }
 
 export interface PhaseXResult {
@@ -193,7 +293,7 @@ export interface PhaseXResult {
   marketPhase: Phase3DMarketState;
   confidence: number;
   detectedEventLabel?: string;
-  userOutputState: '🟢 BULLISH SETUP DEVELOPING' | '🔴 BEARISH SETUP DEVELOPING' | '🟡 WAIT — SETUP NOT CONFIRMED';
+  userOutputState: string;
   finalDirection: PhaseXFinalDirection;
   executionStatus: PhaseXExecutionStatus;
   tradeConfidence: number;
@@ -223,6 +323,8 @@ export interface PhaseXResult {
   displayStatusLabel?: string;
   isDataInterrupted?: boolean;
   liveTradeDetails?: PhaseXLiveTradeDetails;
+  dataProvenance?: PhaseXDataProvenance;
+  phase5QualityGate?: Phase5QualityGateResult;
   engineDetails: PhaseXEngineDetails;
 }
 
