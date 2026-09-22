@@ -2575,7 +2575,9 @@ export async function analyzePhaseX(
           takeProfit2: takeProfit2 || preferredEntry,
           riskRewardRatio: riskRewardRatio || '1:2 / 1:3',
           tradeConfidence,
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          liveMarketPrice: currentLivePrice,
+          livePriceTimestamp: quoteTimestamp
         },
         'APPROVED',
         finalUserOutputState
