@@ -41,6 +41,7 @@ export const TelegramModal: React.FC = () => {
   const [testStatus, setTestStatus] = useState<string | null>(null);
   const [copiedSample, setCopiedSample] = useState(false);
   const [copiedUpdateSample, setCopiedUpdateSample] = useState(false);
+  const [showGuide, setShowGuide] = useState(true);
 
   if (!isTelegramModalOpen) return null;
 
@@ -204,6 +205,14 @@ TP1 HIT / SL HIT / CANCELLED`;
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Toggle Guide */}
+            <button
+              onClick={() => setShowGuide(!showGuide)}
+              className="px-2.5 py-1.5 rounded-lg font-mono-num text-xs bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 transition cursor-pointer flex items-center gap-1"
+            >
+              <span>{showGuide ? 'Hide Guide' : 'Show Setup Guide'}</span>
+            </button>
+
             {/* Enable/Disable Toggle */}
             <button
               onClick={handleToggleEnabled}
@@ -218,6 +227,42 @@ TP1 HIT / SL HIT / CANCELLED`;
             </button>
           </div>
         </div>
+
+        {/* Dynamic Step-by-Step Setup Guide */}
+        {showGuide && (
+          <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/20 space-y-4 text-xs">
+            <div className="flex items-center gap-2 text-amber-400 font-bold font-mono-num uppercase tracking-wide">
+              <AlertCircle className="w-4 h-4" />
+              <span>Telegram Bot Setup Guide (اردو گائیڈ)</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-zinc-300 leading-relaxed">
+              <div className="space-y-2 border-r border-zinc-800/80 pr-2">
+                <span className="font-bold text-amber-300 block">📢 Method A: Send to Channel / Group</span>
+                <p className="text-[11px]">
+                  1. Apne Telegram channel/group ki settings mein jayein.<br />
+                  2. <strong>@Aurumterminal_bot</strong> ko search kar k member add karein.<br />
+                  3. Bot ko <strong>Administrator</strong> banayein aur &quot;Post Messages&quot; allow karein.<br />
+                  4. Chat ID field mein channel ka tag likhein (e.g. <span className="text-amber-400 font-semibold">@AurumSignalsOfficial</span>).
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <span className="font-bold text-amber-300 block">👤 Method B: Direct Inbox Notification</span>
+                <p className="text-[11px]">
+                  1. Telegram par <strong>@Aurumterminal_bot</strong> ko search karein.<br />
+                  2. Bot chat open kar ke <strong>Start</strong> ya <strong>/start</strong> click karein (taake bot active ho sake).<br />
+                  3. Ab Telegram par <strong>@userinfobot</strong> ya <strong>@RawDataBot</strong> search kar ke message send karein. Wo aap ko aap ki <strong>Numeric Chat ID</strong> (e.g. <span className="text-amber-400 font-semibold">153728492</span>) de ga.<br />
+                  4. Website par Chat ID ke khane mein ye number enter karein.
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-neutral-900/50 p-2.5 rounded-lg border border-zinc-800 text-[11px] text-zinc-400">
+              ⚠️ <strong>Critical Rule:</strong> Bot apna khud ka message receive ya send nahi kar sakta, isliye Chat ID mein kabhi bhi bot ka username (<span className="text-rose-400">@Aurumterminal_bot</span>) mat enter karein!
+            </div>
+          </div>
+        )}
 
         {/* Telegram Configuration Form */}
         <form onSubmit={handleConnect} className="space-y-4">

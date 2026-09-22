@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { 
   PhaseXTradeHistoryRecord, 
   Phase4VerificationReport, 
-  Phase5VerificationReport 
+  Phase5VerificationReport,
+  TelegramVerificationReport,
+  TelegramServiceStatus
 } from './PhaseXTypes';
 import { 
   ShieldCheck, 
@@ -14,7 +16,8 @@ import {
   FlaskConical,
   Layers,
   Sparkles,
-  Lock
+  Lock,
+  Send
 } from 'lucide-react';
 
 interface PhaseXHistoryAndVerificationProps {
@@ -22,15 +25,20 @@ interface PhaseXHistoryAndVerificationProps {
 }
 
 export const PhaseXHistoryAndVerification: React.FC<PhaseXHistoryAndVerificationProps> = ({ selectedAssetId }) => {
-  const [activeTab, setActiveTab] = useState<'phase5' | 'phase4' | 'history'>('phase5');
+  const [activeTab, setActiveTab] = useState<'phase5' | 'phase4' | 'telegram' | 'history'>('phase5');
   const [history, setHistory] = useState<PhaseXTradeHistoryRecord[]>([]);
   const [phase4Report, setPhase4Report] = useState<Phase4VerificationReport | null>(null);
   const [phase5Report, setPhase5Report] = useState<Phase5VerificationReport | null>(null);
+  const [telegramReport, setTelegramReport] = useState<TelegramVerificationReport | null>(null);
+  const [telegramStatus, setTelegramStatus] = useState<TelegramServiceStatus | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
 
   const fetchHistory = async () => {
     try {
-      const res = await fetch(`/api/phase-x/history?assetId=${selectedAssetId}`);
+      const storedToken = sessionStorage.getItem('phase_x_admin_token');
+      const headers: Record<string, string> = {};
+      if (storedToken) headers['Authorization'] = `Bearer ${storedToken}`;
+      const res = await fetch(`/api/phase-x/history?assetId=${selectedAssetId}`, { headers });
       if (res.ok) {
         const data = await res.json();
         setHistory(data.history || []);
@@ -43,7 +51,10 @@ export const PhaseXHistoryAndVerification: React.FC<PhaseXHistoryAndVerification
   const fetchPhase4Verification = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/phase-x/verify-phase4');
+      const storedToken = sessionStorage.getItem('phase_x_admin_token');
+      const headers: Record<string, string> = {};
+      if (storedToken) headers['Authorization'] = `Bearer ${storedToken}`;
+      const res = await fetch('/api/phase-x/verify-phase4', { headers });
       if (res.ok) {
         const data: Phase4VerificationReport = await res.json();
         setPhase4Report(data);
@@ -58,7 +69,10 @@ export const PhaseXHistoryAndVerification: React.FC<PhaseXHistoryAndVerification
   const fetchPhase5Verification = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/phase-x/verify-phase5');
+      const storedToken = sessionStorage.getItem('phase_x_admin_token');
+      const headers: Record<string, string> = {};
+      if (storedToken) headers['Authorization'] = `Bearer ${storedToken}`;
+      const res = await fetch('/api/phase-x/verify-phase5', { headers });
       if (res.ok) {
         const data: Phase5VerificationReport = await res.json();
         setPhase5Report(data);
@@ -70,11 +84,40 @@ export const PhaseXHistoryAndVerification: React.FC<PhaseXHistoryAndVerification
     }
   };
 
+  const fetchTelegramVerification = async () => {
+    setLoading(true);
+    try {
+      const storedToken = sessionStorage.getItem('phase_x_admin_token');
+      const headers: Record<string, string> = {};
+      if (storedToken) headers['Authorization'] = `Bearer ${storedToken}`;
+      
+      const [verifRes, statusRes] = await Promise.all([
+        fetch('/api/phase-x/verify-telegram', { headers }),
+        fetch('/api/phase-x/telegram-status')
+      ]);
+
+      if (verifRes.ok) {
+        const data: TelegramVerificationReport = await verifRes.json();
+        setTelegramReport(data);
+      }
+      if (statusRes.ok) {
+        const statusData: TelegramServiceStatus = await statusRes.json();
+        setTelegramStatus(statusData);
+      }
+    } catch (err) {
+      console.error('[PhaseXHistory] Error running Telegram verification:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'history') {
       fetchHistory();
     } else if (activeTab === 'phase4') {
       fetchPhase4Verification();
+    } else if (activeTab === 'telegram') {
+      fetchTelegramVerification();
     } else {
       fetchPhase5Verification();
     }
@@ -83,6 +126,7 @@ export const PhaseXHistoryAndVerification: React.FC<PhaseXHistoryAndVerification
   const handleRefresh = () => {
     if (activeTab === 'history') fetchHistory();
     else if (activeTab === 'phase4') fetchPhase4Verification();
+    else if (activeTab === 'telegram') fetchTelegramVerification();
     else fetchPhase5Verification();
   };
 
@@ -115,6 +159,19 @@ export const PhaseXHistoryAndVerification: React.FC<PhaseXHistoryAndVerification
           >
             <ShieldCheck className="w-4 h-4 text-purple-400" />
             <span>PHASE 4 ENGINE SUITE</span>
+          </button>
+
+          {/* Telegram Tab */}
+          <button
+            onClick={() => setActiveTab('telegram')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+              activeTab === 'telegram'
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                : 'text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <Send className="w-4 h-4 text-cyan-400" />
+            <span>TELEGRAM AUTO-SIGNAL</span>
           </button>
 
           {/* History Tab */}
@@ -358,6 +415,100 @@ export const PhaseXHistoryAndVerification: React.FC<PhaseXHistoryAndVerification
             <div className="text-center py-8 text-zinc-500 flex flex-col items-center gap-2">
               <RefreshCw className="w-5 h-5 animate-spin text-purple-400" />
               <span>Loading Phase 4 Verification Suite...</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab Content: TELEGRAM Auto-Signal Suite */}
+      {activeTab === 'telegram' && (
+        <div className="p-4 space-y-4">
+          <div className="p-3.5 rounded-xl border border-cyan-500/30 bg-cyan-500/10 text-cyan-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <Send className="w-5 h-5 text-cyan-400 shrink-0" />
+              <div>
+                <span className="font-black text-sm block">AURUM PHASE X — XAU/USD Telegram Auto-Signal Engine</span>
+                <span className="text-[10.5px] text-zinc-400">
+                  Real-Time Notification Delivery strictly for Phase 5 Approved XAU/USD Signals & Phase 4 Lifecycle Updates
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase border ${
+                telegramStatus?.configured 
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' 
+                  : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+              }`}>
+                {telegramStatus?.configured ? 'LIVE CONNECTED' : 'ENV READY (WAITING FOR KEYS)'}
+              </span>
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                XAU/USD ONLY
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px]">
+            <div className="p-2.5 rounded-xl bg-zinc-900/80 border border-zinc-800 space-y-1">
+              <div className="text-zinc-400">Target Asset Scope</div>
+              <div className="text-xs font-black text-white">XAU/USD ONLY</div>
+              <div className="text-[9px] text-zinc-500">All other assets excluded</div>
+            </div>
+            <div className="p-2.5 rounded-xl bg-zinc-900/80 border border-zinc-800 space-y-1">
+              <div className="text-zinc-400">Initial Signals Dispatched</div>
+              <div className="text-xs font-black text-emerald-400">{telegramStatus?.sentInitialSignalsCount || 0}</div>
+              <div className="text-[9px] text-zinc-500">Deduplicated per Setup ID</div>
+            </div>
+            <div className="p-2.5 rounded-xl bg-zinc-900/80 border border-zinc-800 space-y-1">
+              <div className="text-zinc-400">Lifecycle Updates Sent</div>
+              <div className="text-xs font-black text-cyan-400">
+                {(telegramStatus?.sentTP1Count || 0) + (telegramStatus?.sentTP2Count || 0) + (telegramStatus?.sentSLCount || 0)}
+              </div>
+              <div className="text-[9px] text-zinc-500">TP1, TP2, and SL events</div>
+            </div>
+            <div className="p-2.5 rounded-xl bg-zinc-900/80 border border-zinc-800 space-y-1">
+              <div className="text-zinc-400">Security & Credentials</div>
+              <div className="text-xs font-black text-amber-300">Protected</div>
+              <div className="text-[9px] text-zinc-500">Server-side env variables</div>
+            </div>
+          </div>
+
+          {telegramReport ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-cyan-400 font-black uppercase text-[11px] flex items-center gap-1.5">
+                  <FlaskConical className="w-4 h-4 text-cyan-400" />
+                  <span>Programmatic Verification Suite (10 Requirements A–J)</span>
+                </span>
+                <span className={`text-[9.5px] font-black px-2 py-0.5 rounded uppercase border ${
+                  telegramReport.overallStatus === 'PASS'
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                    : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                }`}>
+                  {telegramReport.overallStatus === 'PASS' ? '10/10 AUDITS PASS' : 'FAIL'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {telegramReport.results.map((r) => (
+                  <div key={r.testId} className="p-2.5 rounded-lg bg-zinc-900/80 border border-zinc-800/90 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-zinc-200 text-[11px]">{r.title}</span>
+                      <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${
+                        r.passed ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
+                      }`}>
+                        {r.passed ? 'PASS' : 'FAIL'}
+                      </span>
+                    </div>
+                    <div className="text-[9.5px] text-zinc-400">{r.details}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-zinc-500 flex flex-col items-center gap-2">
+              <RefreshCw className="w-5 h-5 animate-spin text-cyan-400" />
+              <span>Running Telegram Verification Suite...</span>
             </div>
           )}
         </div>

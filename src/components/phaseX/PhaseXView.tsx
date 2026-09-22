@@ -31,31 +31,27 @@ import {
   X,
   ShieldCheck,
   CheckCircle2,
-  Database
+  Database,
+  Radio
 } from 'lucide-react';
 
-// Supported Non-SPY Assets for Phase X
-const SUPPORTED_ASSETS = [
-  { id: 'xau-usd', symbol: 'XAU/USD', name: 'Gold Spot', category: 'Commodities' },
-  { id: 'xag-usd', symbol: 'XAG/USD', name: 'Silver', category: 'Commodities' },
-  { id: 'eur-usd', symbol: 'EUR/USD', name: 'Euro / US Dollar', category: 'Forex' },
-  { id: 'gbp-usd', symbol: 'GBP/USD', name: 'British Pound / US Dollar', category: 'Forex' },
-  { id: 'usd-jpy', symbol: 'USD/JPY', name: 'US Dollar / Japanese Yen', category: 'Forex' },
-  { id: 'aud-usd', symbol: 'AUD/USD', name: 'Australian Dollar / USD', category: 'Forex' },
-  { id: 'usd-cad', symbol: 'USD/CAD', name: 'US Dollar / Canadian Dollar', category: 'Forex' },
-  { id: 'sp-500', symbol: 'S&P 500', name: 'S&P 500 Index', category: 'Indices' },
-  { id: 'nasdaq-100', symbol: 'NASDAQ 100', name: 'NASDAQ 100 Index', category: 'Indices' },
-  { id: 'crude-oil', symbol: 'WTI Oil', name: 'WTI Crude Oil', category: 'Commodities' },
-  { id: 'btc-usd', symbol: 'BTC/USD', name: 'Bitcoin', category: 'Crypto' }
-];
+// Phase X operates exclusively in XAU/USD Auto-Signal Mode
+const DEDICATED_ASSET = {
+  id: 'xau-usd',
+  symbol: 'XAU/USD',
+  name: 'Gold Spot',
+  category: 'Commodities'
+};
 
 export const PhaseXView: React.FC = () => {
-  const { markets } = useMarket();
+  const { markets, isDataConnected, dataConnectedStatus } = useMarket();
 
-  const [selectedAssetId, setSelectedAssetId] = useState<string>('xau-usd');
+  const selectedAssetId = 'xau-usd';
+  const isEvaluatingRef = React.useRef(false);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [analysisResult, setAnalysisResult] = useState<PhaseXResult | null>(null);
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
+  const [lastEvaluatedAt, setLastEvaluatedAt] = useState<string>('');
 
   // Admin Telemetry Panels Access Control State
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
@@ -93,16 +89,23 @@ export const PhaseXView: React.FC = () => {
   }, []);
 
   // Autonomous Multi-Timeframe Analysis with Phase 4 Live Management
-  const handleAnalyzePhase = useCallback(async (assetIdToAnalyze = selectedAssetId) => {
+  const handleAnalyzePhase = useCallback(async () => {
+    if (isEvaluatingRef.current) return;
+    isEvaluatingRef.current = true;
     setIsAnalyzing(true);
-    setErrorNotice(null);
 
     try {
+      const storedToken = sessionStorage.getItem('phase_x_admin_token');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (storedToken) {
+        headers['Authorization'] = `Bearer ${storedToken}`;
+      }
+
       const res = await fetch('/api/phase-x/analyze', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
-          assetId: assetIdToAnalyze,
+          assetId: 'xau-usd',
           clientLivePrice: activeMarket?.price
         })
       });
@@ -113,18 +116,34 @@ export const PhaseXView: React.FC = () => {
 
       const data: PhaseXResult = await res.json();
       setAnalysisResult(data);
+      setErrorNotice(null);
+      setLastEvaluatedAt(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     } catch (err: any) {
       console.error('[PhaseXView] Analysis error:', err);
-      setErrorNotice('WAIT — INSUFFICIENT VERIFIED DATA (Market feed offline or initializing)');
+      setErrorNotice('WAIT — MARKET DATA (Waiting for verified market data feed)');
     } finally {
       setIsAnalyzing(false);
+      isEvaluatingRef.current = false;
     }
-  }, [selectedAssetId, activeMarket?.price]);
+  }, [activeMarket?.price]);
 
-  // Initial autonomous analysis on mount
+  // Initial autonomous analysis on mount + continuous evaluation loop (every 4 seconds)
   useEffect(() => {
-    handleAnalyzePhase('xau-usd');
-  }, []);
+    handleAnalyzePhase();
+
+    const interval = setInterval(() => {
+      handleAnalyzePhase();
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [handleAnalyzePhase]);
+
+  // Re-evaluate automatically whenever new verified market data tick arrives
+  useEffect(() => {
+    if (activeMarket?.price && activeMarket.price > 0) {
+      handleAnalyzePhase();
+    }
+  }, [activeMarket?.price, handleAnalyzePhase]);
 
   const current3DState: Phase3DMarketState = analysisResult?.marketPhase || 'WAIT';
   const confidenceScore = analysisResult?.tradeConfidence || analysisResult?.confidence || 75;
@@ -152,6 +171,7 @@ export const PhaseXView: React.FC = () => {
         setShowEngineDetails1(true);
         setShowEngineDetails2(true);
         setShowEngineDetails3(true);
+        handleAnalyzePhase();
       } else {
         setAdminAuthError(data.message || 'ACCESS DENIED — INVALID ADMIN PASSWORD');
       }
@@ -170,6 +190,7 @@ export const PhaseXView: React.FC = () => {
     setShowEngineDetails2(false);
     setShowEngineDetails5(false);
     setShowEngineDetails3(false);
+    handleAnalyzePhase();
   };
 
   // Panel Toggles with Access Control Gate
@@ -363,45 +384,100 @@ export const PhaseXView: React.FC = () => {
         isAnalyzing={isAnalyzing}
       />
 
-      {/* 3. User Control Panel: Asset Selector + ANALYZE MARKET Button */}
-      <div className="p-4 rounded-2xl bg-[#0a0c16] border border-amber-500/30 shadow-xl space-y-3.5">
-        <div className="space-y-1.5">
-          <label className="text-[11px] font-mono font-bold text-zinc-400 uppercase tracking-wider block">
-            SELECT ASSET
-          </label>
-          <div className="relative">
-            <select
-              value={selectedAssetId}
-              onChange={(e) => {
-                const newAsset = e.target.value;
-                setSelectedAssetId(newAsset);
-                handleAnalyzePhase(newAsset);
-              }}
-              className="w-full py-2.5 pl-3 pr-8 rounded-xl bg-zinc-900/90 border border-zinc-700/80 hover:border-amber-500/50 text-white font-mono text-xs font-bold transition cursor-pointer appearance-none focus:outline-none focus:border-amber-500"
-            >
-              {SUPPORTED_ASSETS.map((asset) => {
-                const liveItem = markets.find(m => m.id === asset.id);
-                const priceStr = liveItem?.price ? ` • ${liveItem.price.toFixed(liveItem.price < 5 ? 4 : 2)}` : '';
-                return (
-                  <option key={asset.id} value={asset.id} className="bg-zinc-950 text-zinc-100">
-                    {asset.symbol} ({asset.name}){priceStr}
-                  </option>
-                );
-              })}
-            </select>
-            <ChevronDown className="w-4 h-4 text-amber-400 pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" />
+      {/* 3. Dedicated Autonomous XAU/USD Monitoring Control Bar */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-[#0a0c16] border border-amber-500/30 shadow-xl font-mono space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          {/* Left: Dedicated XAU/USD Asset & Real-Time Price */}
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 p-[1px] shadow-lg shadow-amber-500/10 shrink-0">
+              <div className="w-full h-full rounded-[11px] bg-[#090b14] flex items-center justify-center">
+                <Crosshair className="w-6 h-6 text-amber-400" />
+              </div>
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-lg sm:text-xl font-black text-white tracking-wider">
+                  XAU/USD
+                </span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                  GOLD SPOT
+                </span>
+                <span className="hidden sm:inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-zinc-800/80 text-zinc-300 border border-zinc-700">
+                  COMMODITIES
+                </span>
+              </div>
+              <div className="flex items-center gap-2.5 text-xs text-zinc-400 pt-0.5">
+                <span>Live Price:</span>
+                <span className="text-sm font-bold text-amber-300">
+                  ${(activeMarket?.price ?? analysisResult?.currentLivePrice ?? 0).toFixed(2)}
+                </span>
+                <span className="text-zinc-600">•</span>
+                <span className="text-[11px] text-zinc-400">
+                  15M Close: ${(analysisResult?.signalConfirmationPrice ?? 0).toFixed(2)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Right: AUTO MONITORING Indicator & Current Status */}
+          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
+            {/* Clear AUTO MONITORING Indicator */}
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-950/50 border border-emerald-500/40 text-emerald-300 text-xs font-bold shadow-lg shadow-emerald-500/10">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+              </span>
+              <span className="tracking-wide">AUTO MONITORING: ACTIVE</span>
+            </div>
+
+            {/* Current Engine Status */}
+            <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold ${
+              analysisResult?.executionStatus === 'READY'
+                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50'
+                : analysisResult?.executionStatus === 'ACTIVE'
+                ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50'
+                : analysisResult?.executionStatus === 'WAITING_FOR_ENTRY'
+                ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
+                : 'bg-zinc-900 border-zinc-800 text-zinc-300'
+            }`}>
+              <span className="text-[10px] text-zinc-400 font-normal uppercase">Status:</span>
+              <span className="tracking-wider">
+                {!analysisResult
+                  ? 'CONNECTING...'
+                  : analysisResult.finalDirection === 'WAIT' || analysisResult.executionStatus === 'WAIT'
+                  ? analysisResult.displayStatusLabel || 'WAIT'
+                  : analysisResult.executionStatus === 'READY'
+                  ? `READY (${analysisResult.finalDirection})`
+                  : analysisResult.executionStatus === 'WAITING_FOR_ENTRY'
+                  ? `PENDING ENTRY (${analysisResult.finalDirection})`
+                  : analysisResult.executionStatus === 'ACTIVE'
+                  ? `ACTIVE (${analysisResult.finalDirection})`
+                  : analysisResult.displayStatusLabel || analysisResult.executionStatus || 'WAIT'}
+              </span>
+            </div>
           </div>
         </div>
 
-        {/* Primary Action Button: ANALYZE MARKET */}
-        <button
-          onClick={() => handleAnalyzePhase(selectedAssetId)}
-          disabled={isAnalyzing}
-          className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:brightness-110 active:scale-[0.99] text-black font-mono font-black text-xs sm:text-sm tracking-wider uppercase transition shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <RefreshCw className={`w-4 h-4 ${isAnalyzing ? 'animate-spin' : ''}`} />
-          <span>{isAnalyzing ? 'EVALUATING MARKET & LIVE TRADE STATE...' : 'ANALYZE MARKET'}</span>
-        </button>
+        {/* Continuous Monitoring Heartbeat Sub-bar */}
+        <div className="pt-2.5 border-t border-zinc-800/80 flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-400">
+          <div className="flex items-center gap-2">
+            <Radio className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+            <span>Continuous Real-Time Evaluation • Re-evaluating on verified ticks & closed candles</span>
+          </div>
+          <div className="flex items-center gap-3 font-mono">
+            {isAnalyzing && (
+              <span className="inline-flex items-center gap-1.5 text-amber-400">
+                <RefreshCw className="w-3 h-3 animate-spin" />
+                <span>Evaluating...</span>
+              </span>
+            )}
+            {lastEvaluatedAt && (
+              <span className="text-zinc-500">
+                Last cycle: <strong className="text-zinc-300">{lastEvaluatedAt}</strong>
+              </span>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Error / Data Status Banner */}
@@ -418,7 +494,7 @@ export const PhaseXView: React.FC = () => {
           {analysisResult.finalDirection !== 'WAIT' && (analysisResult.executionStatus === 'READY' || analysisResult.executionStatus === 'WAITING_FOR_ENTRY' || analysisResult.liveTradeDetails != null) ? (
             <PhaseXActiveTradeCard
               result={analysisResult}
-              onRefresh={() => handleAnalyzePhase(selectedAssetId)}
+              onRefresh={() => handleAnalyzePhase()}
             />
           ) : (
             <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-b from-[#0e111d] to-[#07090f] border border-amber-500/40 shadow-2xl space-y-4 font-mono-num relative overflow-hidden">
@@ -460,7 +536,7 @@ export const PhaseXView: React.FC = () => {
               {/* Verification Timestamp */}
               <div className="text-[10px] font-mono text-zinc-400 pt-2 flex items-center justify-center gap-1.5 border-t border-zinc-800/60">
                 <Clock className="w-3 h-3 text-zinc-400" />
-                <span>Closed-candle verified: {analysisResult.engineDetails.lastClosedCandleTimeFormatted}</span>
+                <span>Closed-candle verified: {analysisResult.engineDetails?.lastClosedCandleTimeFormatted || 'Live Verified'}</span>
               </div>
             </div>
           )}

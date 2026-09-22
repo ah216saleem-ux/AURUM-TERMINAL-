@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import { analyzePhaseX, cancelPhaseXSetup, getPhaseXTradeHistory, runPhase4VerificationSuite, runPhase5VerificationSuite } from './phaseXEngine';
 import { ASSET_CONFIGS } from './marketDataRouter';
+import { getTelegramServiceStatus, runTelegramVerificationSuite } from './phaseXTelegramService';
 
 interface AttemptTracker {
   count: number;
@@ -13,6 +14,75 @@ function getClientIp(req: IncomingMessage): string {
   const forwarded = req.headers['x-forwarded-for'];
   if (typeof forwarded === 'string') return forwarded.split(',')[0].trim();
   return req.socket.remoteAddress || '127.0.0.1';
+}
+
+/**
+ * Validates whether the incoming request contains a valid, active admin Bearer token.
+ */
+function isAuthorizedAdmin(req: IncomingMessage): boolean {
+  const authHeader = req.headers['authorization'];
+  if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7).trim();
+    if (!token) return false;
+    if (activeAdminTokens.has(token)) {
+      // Check 24-hour token expiration
+      if (token.startsWith('px_admin_')) {
+        const parts = token.split('_');
+        const ts = parseInt(parts[2], 10);
+        if (!isNaN(ts) && (Date.now() - ts > 86400 * 1000)) {
+          activeAdminTokens.delete(token);
+          return false;
+        }
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Sanitizes the Phase X analysis payload for public, unauthenticated callers.
+ * Strips all internal engine telemetry, Wyckoff/cycle diagnostics, quality gate matrices,
+ * internal event states, and diagnostic scores while preserving client-safe fields.
+ */
+function sanitizePhaseXPublicResponse(analysis: any) {
+  return {
+    assetId: analysis.assetId,
+    symbol: analysis.symbol,
+    assetName: analysis.assetName,
+    marketPhase: analysis.marketPhase,
+    confidence: analysis.confidence,
+    tradeConfidence: analysis.tradeConfidence,
+    userOutputState: analysis.userOutputState,
+    finalDirection: analysis.finalDirection,
+    executionStatus: analysis.executionStatus,
+    preferredEntry: analysis.preferredEntry,
+    entryZoneLow: analysis.entryZoneLow,
+    entryZoneHigh: analysis.entryZoneHigh,
+    signalConfirmationPrice: analysis.signalConfirmationPrice,
+    currentLivePrice: analysis.currentLivePrice,
+    distanceFromEntry: analysis.distanceFromEntry,
+    distanceFromEntryAtr: analysis.distanceFromEntryAtr,
+    waitReasonCode: analysis.waitReasonCode,
+    executionTriggerDescription: analysis.executionTriggerDescription,
+    setupId: analysis.setupId,
+    setupAgeCandles: analysis.setupAgeCandles,
+    setupAgeFormatted: analysis.setupAgeFormatted,
+    stopLoss: analysis.stopLoss,
+    takeProfit1: analysis.takeProfit1,
+    takeProfit2: analysis.takeProfit2,
+    riskRewardRatio: analysis.riskRewardRatio,
+    riskDistance: analysis.riskDistance,
+    tp1RMultiple: analysis.tp1RMultiple,
+    tp2RMultiple: analysis.tp2RMultiple,
+    slAnchorSource: analysis.slAnchorSource,
+    finalRRValidation: analysis.finalRRValidation,
+    lifecycleState: analysis.lifecycleState,
+    liveProgressR: analysis.liveProgressR,
+    displayStatusLabel: analysis.displayStatusLabel,
+    isDataInterrupted: analysis.isDataInterrupted,
+    liveTradeDetails: analysis.liveTradeDetails
+  };
 }
 
 export async function handlePhaseXRequest(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
@@ -136,6 +206,15 @@ export async function handlePhaseXRequest(req: IncomingMessage, res: ServerRespo
     }
 
     if (pathname === '/api/phase-x/verify-phase5' || pathname === '/api/phase-x/verify') {
+      if (!isAuthorizedAdmin(req)) {
+        res.statusCode = 401;
+        res.end(JSON.stringify({
+          success: false,
+          error: 'UNAUTHORIZED',
+          message: 'Admin authorization required. Valid Bearer token must be provided.'
+        }));
+        return true;
+      }
       const report = runPhase5VerificationSuite();
       res.statusCode = 200;
       res.end(JSON.stringify(report));
@@ -143,13 +222,54 @@ export async function handlePhaseXRequest(req: IncomingMessage, res: ServerRespo
     }
 
     if (pathname === '/api/phase-x/verify-phase4') {
+      if (!isAuthorizedAdmin(req)) {
+        res.statusCode = 401;
+        res.end(JSON.stringify({
+          success: false,
+          error: 'UNAUTHORIZED',
+          message: 'Admin authorization required. Valid Bearer token must be provided.'
+        }));
+        return true;
+      }
       const report = runPhase4VerificationSuite();
       res.statusCode = 200;
       res.end(JSON.stringify(report));
       return true;
     }
 
+    if (pathname === '/api/phase-x/verify-telegram') {
+      if (!isAuthorizedAdmin(req)) {
+        res.statusCode = 401;
+        res.end(JSON.stringify({
+          success: false,
+          error: 'UNAUTHORIZED',
+          message: 'Admin authorization required. Valid Bearer token must be provided.'
+        }));
+        return true;
+      }
+      const report = await runTelegramVerificationSuite();
+      res.statusCode = 200;
+      res.end(JSON.stringify(report));
+      return true;
+    }
+
+    if (pathname === '/api/phase-x/telegram-status') {
+      const status = getTelegramServiceStatus();
+      res.statusCode = 200;
+      res.end(JSON.stringify(status));
+      return true;
+    }
+
     if (pathname === '/api/phase-x/history') {
+      if (!isAuthorizedAdmin(req)) {
+        res.statusCode = 401;
+        res.end(JSON.stringify({
+          success: false,
+          error: 'UNAUTHORIZED',
+          message: 'Admin authorization required. Valid Bearer token must be provided.'
+        }));
+        return true;
+      }
       const assetId = parsedUrl.searchParams.get('assetId') || undefined;
       const history = getPhaseXTradeHistory(assetId);
       res.statusCode = 200;
@@ -200,22 +320,32 @@ export async function handlePhaseXRequest(req: IncomingMessage, res: ServerRespo
       }
       body = body || {};
       const { assetId, clientLivePrice } = body;
+      const targetAssetId = assetId || 'xau-usd';
 
-      if (!assetId) {
-        res.statusCode = 400;
-        res.end(JSON.stringify({ error: 'Missing assetId parameter' }));
-        return true;
-      }
-
-      if (assetId === 'spy' || assetId === 'spy-options') {
+      if (targetAssetId === 'spy' || targetAssetId === 'spy-options') {
         res.statusCode = 400;
         res.end(JSON.stringify({ error: 'SPY is excluded from Phase X Wyckoff Engine.' }));
         return true;
       }
 
-      const analysis = await analyzePhaseX(assetId, typeof clientLivePrice === 'number' ? clientLivePrice : undefined);
+      if (targetAssetId !== 'xau-usd') {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: 'PHASE X operates exclusively on XAU/USD in Auto-Signal Mode.' }));
+        return true;
+      }
+
+      const analysis = await analyzePhaseX(targetAssetId, typeof clientLivePrice === 'number' ? clientLivePrice : undefined);
+
+      if (isAuthorizedAdmin(req)) {
+        res.statusCode = 200;
+        res.end(JSON.stringify(analysis));
+        return true;
+      }
+
+      // Public / Unauthenticated callers receive client-safe fields ONLY
+      const publicResponse = sanitizePhaseXPublicResponse(analysis);
       res.statusCode = 200;
-      res.end(JSON.stringify(analysis));
+      res.end(JSON.stringify(publicResponse));
       return true;
     }
 

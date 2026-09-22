@@ -1005,26 +1005,40 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     showVolume: true
   });
 
-  const [telegramSettings, setTelegramSettings] = useState<TelegramSettings>({
-    botToken: '',
-    chatId: '',
-    channelTag: '@aurum_ai_signals',
-    autoBroadcast: true,
-    minConfidence: 85,
-    isConnected: false,
-    enabled: false,
-    sentCountToday: 0,
-    sentKeys: [],
-    history: [
-      {
-        id: 'tel-1',
-        timestamp: '1h ago',
-        signalSymbol: 'XAU/USD',
-        signalType: 'BUY',
-        messagePreview: '🟡 AURUM AI SIGNAL\n\nPair:\nXAU/USD\n\nSignal:\nBUY\n\nEntry:\n$2,638.00 - $2,644.00\n\nStop Loss:\n$2,624.00\n\nTake Profit:\nTP1: $2,685.00\nTP2: $2,710.00\n\nTimeframe:\nH1\n\nConfidence:\n92%\n\nSetup Grade:\nA+',
-        status: 'DELIVERED'
+  const [telegramSettings, setTelegramSettings] = useState<TelegramSettings>(() => {
+    try {
+      const saved = localStorage.getItem('aurum_telegram_settings');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (!parsed.history) {
+          parsed.history = [];
+        }
+        return parsed;
       }
-    ]
+    } catch (e) {
+      console.warn('Error loading telegram settings from localStorage:', e);
+    }
+    return {
+      botToken: '',
+      chatId: '',
+      channelTag: '@aurum_ai_signals',
+      autoBroadcast: true,
+      minConfidence: 85,
+      isConnected: false,
+      enabled: false,
+      sentCountToday: 0,
+      sentKeys: [],
+      history: [
+        {
+          id: 'tel-1',
+          timestamp: '1h ago',
+          signalSymbol: 'XAU/USD',
+          signalType: 'BUY',
+          messagePreview: '🟡 AURUM AI SIGNAL\n\nPair:\nXAU/USD\n\nSignal:\nBUY\n\nEntry:\n$2,638.00 - $2,644.00\n\nStop Loss:\n$2,624.00\n\nTake Profit:\nTP1: $2,685.00\nTP2: $2,710.00\n\nTimeframe:\nH1\n\nConfidence:\n92%\n\nSetup Grade:\nA+',
+          status: 'DELIVERED'
+        }
+      ]
+    };
   });
 
   const selectedSignal = useMemo(() => {
@@ -1794,6 +1808,49 @@ Status:
 ${statusLabel}`;
     }
 
+    // Real Telegram API dispatch
+    let deliverStatus: 'DELIVERED' | 'FAILED' = 'DELIVERED';
+    let errorMessage = '';
+
+    const token = telegramSettings.botToken;
+    const chat = telegramSettings.chatId;
+
+    if (token && chat) {
+      try {
+        const url = `https://api.telegram.org/bot${token}/sendMessage`;
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chat,
+            text: formattedText
+          })
+        });
+
+        if (!response.ok) {
+          const errData = await response.json();
+          deliverStatus = 'FAILED';
+          errorMessage = errData.description || 'Unknown Telegram API Error';
+          console.error('[Telegram API] Failed to send message:', errData);
+        }
+      } catch (error: any) {
+        deliverStatus = 'FAILED';
+        errorMessage = error.message || 'Network error';
+        console.error('[Telegram API] Connection error:', error);
+      }
+    } else {
+      deliverStatus = 'FAILED';
+      errorMessage = 'Telegram configuration is incomplete. Bot Token or Chat ID is missing.';
+    }
+
+    if (deliverStatus === 'FAILED') {
+      return {
+        success: false,
+        message: `Telegram Error: ${errorMessage}`,
+        formattedText
+      };
+    }
+
     const newLog: TelegramLogItem = {
       id: `tel-${Date.now()}`,
       timestamp: 'Just now',
@@ -1812,12 +1869,20 @@ ${statusLabel}`;
         ? prev.sentCountToday
         : prev.sentCountToday + 1;
 
-      return {
+      const updated = {
         ...prev,
         sentCountToday: updatedCount,
         sentKeys: updatedKeys,
         history: [newLog, ...prev.history.slice(0, 9)]
       };
+
+      try {
+        localStorage.setItem('aurum_telegram_settings', JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Error saving telegram settings inside send:', e);
+      }
+
+      return updated;
     });
 
     return {
@@ -1830,7 +1895,15 @@ ${statusLabel}`;
   };
 
   const updateTelegramSettings = (settings: Partial<TelegramSettings>) => {
-    setTelegramSettings(prev => ({ ...prev, ...settings }));
+    setTelegramSettings(prev => {
+      const updated = { ...prev, ...settings };
+      try {
+        localStorage.setItem('aurum_telegram_settings', JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Error saving telegram settings to localStorage:', e);
+      }
+      return updated;
+    });
   };
 
   const regenerateAiSignals = () => {

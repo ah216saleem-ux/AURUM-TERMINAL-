@@ -325,7 +325,7 @@ export interface PhaseXResult {
   liveTradeDetails?: PhaseXLiveTradeDetails;
   dataProvenance?: PhaseXDataProvenance;
   phase5QualityGate?: Phase5QualityGateResult;
-  engineDetails: PhaseXEngineDetails;
+  engineDetails?: PhaseXEngineDetails;
 }
 
 export interface PhaseXTradeHistoryRecord {
@@ -389,3 +389,39 @@ export interface Phase4VerificationReport {
     levelLockCheck: string;
   };
 }
+
+export interface TelegramVerificationResult {
+  testId: string;
+  title: string;
+  passed: boolean;
+  details: string;
+}
+
+export interface TelegramVerificationReport {
+  timestamp: number;
+  system: string;
+  overallStatus: 'PASS' | 'FAIL';
+  results: TelegramVerificationResult[];
+}
+
+export interface TelegramServiceStatus {
+  configured: boolean;
+  hasBotToken: boolean;
+  hasChatId: boolean;
+  assetTarget: string;
+  sentInitialSignalsCount: number;
+  sentTP1Count: number;
+  sentTP2Count: number;
+  sentSLCount: number;
+  totalLogsRecorded: number;
+  recentLogs: Array<{
+    id: string;
+    setupId: string;
+    assetId: string;
+    type: string;
+    status: string;
+    timestamp: number;
+    messagePreview: string;
+  }>;
+}
+

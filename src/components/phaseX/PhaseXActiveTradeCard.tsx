@@ -24,7 +24,7 @@ export const PhaseXActiveTradeCard: React.FC<PhaseXActiveTradeCardProps> = ({ re
   const [cancelMessage, setCancelMessage] = useState<string | null>(null);
 
   const liveDetails = result.liveTradeDetails;
-  const decimals = result.engineDetails.decimals || 2;
+  const decimals = result.engineDetails?.decimals || 2;
   const currentPrice = result.currentLivePrice;
   const isDataInterrupted = result.isDataInterrupted || liveDetails?.isDataInterrupted;
 
