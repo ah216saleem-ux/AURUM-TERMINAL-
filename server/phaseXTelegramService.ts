@@ -55,6 +55,26 @@ const sentTP1Updates = new Set<string>();
 const sentTP2Updates = new Set<string>();
 const sentSLUpdates = new Set<string>();
 
+export interface TelegramDispatchedSignalRecord {
+  setupId: string;
+  assetId: string;
+  direction: 'BUY' | 'SELL';
+  preferredEntry: number;
+  stopLoss: number;
+  takeProfit1: number;
+  takeProfit2: number;
+  riskRewardRatio: string;
+  tradeConfidence: number;
+  timestamp: number;
+  status: string;
+}
+
+const dispatchedSignalsRegistry: TelegramDispatchedSignalRecord[] = [];
+
+export function getDispatchedTelegramSignals(): TelegramDispatchedSignalRecord[] {
+  return [...dispatchedSignalsRegistry];
+}
+
 // Delivery Logs (Kept server-side with max buffer)
 const deliveryLogs: TelegramDeliveryLog[] = [];
 const MAX_LOGS = 200;
@@ -80,26 +100,37 @@ function recordDeliveryLog(log: TelegramDeliveryLog) {
 
 /**
  * Low-level Telegram Bot API Dispatcher.
- * Safely handles missing credentials and network/API failures without throwing.
+ * Safely handles missing credentials, sanitizes tokens/chat IDs, and logs detailed API status without throwing.
  */
 export async function sendRawTelegramMessage(
   text: string,
   overrideToken?: string,
   overrideChatId?: string
-): Promise<{ success: boolean; status: 'SENT' | 'FAILED' | 'CONFIG_MISSING'; error?: string; messageId?: number }> {
-  const botToken = overrideToken || process.env.TELEGRAM_BOT_TOKEN || process.env.AURUM_TELEGRAM_BOT_TOKEN;
-  const chatId = overrideChatId || process.env.TELEGRAM_CHAT_ID || process.env.TELEGRAM_CHANNEL_ID || process.env.AURUM_TELEGRAM_CHAT_ID;
+): Promise<{ success: boolean; status: 'SENT' | 'FAILED' | 'CONFIG_MISSING'; error?: string; messageId?: number; httpStatus?: number; apiResponse?: any }> {
+  const rawBotToken = overrideToken || process.env.TELEGRAM_BOT_TOKEN || process.env.AURUM_TELEGRAM_BOT_TOKEN || '';
+  const rawChatId = overrideChatId || process.env.TELEGRAM_CHAT_ID || process.env.TELEGRAM_CHANNEL_ID || process.env.AURUM_TELEGRAM_CHAT_ID || '';
+
+  // Sanitize whitespace/newlines from credentials
+  const botToken = rawBotToken.trim().replace(/\s+/g, '');
+  const chatId = rawChatId.trim().replace(/\s+/g, '');
 
   if (!botToken || !chatId) {
+    const missing: string[] = [];
+    if (!botToken) missing.push('TELEGRAM_BOT_TOKEN');
+    if (!chatId) missing.push('TELEGRAM_CHAT_ID');
+    const errorMsg = `Configuration Missing: ${missing.join(' and ')} not set in server environment.`;
+    console.warn(`[PhaseXTelegram] ${errorMsg}`);
     return {
       success: false,
       status: 'CONFIG_MISSING',
-      error: 'TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is not configured in server environment.'
+      error: errorMsg
     };
   }
 
   try {
     const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+    console.log(`[PhaseXTelegram] Dispatching message to chat_id: ${chatId} (message length: ${text.length})`);
+    
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -112,28 +143,93 @@ export async function sendRawTelegramMessage(
       })
     });
 
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
     if (!response.ok || !data.ok) {
       const errorMsg = data.description || `HTTP ${response.status}: ${response.statusText}`;
+      console.error(`[PhaseXTelegram] Telegram API Delivery Error: HTTP ${response.status} — ${errorMsg}`, data);
       return {
         success: false,
         status: 'FAILED',
-        error: errorMsg
+        error: errorMsg,
+        httpStatus: response.status,
+        apiResponse: data
       };
     }
 
+    console.log(`[PhaseXTelegram] Successfully delivered message! message_id: ${data.result?.message_id}`);
     return {
       success: true,
       status: 'SENT',
-      messageId: data.result?.message_id
+      messageId: data.result?.message_id,
+      httpStatus: response.status,
+      apiResponse: data
     };
   } catch (err: any) {
+    console.error('[PhaseXTelegram] Network/Transport failure during Telegram dispatch:', err);
     return {
       success: false,
       status: 'FAILED',
       error: err?.message || 'Network transport error during Telegram dispatch'
     };
   }
+}
+
+/**
+ * Isolated Connection Test Message Dispatcher
+ * Sends: "AURUM TERMINAL — TELEGRAM CONNECTION TEST"
+ * Strictly isolated from live signal history and trading logic.
+ */
+export async function sendTelegramConnectionTest(
+  overrideToken?: string,
+  overrideChatId?: string
+): Promise<{
+  success: boolean;
+  status: 'SENT' | 'FAILED' | 'CONFIG_MISSING';
+  error?: string;
+  httpStatus?: number;
+  apiResponse?: any;
+  botInfo?: any;
+  messageId?: number;
+  textSent: string;
+}> {
+  const rawBotToken = overrideToken || process.env.TELEGRAM_BOT_TOKEN || process.env.AURUM_TELEGRAM_BOT_TOKEN || '';
+  const rawChatId = overrideChatId || process.env.TELEGRAM_CHAT_ID || process.env.TELEGRAM_CHANNEL_ID || process.env.AURUM_TELEGRAM_CHAT_ID || '';
+  const botToken = rawBotToken.trim().replace(/\s+/g, '');
+  const chatId = rawChatId.trim().replace(/\s+/g, '');
+
+  let botInfo: any = null;
+  if (botToken) {
+    try {
+      const meRes = await fetch(`https://api.telegram.org/bot${botToken}/getMe`);
+      botInfo = await meRes.json().catch(() => null);
+    } catch (e: any) {
+      botInfo = { ok: false, error: e.message };
+    }
+  }
+
+  const testMessage = [
+    'AURUM TERMINAL — TELEGRAM CONNECTION TEST',
+    '',
+    `Timestamp: ${formatTimestamp(Date.now())}`,
+    `Bot: ${botInfo?.result?.username ? '@' + botInfo.result.username : 'Unknown'}`,
+    `Status: Isolated Connection Diagnostic`,
+    '',
+    'This is a diagnostic connection test only.',
+    'No trading signal or execution.'
+  ].join('\n');
+
+  const dispatchResult = await sendRawTelegramMessage(testMessage, overrideToken, overrideChatId);
+
+  return {
+    success: dispatchResult.success,
+    status: dispatchResult.status,
+    error: dispatchResult.error,
+    httpStatus: dispatchResult.httpStatus,
+    apiResponse: dispatchResult.apiResponse,
+    botInfo,
+    messageId: dispatchResult.messageId,
+    textSent: testMessage
+  };
 }
 
 /**
@@ -245,6 +341,23 @@ export async function dispatchPhaseXApprovedTelegramSignal(
 
   const messageText = buildApprovedSignalMessage(payload);
   const result = await sendRawTelegramMessage(messageText);
+
+  dispatchedSignalsRegistry.unshift({
+    setupId: payload.setupId,
+    assetId: payload.assetId,
+    direction: payload.direction,
+    preferredEntry: payload.preferredEntry,
+    stopLoss: payload.stopLoss,
+    takeProfit1: payload.takeProfit1,
+    takeProfit2: payload.takeProfit2,
+    riskRewardRatio: payload.riskRewardRatio,
+    tradeConfidence: payload.tradeConfidence,
+    timestamp: payload.timestamp || Date.now(),
+    status: result.status
+  });
+  if (dispatchedSignalsRegistry.length > 200) {
+    dispatchedSignalsRegistry.pop();
+  }
 
   const deliveryLog: TelegramDeliveryLog = {
     id: `tl_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,

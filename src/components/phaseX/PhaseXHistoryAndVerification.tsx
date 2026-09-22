@@ -4,7 +4,9 @@ import {
   Phase4VerificationReport, 
   Phase5VerificationReport,
   TelegramVerificationReport,
-  TelegramServiceStatus
+  TelegramServiceStatus,
+  LiveValidationSuiteReport,
+  TelegramConsistencyReport
 } from './PhaseXTypes';
 import { 
   ShieldCheck, 
@@ -17,7 +19,10 @@ import {
   Layers,
   Sparkles,
   Lock,
-  Send
+  Send,
+  Database,
+  Check,
+  SearchCheck
 } from 'lucide-react';
 
 interface PhaseXHistoryAndVerificationProps {
@@ -25,13 +30,53 @@ interface PhaseXHistoryAndVerificationProps {
 }
 
 export const PhaseXHistoryAndVerification: React.FC<PhaseXHistoryAndVerificationProps> = ({ selectedAssetId }) => {
-  const [activeTab, setActiveTab] = useState<'phase5' | 'phase4' | 'telegram' | 'history'>('phase5');
+  const [activeTab, setActiveTab] = useState<'live_validation' | 'telegram_audit' | 'phase5' | 'phase4' | 'telegram' | 'history'>('live_validation');
   const [history, setHistory] = useState<PhaseXTradeHistoryRecord[]>([]);
+  const [liveReport, setLiveReport] = useState<LiveValidationSuiteReport | null>(null);
+  const [telegramAudit, setTelegramAudit] = useState<TelegramConsistencyReport | null>(null);
   const [phase4Report, setPhase4Report] = useState<Phase4VerificationReport | null>(null);
   const [phase5Report, setPhase5Report] = useState<Phase5VerificationReport | null>(null);
   const [telegramReport, setTelegramReport] = useState<TelegramVerificationReport | null>(null);
   const [telegramStatus, setTelegramStatus] = useState<TelegramServiceStatus | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
+
+  const fetchLiveValidationSuite = async () => {
+    setLoading(true);
+    try {
+      const storedToken = sessionStorage.getItem('phase_x_admin_token');
+      const headers: Record<string, string> = {};
+      if (storedToken) headers['Authorization'] = `Bearer ${storedToken}`;
+      
+      const res = await fetch('/api/phase-x/verify-live-suite', { headers });
+      if (res.ok) {
+        const data: LiveValidationSuiteReport = await res.json();
+        setLiveReport(data);
+      }
+    } catch (err) {
+      console.error('[PhaseXHistory] Error running live validation suite:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchTelegramAudit = async () => {
+    setLoading(true);
+    try {
+      const storedToken = sessionStorage.getItem('phase_x_admin_token');
+      const headers: Record<string, string> = {};
+      if (storedToken) headers['Authorization'] = `Bearer ${storedToken}`;
+
+      const res = await fetch('/api/phase-x/audit-telegram', { headers });
+      if (res.ok) {
+        const data: TelegramConsistencyReport = await res.json();
+        setTelegramAudit(data);
+      }
+    } catch (err) {
+      console.error('[PhaseXHistory] Error running Telegram audit:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchHistory = async () => {
     try {
@@ -112,7 +157,11 @@ export const PhaseXHistoryAndVerification: React.FC<PhaseXHistoryAndVerification
   };
 
   useEffect(() => {
-    if (activeTab === 'history') {
+    if (activeTab === 'live_validation') {
+      fetchLiveValidationSuite();
+    } else if (activeTab === 'telegram_audit') {
+      fetchTelegramAudit();
+    } else if (activeTab === 'history') {
       fetchHistory();
     } else if (activeTab === 'phase4') {
       fetchPhase4Verification();
@@ -124,7 +173,9 @@ export const PhaseXHistoryAndVerification: React.FC<PhaseXHistoryAndVerification
   }, [activeTab, selectedAssetId]);
 
   const handleRefresh = () => {
-    if (activeTab === 'history') fetchHistory();
+    if (activeTab === 'live_validation') fetchLiveValidationSuite();
+    else if (activeTab === 'telegram_audit') fetchTelegramAudit();
+    else if (activeTab === 'history') fetchHistory();
     else if (activeTab === 'phase4') fetchPhase4Verification();
     else if (activeTab === 'telegram') fetchTelegramVerification();
     else fetchPhase5Verification();
@@ -134,57 +185,83 @@ export const PhaseXHistoryAndVerification: React.FC<PhaseXHistoryAndVerification
     <div className="rounded-2xl bg-[#090b14] border border-zinc-800 shadow-xl overflow-hidden font-mono text-xs">
       {/* Navigation Header */}
       <div className="flex flex-wrap items-center justify-between border-b border-zinc-800/80 p-3 bg-zinc-950/60 gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Phase 5 Tab */}
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+          {/* Live Validation Suite Tab (Requirement 9 A-L) */}
           <button
-            onClick={() => setActiveTab('phase5')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
-              activeTab === 'phase5'
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+            onClick={() => setActiveTab('live_validation')}
+            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+              activeTab === 'live_validation'
+                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
                 : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
-            <Sparkles className="w-4 h-4 text-amber-400" />
-            <span>PHASE 5 QUALITY GATE SUITE</span>
+            <Database className="w-3.5 h-3.5 text-amber-400" />
+            <span>LIVE VALIDATION (A–L)</span>
+          </button>
+
+          {/* Telegram Consistency Audit Tab (Requirement 5) */}
+          <button
+            onClick={() => setActiveTab('telegram_audit')}
+            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+              activeTab === 'telegram_audit'
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                : 'text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <SearchCheck className="w-3.5 h-3.5 text-cyan-400" />
+            <span>TELEGRAM AUDIT</span>
+          </button>
+
+          {/* Phase 5 Tab */}
+          <button
+            onClick={() => setActiveTab('phase5')}
+            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+              activeTab === 'phase5'
+                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-sm'
+                : 'text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+            <span>PHASE 5 GATES</span>
           </button>
 
           {/* Phase 4 Tab */}
           <button
             onClick={() => setActiveTab('phase4')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
               activeTab === 'phase4'
-                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+                ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 shadow-sm'
                 : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
-            <ShieldCheck className="w-4 h-4 text-purple-400" />
-            <span>PHASE 4 ENGINE SUITE</span>
+            <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" />
+            <span>PHASE 4 ENGINE</span>
           </button>
 
-          {/* Telegram Tab */}
+          {/* Telegram Auto-Signal */}
           <button
             onClick={() => setActiveTab('telegram')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
               activeTab === 'telegram'
-                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
                 : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
-            <Send className="w-4 h-4 text-cyan-400" />
-            <span>TELEGRAM AUTO-SIGNAL</span>
+            <Send className="w-3.5 h-3.5 text-emerald-400" />
+            <span>TELEGRAM BOT</span>
           </button>
 
           {/* History Tab */}
           <button
             onClick={() => setActiveTab('history')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
               activeTab === 'history'
-                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                ? 'bg-zinc-800 text-zinc-100 border border-zinc-700 shadow-sm'
                 : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
-            <History className="w-4 h-4 text-emerald-400" />
-            <span>TRADE HISTORY</span>
+            <History className="w-3.5 h-3.5 text-zinc-400" />
+            <span>DIAGNOSTIC LOGS</span>
           </button>
         </div>
 
@@ -197,6 +274,157 @@ export const PhaseXHistoryAndVerification: React.FC<PhaseXHistoryAndVerification
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
+
+      {/* Tab Content: LIVE VALIDATION SUITE (Requirements A-L) */}
+      {activeTab === 'live_validation' && (
+        <div className="p-4 space-y-4">
+          {liveReport ? (
+            <>
+              {/* Overall Status Banner */}
+              <div className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${
+                liveReport.overallStatus === 'PASS' 
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' 
+                  : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+              }`}>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                  <div>
+                    <span className="font-black text-sm block">{liveReport.system}</span>
+                    <span className="text-[10.5px] text-zinc-400">
+                      Persistent live storage, deterministic deduplication & real telemetry validation
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-1 rounded bg-zinc-900 border border-zinc-800 text-zinc-300 text-[10px] font-bold">
+                    {liveReport.liveSignalsCount} Live Signals Saved
+                  </span>
+                  <span className={`px-2.5 py-1 rounded text-xs font-black uppercase ${
+                    liveReport.overallStatus === 'PASS' 
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' 
+                      : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                  }`}>
+                    {liveReport.overallStatus === 'PASS' ? '12/12 CHECKS PASS' : 'FAILED'}
+                  </span>
+                </div>
+              </div>
+
+              {/* 12 Tests Results Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                {liveReport.results.map((r) => (
+                  <div key={r.testId} className="p-3 rounded-xl bg-zinc-900/80 border border-zinc-800/90 space-y-1.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="font-bold text-zinc-200 text-xs flex items-center gap-1.5">
+                        <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <span>{r.title}</span>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase shrink-0 ${
+                        r.passed ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                      }`}>
+                        {r.passed ? 'PASS' : 'FAIL'}
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-zinc-400 pl-5">
+                      {r.details}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-10 text-zinc-500 flex flex-col items-center gap-2">
+              <RefreshCw className="w-5 h-5 animate-spin text-amber-400" />
+              <span>Running Live Validation Suite (Tests A–L)...</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab Content: TELEGRAM CONSISTENCY AUDIT */}
+      {activeTab === 'telegram_audit' && (
+        <div className="p-4 space-y-4">
+          {telegramAudit ? (
+            <>
+              {/* Audit Summary Banner */}
+              <div className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${
+                telegramAudit.inconsistentCount === 0 
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' 
+                  : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+              }`}>
+                <div className="flex items-center gap-2">
+                  <SearchCheck className="w-5 h-5 text-cyan-400 shrink-0" />
+                  <div>
+                    <span className="font-black text-sm block">TELEGRAM CONSISTENCY AUDITOR</span>
+                    <span className="text-[10.5px] text-zinc-400">
+                      Cross-validates Website Setup ID, Entry, SL, TP1, TP2 with Telegram alert payload
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-1 rounded bg-zinc-900 border border-zinc-800 text-zinc-300 text-[10px] font-bold">
+                    {telegramAudit.consistentCount} / {telegramAudit.totalAudited} Matched
+                  </span>
+                  <span className={`px-2.5 py-1 rounded text-xs font-black uppercase ${
+                    telegramAudit.inconsistentCount === 0 
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' 
+                      : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                  }`}>
+                    {telegramAudit.inconsistentCount === 0 ? '100% CONSISTENT' : `${telegramAudit.inconsistentCount} DISCREPANCIES`}
+                  </span>
+                </div>
+              </div>
+
+              {/* Audited Signals List */}
+              {telegramAudit.auditItems.length === 0 ? (
+                <div className="text-center py-8 text-zinc-500">
+                  No live signals to audit yet.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {telegramAudit.auditItems.map((item) => (
+                    <div key={item.setupId} className="p-3 rounded-xl bg-zinc-900/80 border border-zinc-800/90 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                            item.websiteDirection === 'BUY' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
+                          }`}>
+                            {item.websiteDirection}
+                          </span>
+                          <span className="text-white font-bold text-xs">{item.setupId}</span>
+                        </div>
+
+                        <span className={`px-2 py-0.5 rounded text-[9.5px] font-black uppercase ${
+                          item.isConsistent ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-300'
+                        }`}>
+                          {item.isConsistent ? '✓ PERFECT MATCH' : '⚠ MISMATCH'}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] bg-zinc-950/60 p-2 rounded-lg border border-zinc-800/60">
+                        <div>Entry: <strong className="text-white">${item.websiteEntry.toFixed(2)}</strong></div>
+                        <div>SL: <strong className="text-rose-300">${item.websiteSL.toFixed(2)}</strong></div>
+                        <div>TP1: <strong className="text-emerald-300">${item.websiteTP1.toFixed(2)}</strong></div>
+                        <div>TP2: <strong className="text-emerald-300">${item.websiteTP2.toFixed(2)}</strong></div>
+                      </div>
+
+                      <div className="text-[10px] text-zinc-400">
+                        {item.details}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="text-center py-10 text-zinc-500 flex flex-col items-center gap-2">
+              <RefreshCw className="w-5 h-5 animate-spin text-cyan-400" />
+              <span>Auditing Telegram Consistency...</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Tab Content: PHASE 5 Verification Suite */}
       {activeTab === 'phase5' && (
@@ -218,108 +446,44 @@ export const PhaseXHistoryAndVerification: React.FC<PhaseXHistoryAndVerification
                     </span>
                   </div>
                 </div>
+
                 <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                    29/29 AUDITS ({phase5Report.overallStatus})
-                  </span>
-                  <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                    16/16 SCENARIOS PASS
+                  <span className={`px-2.5 py-1 rounded text-xs font-black uppercase ${
+                    phase5Report.overallStatus === 'PASS' 
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' 
+                      : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                  }`}>
+                    {phase5Report.overallStatus === 'PASS' ? '10/10 TESTS PASS' : 'FAILED'}
                   </span>
                 </div>
               </div>
 
-              {/* 16 Deterministic Scenario Test Matrix */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-amber-400 font-black uppercase text-[11px] flex items-center gap-1.5">
-                    <FlaskConical className="w-4 h-4 text-amber-400" />
-                    <span>Phase 5 Deterministic Scenario Verification Suite (16 Test Cases)</span>
-                  </span>
-                  <span className="text-[9.5px] font-bold px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40">
-                    ISOLATED TEST HARNESS
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {phase5Report.testCases.map((tc) => (
-                    <div 
-                      key={tc.scenarioId} 
-                      className="p-2.5 rounded-lg bg-zinc-900/80 border border-zinc-800/90 space-y-1.5"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-zinc-200 text-[11px] flex items-center gap-1.5 truncate">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                          <span className="truncate">{tc.scenarioId}: {tc.scenarioName}</span>
-                        </span>
-                        <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shrink-0">
-                          {tc.passed ? 'PASS' : 'FAIL'}
-                        </span>
+              {/* Test Cases Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                {phase5Report.results.map((r) => (
+                  <div key={r.testId} className="p-3 rounded-xl bg-zinc-900/80 border border-zinc-800/90 space-y-1.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="font-bold text-zinc-200 text-xs flex items-center gap-1.5">
+                        <Check className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                        <span>{r.title}</span>
                       </div>
-
-                      <div className="text-[10px] text-zinc-400 pl-5 space-y-0.5">
-                        <div>
-                          <span className="text-zinc-500">Condition: </span>
-                          <span className="text-zinc-300 font-semibold">{tc.inputCondition}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-[9.5px]">
-                          <div>
-                            <span className="text-zinc-500">Expected: </span>
-                            <span className={tc.expectedGateStatus === 'APPROVED' ? 'text-emerald-400 font-bold' : 'text-amber-400 font-bold'}>
-                              {tc.expectedGateStatus} {tc.expectedWaitReason ? `(${tc.expectedWaitReason})` : ''}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-zinc-500">Actual: </span>
-                            <span className={tc.actualGateStatus === 'APPROVED' ? 'text-emerald-300 font-bold' : 'text-amber-300 font-bold'}>
-                              {tc.actualGateStatus}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
+                      <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase shrink-0 ${
+                        r.passed ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
+                      }`}>
+                        {r.passed ? 'PASS' : 'FAIL'}
+                      </span>
                     </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* 29 System Checklist Items Grid */}
-              <div className="space-y-2 pt-2 border-t border-zinc-800/80">
-                <div className="flex items-center justify-between">
-                  <span className="text-zinc-300 font-black uppercase text-[11px] flex items-center gap-1.5">
-                    <Layers className="w-4 h-4 text-zinc-400" />
-                    <span>Deterministic System Checklist (29 Architectural Audits)</span>
-                  </span>
-                  <span className="text-[10px] text-emerald-400 font-bold">
-                    All 29 Passed
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {phase5Report.checklist.map((item) => (
-                    <div 
-                      key={item.id} 
-                      className="p-2.5 rounded-lg bg-zinc-900/60 border border-zinc-800/80 space-y-1"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-zinc-200 text-[10.5px] flex items-center gap-1.5 truncate">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                          <span className="truncate">{item.title}</span>
-                        </span>
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">
-                          {item.status}
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-zinc-400 pl-5 line-clamp-2">
-                        {item.details}
-                      </p>
+                    <div className="text-[10px] text-zinc-400 pl-5">
+                      {r.details}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
             </>
           ) : (
             <div className="text-center py-8 text-zinc-500 flex flex-col items-center gap-2">
-              <RefreshCw className="w-5 h-5 animate-spin text-amber-400" />
-              <span>Running Phase 5 Quality Gate Verification Suite...</span>
+              <RefreshCw className="w-5 h-5 animate-spin text-purple-400" />
+              <span>Running Phase 5 Verification Suite...</span>
             </div>
           )}
         </div>
@@ -331,119 +495,84 @@ export const PhaseXHistoryAndVerification: React.FC<PhaseXHistoryAndVerification
           {phase4Report ? (
             <>
               {/* Overall Status Banner */}
-              <div className={`p-3 rounded-xl border flex items-center justify-between ${
+              <div className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${
                 phase4Report.overallStatus === 'PASS' 
                   ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' 
                   : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
               }`}>
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span className="font-bold">{phase4Report.system}</span>
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                  <div>
+                    <span className="font-black text-sm block">{phase4Report.system}</span>
+                    <span className="text-[10.5px] text-zinc-400">
+                      Phase 4 Lifecycle, Capital Protection & Execution State Machine
+                    </span>
+                  </div>
                 </div>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                  ALL REQUIREMENTS VERIFIED ({phase4Report.overallStatus})
-                </span>
+
+                <div className="flex items-center gap-2">
+                  <span className={`px-2.5 py-1 rounded text-xs font-black uppercase ${
+                    phase4Report.overallStatus === 'PASS' 
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' 
+                      : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                  }`}>
+                    {phase4Report.overallStatus === 'PASS' ? '6/6 TESTS PASS' : 'FAILED'}
+                  </span>
+                </div>
               </div>
 
-              {/* Requirement Checklist Grid */}
-              <div className="space-y-1.5">
-                <div className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">
-                  Phase 4 Deterministic Engine Checklist (18 Requirements)
-                </div>
+              {/* Simulation Steps */}
+              <div className="space-y-2">
+                <span className="text-zinc-400 font-bold uppercase text-[10px] block">
+                  Simulated Trade Lifecycle Execution
+                </span>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {phase4Report.checklist.map((item) => (
-                    <div key={item.id} className="p-2.5 rounded-lg bg-zinc-900/70 border border-zinc-800/80 space-y-1">
+                  {phase4Report.simulatedTrade.timeline.map((item, idx) => (
+                    <div key={idx} className="p-2.5 rounded-lg bg-zinc-900/80 border border-zinc-800 space-y-1">
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-zinc-200 text-[11px] flex items-center gap-1.5">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                          <span>{item.title}</span>
-                        </span>
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">
-                          {item.status}
-                        </span>
+                        <span className="font-bold text-zinc-300 text-[11px]">{item.step}</span>
+                        <span className="text-[10px] text-zinc-500">{item.timestamp}</span>
                       </div>
-                      <p className="text-[10px] text-zinc-400 pl-5">
-                        {item.details}
-                      </p>
+                      <div className="flex items-center justify-between text-[10px] text-zinc-400">
+                        <span>Price: <strong className="text-white">${item.simulatedPrice.toFixed(2)}</strong></span>
+                        <span className="text-amber-400">{item.displayLabel}</span>
+                        <span className="text-cyan-400 font-bold">{item.liveR}</span>
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
-
-              {/* Simulated Lifecycle Test (Section 25) */}
-              {phase4Report.simulatedLifecycleTest && (
-                <div className="p-3.5 rounded-xl bg-zinc-950/80 border border-purple-500/30 space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-purple-400 font-bold uppercase text-[11px] flex items-center gap-1.5">
-                      <ShieldCheck className="w-4 h-4 text-purple-400" />
-                      <span>Simulated Lifecycle Test: {phase4Report.simulatedLifecycleTest.testId}</span>
-                    </span>
-                    <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40">
-                      ISOLATED TEST DATA
-                    </span>
-                  </div>
-
-                  <div className="text-[10px] text-zinc-400">
-                    Setup: <strong>{phase4Report.simulatedLifecycleTest.initialSetup.direction} {phase4Report.simulatedLifecycleTest.asset}</strong> | 
-                    Entry: {phase4Report.simulatedLifecycleTest.initialSetup.entry} | 
-                    SL: {phase4Report.simulatedLifecycleTest.initialSetup.sl} | 
-                    TP1: {phase4Report.simulatedLifecycleTest.initialSetup.tp1} | 
-                    TP2: {phase4Report.simulatedLifecycleTest.initialSetup.tp2}
-                  </div>
-
-                  <div className="space-y-1">
-                    {phase4Report.simulatedLifecycleTest.steps.map((step, idx) => (
-                      <div key={idx} className="p-2 rounded bg-zinc-900/80 border border-zinc-800 text-[10px] flex items-center justify-between">
-                        <span className="text-zinc-300 font-semibold">{step.step}: {step.event}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-amber-300">Price: {step.simulatedPrice}</span>
-                          <span className="text-zinc-400">({step.liveR})</span>
-                          <span className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 font-bold">{step.lifecycleState}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="text-[10px] text-emerald-400 pt-1 border-t border-zinc-800/80 flex items-center justify-between">
-                    <span>Outcome: <strong>{phase4Report.simulatedLifecycleTest.finalOutcome}</strong></span>
-                    <span>{phase4Report.simulatedLifecycleTest.levelLockCheck}</span>
-                  </div>
-                </div>
-              )}
             </>
           ) : (
             <div className="text-center py-8 text-zinc-500 flex flex-col items-center gap-2">
-              <RefreshCw className="w-5 h-5 animate-spin text-purple-400" />
-              <span>Loading Phase 4 Verification Suite...</span>
+              <RefreshCw className="w-5 h-5 animate-spin text-indigo-400" />
+              <span>Running Phase 4 Verification Suite...</span>
             </div>
           )}
         </div>
       )}
 
-      {/* Tab Content: TELEGRAM Auto-Signal Suite */}
+      {/* Tab Content: TELEGRAM BOT */}
       {activeTab === 'telegram' && (
         <div className="p-4 space-y-4">
-          <div className="p-3.5 rounded-xl border border-cyan-500/30 bg-cyan-500/10 text-cyan-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
+          <div className="p-3.5 rounded-xl border border-cyan-500/30 bg-cyan-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
               <Send className="w-5 h-5 text-cyan-400 shrink-0" />
               <div>
-                <span className="font-black text-sm block">AURUM PHASE X — XAU/USD Telegram Auto-Signal Engine</span>
+                <span className="font-black text-sm block text-cyan-300">TELEGRAM AUTO-SIGNAL DELIVERY SERVICE</span>
                 <span className="text-[10.5px] text-zinc-400">
-                  Real-Time Notification Delivery strictly for Phase 5 Approved XAU/USD Signals & Phase 4 Lifecycle Updates
+                  Real-time notification engine for approved XAU/USD setups
                 </span>
               </div>
             </div>
 
             <div className="flex items-center gap-2">
-              <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase border ${
+              <span className={`px-2.5 py-1 rounded text-xs font-black uppercase ${
                 telegramStatus?.configured 
-                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' 
-                  : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' 
+                  : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
               }`}>
-                {telegramStatus?.configured ? 'LIVE CONNECTED' : 'ENV READY (WAITING FOR KEYS)'}
-              </span>
-              <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
-                XAU/USD ONLY
+                {telegramStatus?.configured ? 'CONNECTED' : 'CONFIG READY'}
               </span>
             </div>
           </div>
@@ -514,16 +643,16 @@ export const PhaseXHistoryAndVerification: React.FC<PhaseXHistoryAndVerification
         </div>
       )}
 
-      {/* Tab Content: Trade History */}
+      {/* Tab Content: Diagnostic Logs */}
       {activeTab === 'history' && (
         <div className="p-4 space-y-3">
           <div className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">
-            Closed Trade Records ({history.length})
+            Diagnostic History Logs ({history.length})
           </div>
 
           {history.length === 0 ? (
             <div className="text-center py-8 text-zinc-500">
-              No closed trade records found for this asset.
+              No diagnostic records found for this asset.
             </div>
           ) : (
             <div className="space-y-2">
@@ -553,10 +682,10 @@ export const PhaseXHistoryAndVerification: React.FC<PhaseXHistoryAndVerification
                   </div>
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] text-zinc-400">
-                    <div>Entry: <strong className="text-zinc-200">{record.entry}</strong></div>
-                    <div>SL: <strong className="text-rose-300">{record.sl}</strong></div>
-                    <div>TP1: <strong className="text-emerald-300">{record.tp1} {record.tp1Reached ? '✓' : ''}</strong></div>
-                    <div>TP2: <strong className="text-emerald-300">{record.tp2} {record.tp2Reached ? '✓' : ''}</strong></div>
+                    <div>Entry: <strong className="text-zinc-200">${record.entry.toFixed(2)}</strong></div>
+                    <div>SL: <strong className="text-rose-300">${record.sl.toFixed(2)}</strong></div>
+                    <div>TP1: <strong className="text-emerald-300">${record.tp1.toFixed(2)} {record.tp1Reached ? '✓' : ''}</strong></div>
+                    <div>TP2: <strong className="text-emerald-300">${record.tp2.toFixed(2)} {record.tp2Reached ? '✓' : ''}</strong></div>
                   </div>
                 </div>
               ))}

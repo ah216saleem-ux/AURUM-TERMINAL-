@@ -404,6 +404,82 @@ export interface TelegramVerificationReport {
   results: TelegramVerificationResult[];
 }
 
+export interface PhaseXLiveSignalRecord {
+  setupId: string;
+  assetId: 'xau-usd';
+  symbol: 'XAU/USD';
+  direction: 'BUY' | 'SELL';
+  preferredEntry: number;
+  stopLoss: number;
+  takeProfit1: number;
+  takeProfit2: number;
+  riskRewardRatio: string;
+  tradeConfidence: number;
+  signalTimestamp: number;
+  activationTimestamp: number | null;
+  exitTimestamp: number | null;
+  phase4FinalStatus: string;
+  tp1Reached: boolean;
+  tp2Reached: boolean;
+  slReached: boolean;
+  finalR: number | null;
+  dataQualityStatus: 'VERIFIED' | 'LIMITED';
+  displayStatusLabel: string;
+  isLive: true;
+}
+
+export interface PhaseXPerformanceMetrics {
+  totalApprovedSignals: number;
+  completedTrades: number;
+  tp1Hits: number;
+  tp2Hits: number;
+  stopLossHits: number;
+  winRate: number | null;
+  averageR: number | null;
+  totalR: number;
+  averageConfidence: number;
+  signalsPerDay: number;
+  isSampleSufficient: boolean;
+  sampleStatus: 'INSUFFICIENT LIVE SAMPLE' | 'SUFFICIENT_SAMPLE';
+}
+
+export interface TelegramConsistencyAuditItem {
+  setupId: string;
+  isConsistent: boolean;
+  websiteEntry: number;
+  websiteSL: number;
+  websiteTP1: number;
+  websiteTP2: number;
+  websiteDirection: string;
+  telegramEntry?: number;
+  telegramSL?: number;
+  telegramTP1?: number;
+  telegramTP2?: number;
+  telegramDirection?: string;
+  telegramDispatched: boolean;
+  details: string;
+}
+
+export interface TelegramConsistencyReport {
+  totalAudited: number;
+  consistentCount: number;
+  inconsistentCount: number;
+  auditItems: TelegramConsistencyAuditItem[];
+}
+
+export interface LiveValidationSuiteReport {
+  timestamp: number;
+  system: string;
+  overallStatus: 'PASS' | 'FAIL';
+  liveSignalsCount: number;
+  results: Array<{
+    testId: string;
+    title: string;
+    passed: boolean;
+    details: string;
+  }>;
+}
+
 export interface TelegramServiceStatus {
   configured: boolean;
   hasBotToken: boolean;

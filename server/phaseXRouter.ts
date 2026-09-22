@@ -1,7 +1,13 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import { analyzePhaseX, cancelPhaseXSetup, getPhaseXTradeHistory, runPhase4VerificationSuite, runPhase5VerificationSuite } from './phaseXEngine';
 import { ASSET_CONFIGS } from './marketDataRouter';
-import { getTelegramServiceStatus, runTelegramVerificationSuite } from './phaseXTelegramService';
+import { getTelegramServiceStatus, runTelegramVerificationSuite, sendTelegramConnectionTest } from './phaseXTelegramService';
+import {
+  getPersistentPhaseXLiveHistory,
+  calculatePhaseXPerformanceMetrics,
+  runPhaseXLiveValidationSuite,
+  auditTelegramConsistency
+} from './phaseXLiveHistoryService';
 
 interface AttemptTracker {
   count: number;
@@ -257,6 +263,59 @@ export async function handlePhaseXRequest(req: IncomingMessage, res: ServerRespo
       const status = getTelegramServiceStatus();
       res.statusCode = 200;
       res.end(JSON.stringify(status));
+      return true;
+    }
+
+    if (pathname === '/api/phase-x/test-telegram-connection') {
+      const testResult = await sendTelegramConnectionTest();
+      res.statusCode = 200;
+      res.end(JSON.stringify(testResult));
+      return true;
+    }
+
+    if (pathname === '/api/phase-x/live-history') {
+      const history = getPersistentPhaseXLiveHistory();
+      const performance = calculatePhaseXPerformanceMetrics();
+      res.statusCode = 200;
+      res.end(JSON.stringify({
+        history,
+        count: history.length,
+        performance,
+        disclaimer: 'Statistics represent only actual recorded LIVE results. No profitability claims or future guarantees.',
+        timestamp: Date.now()
+      }));
+      return true;
+    }
+
+    if (pathname === '/api/phase-x/verify-live-suite') {
+      if (!isAuthorizedAdmin(req)) {
+        res.statusCode = 401;
+        res.end(JSON.stringify({
+          success: false,
+          error: 'UNAUTHORIZED',
+          message: 'Admin authorization required. Valid Bearer token must be provided.'
+        }));
+        return true;
+      }
+      const report = runPhaseXLiveValidationSuite();
+      res.statusCode = 200;
+      res.end(JSON.stringify(report));
+      return true;
+    }
+
+    if (pathname === '/api/phase-x/audit-telegram') {
+      if (!isAuthorizedAdmin(req)) {
+        res.statusCode = 401;
+        res.end(JSON.stringify({
+          success: false,
+          error: 'UNAUTHORIZED',
+          message: 'Admin authorization required. Valid Bearer token must be provided.'
+        }));
+        return true;
+      }
+      const audit = auditTelegramConsistency();
+      res.statusCode = 200;
+      res.end(JSON.stringify(audit));
       return true;
     }
 

@@ -4,6 +4,10 @@ import {
   dispatchPhaseXApprovedTelegramSignal,
   dispatchPhaseXLifecycleTelegramUpdate
 } from './phaseXTelegramService';
+import {
+  recordNewApprovedLiveSignal,
+  updateLiveSignalLifecycle
+} from './phaseXLiveHistoryService';
 
 // Phase 4 Lifecycle States (Section 2)
 export type PhaseXLifecycleState =
@@ -149,6 +153,20 @@ function recordCompletedTrade(record: ActiveSetupRecord, dataQualityStatus: 'VER
   // Keep history manageable
   if (tradeHistory.length > 50) {
     tradeHistory.pop();
+  }
+
+  // Persistent Live History Update for XAU/USD
+  if (record.assetId === 'xau-usd' && !record.setupId.startsWith('TEST_')) {
+    updateLiveSignalLifecycle(record.setupId, {
+      activationTimestamp: record.activationTimestamp,
+      phase4FinalStatus: record.lifecycleState,
+      tp1Reached: record.tp1Reached,
+      tp2Reached: record.tp2Reached,
+      slReached: record.slReached,
+      finalR: record.finalR,
+      exitTimestamp: record.exitTimestamp || Date.now(),
+      displayStatusLabel: finalStatusLabel
+    });
   }
 }
 
@@ -2521,7 +2539,7 @@ export async function analyzePhaseX(
     finalDisplayStatusLabel = 'READY';
     finalUserOutputState = finalDirectionOutput === 'BUY' ? '🟢 BUY — READY' : '🔴 SELL — READY';
 
-    // Asynchronous Telegram Initial Signal Notification (XAU/USD ONLY, Phase 5 APPROVED ONLY)
+    // Persistent Signal History Recording (XAU/USD ONLY, Phase 5 APPROVED ONLY)
     if (
       assetId === 'xau-usd' &&
       (finalDirectionOutput === 'BUY' || finalDirectionOutput === 'SELL') &&
@@ -2530,6 +2548,22 @@ export async function analyzePhaseX(
       takeProfit1 != null
     ) {
       const currentSetupId = managedRecord?.setupId || setupId;
+      recordNewApprovedLiveSignal({
+        setupId: currentSetupId,
+        assetId: 'xau-usd',
+        direction: finalDirectionOutput,
+        preferredEntry,
+        stopLoss: finalProtectedSL,
+        takeProfit1,
+        takeProfit2: takeProfit2 || preferredEntry,
+        riskRewardRatio: riskRewardRatio || '1:2 / 1:3',
+        tradeConfidence,
+        signalTimestamp: Date.now(),
+        dataQualityStatus: 'VERIFIED',
+        isLive: true
+      });
+
+      // Asynchronous Telegram Initial Signal Notification (XAU/USD ONLY, Phase 5 APPROVED ONLY)
       dispatchPhaseXApprovedTelegramSignal(
         {
           setupId: currentSetupId,

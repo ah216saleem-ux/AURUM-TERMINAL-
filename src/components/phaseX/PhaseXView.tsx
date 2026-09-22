@@ -3,6 +3,7 @@ import { useMarket } from '../../context/MarketContext';
 import { PhaseX3DCore, Phase3DMarketState } from './PhaseX3DCore';
 import { PhaseXActiveTradeCard } from './PhaseXActiveTradeCard';
 import { PhaseXHistoryAndVerification } from './PhaseXHistoryAndVerification';
+import { PhaseXLivePerformanceAndHistory } from './PhaseXLivePerformanceAndHistory';
 import { 
   PhaseXResult, 
   PhaseXFinalDirection, 
@@ -1331,7 +1332,10 @@ export const PhaseXView: React.FC = () => {
         )}
       </div>
 
-      {/* 8. ADMIN PANEL: PHASE 5 & 4 VERIFICATION & ENGINE HISTORY (Locked for normal user) */}
+      {/* 8. PHASE X LIVE PERFORMANCE MONITOR & PERSISTENT SIGNAL HISTORY (Clean Public View) */}
+      <PhaseXLivePerformanceAndHistory />
+
+      {/* 9. ADMIN PANEL: PHASE 5 & 4 VERIFICATION, LIVE VALIDATION & ENGINE SUITE (Locked for normal user) */}
       <div className="rounded-2xl bg-[#090b14] border border-amber-500/30 overflow-hidden shadow-lg font-mono">
         <button
           onClick={handleTogglePanel3}
