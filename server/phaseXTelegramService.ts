@@ -112,7 +112,31 @@ export async function sendRawTelegramMessage(
 
   // Sanitize whitespace/newlines from credentials
   const botToken = rawBotToken.trim().replace(/\s+/g, '');
-  const chatId = rawChatId.trim().replace(/\s+/g, '');
+  let chatId = rawChatId.trim().replace(/\s+/g, '');
+
+  // Safety check: Bot cannot message its own username (e.g. @Aurumterminal_bot)
+  if (chatId.toLowerCase() === '@aurumterminal_bot' || chatId.toLowerCase() === 'aurumterminal_bot') {
+    console.warn('[PhaseXTelegram] Detected bot username in TELEGRAM_CHAT_ID. Resolving active user/channel chat ID from updates...');
+    try {
+      const updatesRes = await fetch(`https://api.telegram.org/bot${botToken}/getUpdates`);
+      if (updatesRes.ok) {
+        const updatesData = await updatesRes.json();
+        const results = updatesData.result || [];
+        // Find latest user chat ID or channel post
+        for (let i = results.length - 1; i >= 0; i--) {
+          const item = results[i];
+          const foundId = item?.message?.chat?.id || item?.channel_post?.chat?.id || item?.my_chat_member?.chat?.id;
+          if (foundId) {
+            chatId = String(foundId);
+            console.log(`[PhaseXTelegram] Auto-resolved target chat ID to: ${chatId}`);
+            break;
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[PhaseXTelegram] Failed to auto-resolve chat ID:', err);
+    }
+  }
 
   if (!botToken || !chatId) {
     const missing: string[] = [];
