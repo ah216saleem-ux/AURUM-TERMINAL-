@@ -2029,8 +2029,9 @@ export async function analyzePhaseX(
           executionStatus = 'SETUP_EXPIRED';
           finalDirection = 'WAIT';
           waitReasonCode = 'NO_WYCKOFF_EVENT';
+          managedRecord = null; // Unblock active slot for fresh setup search
         }
-        // 2. Pre-Entry Invalidation check
+        // 2. Pre-Entry Invalidation check (Structural invalidation)
         else if (
           (managedRecord.direction === 'BUY' && (execExitPrice < tightInvalidationAnchor || execExitPrice < (managedRecord.entryZoneLow - (0.5 * atr15M)))) ||
           (managedRecord.direction === 'SELL' && (execExitPrice > tightInvalidationAnchor || execExitPrice > (managedRecord.entryZoneHigh + (0.5 * atr15M))))
@@ -2042,8 +2043,23 @@ export async function analyzePhaseX(
           executionStatus = 'SETUP_INVALIDATED';
           finalDirection = 'WAIT';
           waitReasonCode = 'STRUCTURE_INVALIDATED';
+          managedRecord = null; // Unblock active slot for fresh setup search
         }
-        // 3. Entry Activation (Section 3 & 21)
+        // 3. Missed Entry / Extended Price Runaway (Anti-Chase reset)
+        else if (
+          (managedRecord.direction === 'BUY' && (execExitPrice > (managedRecord.entryZoneHigh + 1.25 * atr15M) || (managedRecord.takeProfit1 != null && execExitPrice >= managedRecord.takeProfit1))) ||
+          (managedRecord.direction === 'SELL' && (execExitPrice < (managedRecord.entryZoneLow - 1.25 * atr15M) || (managedRecord.takeProfit1 != null && execExitPrice <= managedRecord.takeProfit1)))
+        ) {
+          managedRecord.lifecycleState = 'INVALIDATED_BEFORE_ENTRY';
+          managedRecord.exitTimestamp = Date.now();
+          managedRecord.cancellationReason = 'Missed entry — price extended past execution zone before fill';
+          recordCompletedTrade(managedRecord, bidAskAvailability);
+          executionStatus = 'MISSED_ENTRY';
+          finalDirection = 'WAIT';
+          waitReasonCode = 'ENTRY_EXTENDED';
+          managedRecord = null; // Unblock active slot for fresh setup search
+        }
+        // 4. Entry Activation (Section 3 & 21)
         else {
           const inEntryZone = managedRecord.direction === 'BUY'
             ? (execEntryPrice <= (managedRecord.entryZoneHigh + (0.15 * atr15M)) && execEntryPrice >= (managedRecord.entryZoneLow - (0.10 * atr15M)))

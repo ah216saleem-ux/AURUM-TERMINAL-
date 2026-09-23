@@ -264,6 +264,89 @@ export async function sendTelegramConnectionTest(
 }
 
 /**
+ * Isolated Preview Test for Phase 5 Approval Format & Delivery Pipeline Verification.
+ * Strictly labeled: TEST / PREVIEW — NOT A LIVE SIGNAL.
+ * Uses the current verified live XAU/USD market price.
+ */
+export async function sendPhaseXApprovedSignalPreviewTest(
+  overrideToken?: string,
+  overrideChatId?: string
+): Promise<{
+  success: boolean;
+  status: 'SENT' | 'FAILED' | 'CONFIG_MISSING';
+  error?: string;
+  httpStatus?: number;
+  apiResponse?: any;
+  messageId?: number;
+  setupId: string;
+  liveMarketPrice: number;
+  textSent: string;
+}> {
+  const livePrices = getLatestLivePrices();
+  const xauTick = livePrices['xau-usd'];
+  const livePrice = (xauTick && xauTick.price > 0) ? xauTick.price : 4326.50;
+  const setupId = `PREVIEW-TEST-${Date.now()}`;
+  const direction = 'BUY';
+  const entry = +(livePrice).toFixed(2);
+  const sl = +(livePrice - 8.50).toFixed(2);
+  const tp1 = +(livePrice + 17.00).toFixed(2);
+  const tp2 = +(livePrice + 25.50).toFixed(2);
+  const timeStr = formatTimestamp(Date.now());
+
+  const testMessage = [
+    '🟡 AURUM XAU/USD SIGNAL',
+    '',
+    'TEST / PREVIEW — NOT A LIVE SIGNAL',
+    '',
+    `Direction: ${direction}`,
+    '',
+    `Entry: ${entry.toFixed(2)}`,
+    `Protected SL: ${sl.toFixed(2)}`,
+    '',
+    `TP1: ${tp1.toFixed(2)}`,
+    `TP2: ${tp2.toFixed(2)}`,
+    '',
+    'Risk/Reward: 1:2 / 1:3',
+    'Confidence: 82%',
+    '',
+    'Status: READY',
+    `Time: ${timeStr}`,
+    `Setup ID: ${setupId}`,
+    '',
+    'This is a signal notification only.',
+    'No broker execution.'
+  ].join('\n');
+
+  const dispatchResult = await sendRawTelegramMessage(testMessage, overrideToken, overrideChatId);
+
+  const deliveryLog: TelegramDeliveryLog = {
+    id: `tl_test_${Date.now()}`,
+    setupId,
+    assetId: 'xau-usd',
+    type: 'INITIAL_SIGNAL',
+    status: dispatchResult.status,
+    reason: dispatchResult.success ? 'Delivered preview test to Telegram' : dispatchResult.error,
+    messageText: testMessage,
+    timestamp: Date.now(),
+    error: dispatchResult.error
+  };
+
+  recordDeliveryLog(deliveryLog);
+
+  return {
+    success: dispatchResult.success,
+    status: dispatchResult.status,
+    error: dispatchResult.error,
+    httpStatus: dispatchResult.httpStatus,
+    apiResponse: dispatchResult.apiResponse,
+    messageId: dispatchResult.messageId,
+    setupId,
+    liveMarketPrice: livePrice,
+    textSent: testMessage
+  };
+}
+
+/**
  * Builds the exact approved Telegram initial signal message format.
  */
 export function buildApprovedSignalMessage(payload: TelegramSignalPayload): string {

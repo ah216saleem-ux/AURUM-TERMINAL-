@@ -1,13 +1,18 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import { analyzePhaseX, cancelPhaseXSetup, getPhaseXTradeHistory, runPhase4VerificationSuite, runPhase5VerificationSuite } from './phaseXEngine';
 import { ASSET_CONFIGS } from './marketDataRouter';
-import { getTelegramServiceStatus, runTelegramVerificationSuite, sendTelegramConnectionTest } from './phaseXTelegramService';
+import { getTelegramServiceStatus, runTelegramVerificationSuite, sendTelegramConnectionTest, sendPhaseXApprovedSignalPreviewTest } from './phaseXTelegramService';
 import {
   getPersistentPhaseXLiveHistory,
   calculatePhaseXPerformanceMetrics,
   runPhaseXLiveValidationSuite,
   auditTelegramConsistency
 } from './phaseXLiveHistoryService';
+import {
+  getPhaseXDiagnostics,
+  startPhaseXBackgroundScanner,
+  stopPhaseXBackgroundScanner
+} from './phaseXBackgroundScanner';
 
 interface AttemptTracker {
   count: number;
@@ -259,6 +264,29 @@ export async function handlePhaseXRequest(req: IncomingMessage, res: ServerRespo
       return true;
     }
 
+    if (pathname === '/api/phase-x/diagnostics') {
+      const diag = getPhaseXDiagnostics();
+      res.statusCode = 200;
+      res.end(JSON.stringify(diag));
+      return true;
+    }
+
+    if (pathname === '/api/phase-x/start-scanning' && req.method === 'POST') {
+      startPhaseXBackgroundScanner();
+      const diag = getPhaseXDiagnostics();
+      res.statusCode = 200;
+      res.end(JSON.stringify({ success: true, message: 'Continuous 2.5s live market scanning started', diagnostics: diag }));
+      return true;
+    }
+
+    if (pathname === '/api/phase-x/stop-scanning' && req.method === 'POST') {
+      stopPhaseXBackgroundScanner();
+      const diag = getPhaseXDiagnostics();
+      res.statusCode = 200;
+      res.end(JSON.stringify({ success: true, message: 'Continuous live scanning stopped', diagnostics: diag }));
+      return true;
+    }
+
     if (pathname === '/api/phase-x/telegram-status') {
       const status = getTelegramServiceStatus();
       res.statusCode = 200;
@@ -268,6 +296,13 @@ export async function handlePhaseXRequest(req: IncomingMessage, res: ServerRespo
 
     if (pathname === '/api/phase-x/test-telegram-connection') {
       const testResult = await sendTelegramConnectionTest();
+      res.statusCode = 200;
+      res.end(JSON.stringify(testResult));
+      return true;
+    }
+
+    if (pathname === '/api/phase-x/test-approved-signal-dispatch' && req.method === 'POST') {
+      const testResult = await sendPhaseXApprovedSignalPreviewTest();
       res.statusCode = 200;
       res.end(JSON.stringify(testResult));
       return true;

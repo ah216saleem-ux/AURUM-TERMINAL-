@@ -501,3 +501,34 @@ export interface TelegramServiceStatus {
   }>;
 }
 
+export interface PhaseXEngineDiagnostics {
+  currentMarketPrice: number;
+  currentMarketStructure: string;
+  currentSetupStatus: string;
+  currentPhaseGate: string;
+  engineState: 'WAIT' | 'SEARCHING' | 'APPROVED' | 'REJECTED' | 'SENT' | 'ACTIVE';
+  rejectionReason: string | null;
+  lastAnalysisTimestamp: number;
+  lastSignalTimestamp: number | null;
+  lastTelegramDispatchTimestamp: number | null;
+  telegramDispatchResponse: {
+    status: string;
+    dispatched: boolean;
+    recipientChatId?: string;
+    timestamp?: number;
+    error?: string;
+  } | null;
+  nextSetupSearchStatus: string;
+  isContinuousScanningActive: boolean;
+  setupId: string | null;
+  direction: string;
+  preferredEntry: number | null;
+  entryZone: string | null;
+  distanceFromEntry: number | null;
+  distanceFromEntryAtr: number | null;
+  totalScanCount: number;
+  tradeConfidence: number;
+  cleanWaitState: string | null;
+}
+
+

@@ -4,6 +4,7 @@ import { PhaseX3DCore, Phase3DMarketState } from './PhaseX3DCore';
 import { PhaseXActiveTradeCard } from './PhaseXActiveTradeCard';
 import { PhaseXHistoryAndVerification } from './PhaseXHistoryAndVerification';
 import { PhaseXLivePerformanceAndHistory } from './PhaseXLivePerformanceAndHistory';
+import { PhaseXLiveDiagnosticsPanel } from './PhaseXLiveDiagnosticsPanel';
 import { 
   PhaseXResult, 
   PhaseXFinalDirection, 
@@ -480,6 +481,9 @@ export const PhaseXView: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* 4. Real-Time Phase X Engine & Telegram Dispatch Diagnostics Panel */}
+      <PhaseXLiveDiagnosticsPanel />
 
       {/* Error / Data Status Banner */}
       {errorNotice && (
