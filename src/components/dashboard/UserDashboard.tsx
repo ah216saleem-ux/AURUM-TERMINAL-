@@ -14,6 +14,7 @@ import {
 import { MarketItem, AiTradeSignal } from '../../types';
 import { getPaperTradeRecords, computePaperTradeAnalytics } from '../../data/paperTradingTracker';
 import { signalGovernanceService } from '../../services/signalGovernanceService';
+import { userService } from '../../services/userService';
 import { GovernedSignalCard } from '../GovernedSignalCard';
 import { SimplePerformanceSummary } from './SimplePerformanceSummary';
 import { ActiveTradeMonitor } from './ActiveTradeMonitor';
@@ -139,8 +140,11 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               <GovernedSignalCard
                 key={signal.id}
                 signal={signal}
-                isAdmin={false} // Keeps internal technical calculations hidden for clean user experience
+                isAdmin={userService.getRole() === 'ADMIN'}
                 onSendTelegram={onSendTelegram}
+                onRefreshGovernance={() => {
+                  setPaperTrades(getPaperTradeRecords());
+                }}
                 onOpenAssetDetail={(assetId) => {
                   const m = markets.find(item => item.id === assetId || item.symbol.toLowerCase() === assetId.toLowerCase());
                   if (m && onSelectMarket) onSelectMarket(m);

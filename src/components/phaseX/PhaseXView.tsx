@@ -1,151 +1,75 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useMarket } from '../../context/MarketContext';
-import { marketDataService } from '../../services/marketDataService';
-import { PhaseX3DCore, Phase3DMarketState } from './PhaseX3DCore';
-import { PhaseXActiveTradeCard } from './PhaseXActiveTradeCard';
-import { PhaseXHistoryAndVerification } from './PhaseXHistoryAndVerification';
-import { PhaseXLivePerformanceAndHistory } from './PhaseXLivePerformanceAndHistory';
-import { PhaseXLiveDiagnosticsPanel } from './PhaseXLiveDiagnosticsPanel';
-import { PhaseXMultiStrategyPanel } from './PhaseXMultiStrategyPanel';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
-  PhaseXResult, 
-  PhaseXFinalDirection, 
-  PhaseXExecutionStatus, 
-  PhaseXWaitReasonCode, 
-  PhaseXEngineDetails 
-} from './PhaseXTypes';
-import { 
-  ChevronDown, 
-  ChevronUp, 
-  RefreshCw, 
+  Lock, 
+  LockOpen, 
+  KeyRound, 
+  X, 
+  Activity, 
+  Radio, 
+  CheckCircle2, 
   Clock, 
-  AlertCircle,
-  Cpu,
-  Crosshair,
-  TrendingUp,
+  ShieldCheck, 
+  TrendingUp, 
   TrendingDown,
-  PauseCircle,
-  Activity,
-  Layers,
-  ShieldAlert,
-  Target,
-  Lock,
-  LockOpen,
-  KeyRound,
-  X,
-  ShieldCheck,
-  CheckCircle2,
-  Database,
-  Radio
+  AlertCircle
 } from 'lucide-react';
+import { PhaseXLiveDiagnosticsPanel } from './PhaseXLiveDiagnosticsPanel';
+import { PhaseXLivePerformanceAndHistory } from './PhaseXLivePerformanceAndHistory';
+import { PhaseXHistoryAndVerification } from './PhaseXHistoryAndVerification';
 
-// Phase X operates exclusively in XAU/USD Auto-Signal Mode
-const DEDICATED_ASSET = {
-  id: 'xau-usd',
-  symbol: 'XAU/USD',
-  name: 'Gold Spot',
-  category: 'Commodities'
-};
+interface LiveStateData {
+  livePrice: number;
+  tickAgeSeconds: number;
+  tickStatus: 'LIVE' | 'LIVE_AMBER' | 'STALE' | 'OFFLINE';
+  pipelineState: 'MONITORING MARKET' | 'ANALYZING MARKET' | 'WAITING FOR SETUP' | 'SETUP DETECTED' | 'QUALITY CHECK' | 'SIGNAL ACTIVE' | 'TP HIT' | 'SL HIT' | 'SIGNAL EXPIRED';
+  cooldownRemainingSeconds: number;
+  activeSignal: {
+    setupId: string;
+    direction: 'BUY' | 'SELL';
+    preferredEntry: number;
+    stopLoss: number;
+    takeProfit1: number;
+    takeProfit2: number;
+    riskRewardRatio: string;
+    tradeConfidence: number;
+    startedAt: number;
+    signalAgeMinutes: number;
+    signalAgeFormatted: string;
+    status: string;
+    tp1Reached: boolean;
+    tp2Reached: boolean;
+    slReached: boolean;
+  } | null;
+  history: Array<{
+    setupId: string;
+    timeFormatted: string;
+    timestamp: number;
+    direction: 'BUY' | 'SELL';
+    result: 'TP1 HIT' | 'TP2 HIT' | 'SL HIT' | 'EXPIRED';
+    rMultiple: string;
+  }>;
+}
 
 export const PhaseXView: React.FC = () => {
-  const { markets, isDataConnected, dataConnectedStatus } = useMarket();
+  const [liveData, setLiveData] = useState<LiveStateData>({
+    livePrice: 0,
+    tickAgeSeconds: 0,
+    tickStatus: 'OFFLINE',
+    pipelineState: 'MONITORING MARKET',
+    cooldownRemainingSeconds: 0,
+    activeSignal: null,
+    history: []
+  });
 
-  const selectedAssetId = 'xau-usd';
-  const isEvaluatingRef = React.useRef(false);
-  const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
-  const [analysisResult, setAnalysisResult] = useState<PhaseXResult | null>(null);
-  const [errorNotice, setErrorNotice] = useState<string | null>(null);
-  const [lastEvaluatedAt, setLastEvaluatedAt] = useState<string>('');
+  const [telegramConnected, setTelegramConnected] = useState<boolean>(true);
 
-  // Admin Telemetry Panels Access Control State
+  // Admin Access Control
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
   const [showAdminModal, setShowAdminModal] = useState<boolean>(false);
   const [adminPasswordInput, setAdminPasswordInput] = useState<string>('');
   const [adminAuthError, setAdminAuthError] = useState<string | null>(null);
   const [isAuthSubmitting, setIsAuthSubmitting] = useState<boolean>(false);
-
-  // Collapsible States for Admin Panels
-  const [showEngineDetails1, setShowEngineDetails1] = useState<boolean>(false);
-  const [showEngineDetails2, setShowEngineDetails2] = useState<boolean>(false);
-  const [showEngineDetails5, setShowEngineDetails5] = useState<boolean>(false);
-  const [showEngineDetails3, setShowEngineDetails3] = useState<boolean>(false);
-
-  // Get active market from context for live price display
-  const activeMarket = markets.find(m => m.id === selectedAssetId);
-  const activeMarketPriceRef = useRef<number | undefined>(activeMarket?.price);
-  
-  // Real-time 1-Second Live Price & Tick Age Tracker (Requirement 1, 2, 3, 4, 5)
-  const [liveTickInfo, setLiveTickInfo] = useState<{
-    price: number;
-    timestamp: number;
-    ageSeconds: number;
-    isStale: boolean;
-    source: string;
-  }>(() => {
-    const debug = marketDataService.getDebugInfo(selectedAssetId);
-    const currPrice = debug.currentPrice || activeMarket?.price || 0;
-    const ts = debug.lastTickTimestamp || (currPrice > 0 ? Date.now() : 0);
-    const age = ts > 0 ? Math.max(0, Math.floor((Date.now() - ts) / 1000)) : 0;
-    return {
-      price: currPrice,
-      timestamp: ts,
-      ageSeconds: age,
-      isStale: age > 60 || currPrice === 0,
-      source: debug.source || 'BIQUOTE Gold Spot Feed'
-    };
-  });
-
-  // 1-Second Live Price Update & Streaming Tick Synchronization
-  useEffect(() => {
-    // 1. Capture real-time streaming ticks immediately upon arrival
-    const unsubscribe = marketDataService.subscribe(({ markets: incomingMarkets }) => {
-      const xauIncoming = incomingMarkets[selectedAssetId];
-      if (xauIncoming && xauIncoming.price != null && xauIncoming.price > 0) {
-        const ts = xauIncoming.lastTickTimestamp || Date.now();
-        const age = Math.max(0, Math.floor((Date.now() - ts) / 1000));
-        activeMarketPriceRef.current = xauIncoming.price;
-        setLiveTickInfo({
-          price: xauIncoming.price,
-          timestamp: ts,
-          ageSeconds: age,
-          isStale: age > 60,
-          source: 'BIQUOTE Gold Spot Feed'
-        });
-      }
-    });
-
-    // 2. Strict 1-Second Refresh Loop: re-evaluates newest tick, updates exact tick age, and checks 60s freshness
-    const oneSecondInterval = setInterval(() => {
-      const debug = marketDataService.getDebugInfo(selectedAssetId);
-      const currPrice = debug.currentPrice || activeMarketPriceRef.current || 0;
-      const ts = debug.lastTickTimestamp || (currPrice > 0 ? Date.now() : 0);
-      const age = ts > 0 ? Math.max(0, Math.floor((Date.now() - ts) / 1000)) : 999;
-      const isStale = age > 60 || currPrice === 0;
-
-      if (currPrice > 0) {
-        activeMarketPriceRef.current = currPrice;
-      }
-
-      setLiveTickInfo({
-        price: currPrice,
-        timestamp: ts,
-        ageSeconds: age,
-        isStale,
-        source: debug.source || 'BIQUOTE Gold Spot Feed'
-      });
-    }, 1000);
-
-    return () => {
-      unsubscribe();
-      clearInterval(oneSecondInterval);
-    };
-  }, [selectedAssetId]);
-
-  useEffect(() => {
-    if (activeMarket?.price && activeMarket.price > 0) {
-      activeMarketPriceRef.current = activeMarket.price;
-    }
-  }, [activeMarket?.price]);
+  const [adminTab, setAdminTab] = useState<'diagnostics' | 'history' | 'verification'>('diagnostics');
 
   // Verify stored session token on mount
   useEffect(() => {
@@ -166,74 +90,47 @@ export const PhaseXView: React.FC = () => {
     }
   }, []);
 
-  // Autonomous Multi-Timeframe Analysis with Phase 4 Live Management
-  const handleAnalyzePhase = useCallback(async () => {
-    if (isEvaluatingRef.current) return;
-    isEvaluatingRef.current = true;
-    setIsAnalyzing(true);
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-    try {
-      const storedToken = sessionStorage.getItem('phase_x_admin_token');
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (storedToken) {
-        headers['Authorization'] = `Bearer ${storedToken}`;
-      }
-
-      const res = await fetch('/api/phase-x/analyze', {
-        method: 'POST',
-        headers,
-        signal: controller.signal,
-        body: JSON.stringify({
-          assetId: 'xau-usd',
-          clientLivePrice: activeMarketPriceRef.current
-        })
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!res.ok) {
-        throw new Error(`Server returned status ${res.status}`);
-      }
-
-      const data: PhaseXResult = await res.json();
-      setAnalysisResult(data);
-      setErrorNotice(null);
-      setLastEvaluatedAt(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-    } catch (err: any) {
-      clearTimeout(timeoutId);
-      if (err?.name !== 'AbortError') {
-        console.warn('[PhaseXView] Market feed sync notification:', err?.message || err);
-      }
-      setErrorNotice('WAIT — MARKET DATA (Waiting for verified market data feed)');
-    } finally {
-      setIsAnalyzing(false);
-      isEvaluatingRef.current = false;
-    }
+  // Poll 1-second live state
+  const fetchLiveState = useCallback(() => {
+    fetch('/api/phase-x/live-state')
+      .then(res => res.json())
+      .then((data: LiveStateData) => {
+        if (data && typeof data.livePrice === 'number') {
+          setLiveData(data);
+        }
+      })
+      .catch(() => {});
   }, []);
 
-  // Initial autonomous analysis on mount + continuous evaluation loop (every 4 seconds)
+  // Poll Telegram status
+  const fetchTelegramStatus = useCallback(() => {
+    fetch('/api/phase-x/telegram-status')
+      .then(res => res.json())
+      .then(data => {
+        setTelegramConnected(!!(data.configured && data.hasBotToken && data.hasChatId));
+      })
+      .catch(() => setTelegramConnected(false));
+  }, []);
+
   useEffect(() => {
-    handleAnalyzePhase();
-
+    fetchLiveState();
+    fetchTelegramStatus();
     const interval = setInterval(() => {
-      handleAnalyzePhase();
-    }, 4000);
+      fetchLiveState();
+    }, 1000);
+    const tgInterval = setInterval(fetchTelegramStatus, 10000);
 
-    return () => clearInterval(interval);
-  }, [handleAnalyzePhase]);
+    return () => {
+      clearInterval(interval);
+      clearInterval(tgInterval);
+    };
+  }, [fetchLiveState, fetchTelegramStatus]);
 
-  const current3DState: Phase3DMarketState = analysisResult?.marketPhase || 'WAIT';
-  const confidenceScore = analysisResult?.tradeConfidence || analysisResult?.confidence || 75;
-
-  // Server-Side Admin Auth Verification Handler
+  // Handle Admin Unlock
   const handleAdminAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!adminPasswordInput.trim()) return;
-    setIsAuthSubmitting(true);
     setAdminAuthError(null);
+    setIsAuthSubmitting(true);
 
     try {
       const res = await fetch('/api/phase-x/admin-auth', {
@@ -241,1341 +138,502 @@ export const PhaseXView: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: adminPasswordInput })
       });
-
       const data = await res.json();
-      if (res.ok && data.success && data.token) {
+      if (data.success && data.token) {
         sessionStorage.setItem('phase_x_admin_token', data.token);
         setIsAdminAuthenticated(true);
         setShowAdminModal(false);
         setAdminPasswordInput('');
-        setShowEngineDetails1(true);
-        setShowEngineDetails2(true);
-        setShowEngineDetails3(true);
-        handleAnalyzePhase();
       } else {
-        setAdminAuthError(data.message || 'ACCESS DENIED — INVALID ADMIN PASSWORD');
+        setAdminAuthError(data.message || 'Invalid admin password.');
       }
     } catch (err: any) {
-      setAdminAuthError('ACCESS DENIED — SERVER AUTHENTICATION ERROR');
+      setAdminAuthError('Authentication failed. Check network connection.');
     } finally {
       setIsAuthSubmitting(false);
     }
   };
 
-  // Lock Admin Session Handler
   const handleAdminLogout = () => {
     sessionStorage.removeItem('phase_x_admin_token');
     setIsAdminAuthenticated(false);
-    setShowEngineDetails1(false);
-    setShowEngineDetails2(false);
-    setShowEngineDetails5(false);
-    setShowEngineDetails3(false);
-    handleAnalyzePhase();
   };
 
-  // Panel Toggles with Access Control Gate
-  const handleTogglePanel1 = () => {
-    if (!isAdminAuthenticated) {
-      setAdminAuthError(null);
-      setAdminPasswordInput('');
-      setShowAdminModal(true);
-    } else {
-      setShowEngineDetails1(prev => !prev);
-    }
-  };
+  // Pipeline Stepper Steps
+  const steps = [
+    { label: 'MONITORING MARKET', key: 'MONITORING MARKET' },
+    { label: 'ANALYZING MARKET', key: 'ANALYZING MARKET' },
+    { label: 'WAITING FOR SETUP', key: 'WAITING FOR SETUP' },
+    { label: 'QUALITY CHECK', key: 'QUALITY CHECK' },
+    { label: 'SIGNAL ACTIVE', key: 'SIGNAL ACTIVE' }
+  ];
 
-  const handleTogglePanel2 = () => {
-    if (!isAdminAuthenticated) {
-      setAdminAuthError(null);
-      setAdminPasswordInput('');
-      setShowAdminModal(true);
-    } else {
-      setShowEngineDetails2(prev => !prev);
-    }
-  };
-
-  const handleTogglePanel5 = () => {
-    if (!isAdminAuthenticated) {
-      setAdminAuthError(null);
-      setAdminPasswordInput('');
-      setShowAdminModal(true);
-    } else {
-      setShowEngineDetails5(prev => !prev);
-    }
-  };
-
-  const handleTogglePanel3 = () => {
-    if (!isAdminAuthenticated) {
-      setAdminAuthError(null);
-      setAdminPasswordInput('');
-      setShowAdminModal(true);
-    } else {
-      setShowEngineDetails3(prev => !prev);
-    }
-  };
-
-  // Helper for formatting user-facing WAIT display states strictly without revealing internal strategy terms
-  const getWaitDisplayInfo = (result: PhaseXResult): { title: string; subtitle: string } => {
-    if (liveTickInfo.isStale || liveTickInfo.ageSeconds > 5) {
-      return {
-        title: 'WAIT — MARKET DATA',
-        subtitle: liveTickInfo.isStale 
-          ? `Market data feed is stale (${liveTickInfo.ageSeconds}s old). Waiting for verified tick.`
-          : `Live tick age (${liveTickInfo.ageSeconds}s) exceeds strict 5.0s signal limit. Real-time tick required.`
-      };
-    }
-
-    const cleanState = result.phase5QualityGate?.cleanWaitState || result.displayStatusLabel;
-
-    if (cleanState === 'WAIT — MARKET DATA' || result.waitReasonCode === 'STALE_FEED' || result.waitReasonCode === 'INSUFFICIENT_DATA') {
-      return {
-        title: 'WAIT — MARKET DATA',
-        subtitle: 'Waiting for verified market data.'
-      };
-    }
-
-    if (cleanState === 'WAIT — STRUCTURAL INVALIDATION' || result.waitReasonCode === 'STRUCTURE_INVALIDATED') {
-      return {
-        title: 'WAIT — STRUCTURAL INVALIDATION',
-        subtitle: 'Market structure invalidates setup direction.'
-      };
-    }
-
-    if (cleanState === 'WAIT — RISK NOT QUALIFIED' || result.waitReasonCode === 'RISK_STRUCTURE_UNSUITABLE') {
-      return {
-        title: 'WAIT — RISK NOT QUALIFIED',
-        subtitle: 'Stop loss or risk anchor cannot be safely placed outside noise.'
-      };
-    }
-
-    if (cleanState === 'WAIT — R:R NOT VIABLE' || result.waitReasonCode === 'RR_NOT_VIABLE') {
-      return {
-        title: 'WAIT — R:R NOT VIABLE',
-        subtitle: 'Target path does not provide qualified 2R/3R reward relative to risk.'
-      };
-    }
-
-    if (cleanState === 'WAIT — EXTREME VOLATILITY' || result.waitReasonCode === 'EXTREME_VOLATILITY') {
-      return {
-        title: 'WAIT — EXTREME VOLATILITY',
-        subtitle: 'Current market volatility exceeds safety threshold (>2.5x ATR).'
-      };
-    }
-
-    if (cleanState === 'WAIT — SPREAD UNSAFE') {
-      return {
-        title: 'WAIT — SPREAD UNSAFE',
-        subtitle: 'Spread is too wide relative to risk distance (>15%).'
-      };
-    }
-
-    if (cleanState === 'WAIT — EVENT RISK') {
-      return {
-        title: 'WAIT — EVENT RISK',
-        subtitle: 'High-impact economic release imminent. Capital protected.'
-      };
-    }
-
-    if (cleanState === 'WAIT — ENTRY INVALID') {
-      return {
-        title: 'WAIT — ENTRY INVALID',
-        subtitle: 'Pre-entry structure invalidated prior to execution trigger.'
-      };
-    }
-
-    if (cleanState === 'MISSED ENTRY — DO NOT CHASE' || result.executionStatus === 'MISSED_ENTRY' || result.waitReasonCode === 'ENTRY_EXTENDED') {
-      return {
-        title: 'MISSED ENTRY — DO NOT CHASE',
-        subtitle: 'Price moved beyond entry threshold. Waiting for next opportunity.'
-      };
-    }
-
-    if (cleanState === 'WAIT — CONFIRMATION WEAK' || result.waitReasonCode === 'LOW_CONFIDENCE') {
-      return {
-        title: 'WAIT — CONFIRMATION WEAK',
-        subtitle: 'Additional confirmation is required (Trade Confidence < 75%).'
-      };
-    }
-
-    if (cleanState === 'WAIT — DUPLICATE SETUP') {
-      return {
-        title: 'WAIT — DUPLICATE SETUP',
-        subtitle: 'Active setup already under live risk management.'
-      };
-    }
-
-    if (
-      result.waitReasonCode === 'EXECUTION_STRUCTURE_UNCONFIRMED' ||
-      result.executionStatus === 'WAITING_FOR_ENTRY' ||
-      (result.userOutputState && result.userOutputState.includes('DEVELOPING'))
-    ) {
-      return {
-        title: 'WAIT — ENTRY FORMING',
-        subtitle: 'Market conditions detected. Waiting for final confirmation.'
-      };
-    }
-
-    return {
-      title: cleanState || 'WAIT — SETUP NOT CONFIRMED',
-      subtitle: 'PHASE X is scanning for a high-confidence entry.'
-    };
-  };
-
-  const liveDetails = analysisResult?.engineDetails?.liveTradeDetails;
-  const decimals = analysisResult?.engineDetails?.decimals || 2;
+  const currentStepKey = liveData.pipelineState;
+  const activeSig = liveData.activeSignal;
 
   return (
-    <div className="w-full space-y-4 font-sans selection:bg-amber-500/20 selection:text-amber-200">
-      {/* 1. Header Section */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 sm:p-4 rounded-2xl bg-gradient-to-r from-[#0d101d] via-[#090b14] to-[#07080d] border border-amber-500/30 shadow-xl">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 p-[1px] shadow-lg shadow-amber-500/10">
-            <div className="w-full h-full rounded-[11px] bg-[#08090f] flex items-center justify-center">
-              <Crosshair className="w-5 h-5 text-amber-400" />
-            </div>
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-base sm:text-lg font-black font-mono-num tracking-wider text-white">
-                PHASE X
-              </h1>
-              <span className="px-2 py-0.5 rounded-full text-[9.5px] font-mono font-bold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                PHASE 5 ENGINE
-              </span>
-            </div>
-            <p className="text-[11px] text-zinc-400 font-medium">
-              Market Cycle Intelligence • Precision Entry • Protected SL & Take Profit • Live Trade Management • Final Quality Gate
-            </p>
-          </div>
-        </div>
+    <div className="min-h-screen bg-[#0B0D10] text-zinc-100 font-sans p-4 sm:p-6 md:p-8 flex flex-col justify-between selection:bg-[#D4AF37]/30 selection:text-[#D4AF37]">
+      <div className="max-w-4xl mx-auto w-full space-y-6">
 
-        <div className="flex items-center gap-2 font-mono text-xs">
-          {isAdminAuthenticated && (
-            <button
-              onClick={handleAdminLogout}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 hover:bg-amber-500/30 text-[11px] font-bold transition cursor-pointer"
-            >
-              <Lock className="w-3.5 h-3.5 text-amber-400" />
-              <span>LOCK ADMIN SESSION</span>
-            </button>
-          )}
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-zinc-900/90 border border-zinc-800 text-zinc-400 text-[11px]">
-            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-            <span>Deterministic Tick Evaluation</span>
-          </span>
-        </div>
-      </div>
-
-      {/* 2. PHASE X — AI Intelligence Network 3D Visualization */}
-      <PhaseX3DCore
-        marketState={current3DState}
-        confidence={confidenceScore}
-        isAnalyzing={isAnalyzing}
-      />
-
-      {/* 3. Dedicated Autonomous XAU/USD Monitoring Control Bar */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-[#0a0c16] border border-amber-500/30 shadow-xl font-mono space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          {/* Left: Dedicated XAU/USD Asset & Real-Time Price */}
+        {/* 1. HEADER BAR */}
+        <header className="bg-[#12161C] border border-[#1E252E] rounded-2xl p-4 sm:p-5 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 p-[1px] shadow-lg shadow-amber-500/10 shrink-0">
-              <div className="w-full h-full rounded-[11px] bg-[#090b14] flex items-center justify-center">
-                <Crosshair className="w-6 h-6 text-amber-400" />
-              </div>
+            <div className="p-2.5 rounded-xl bg-[#D4AF37]/10 border border-[#D4AF37]/30 text-[#D4AF37]">
+              <Activity className="w-6 h-6 animate-pulse" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-lg sm:text-xl font-black text-white tracking-wider">
-                  XAU/USD
-                </span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                  GOLD SPOT
-                </span>
-                <span className="hidden sm:inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-zinc-800/80 text-zinc-300 border border-zinc-700">
-                  COMMODITIES
+                <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                  XAU/USD — Gold Spot
+                </h1>
+                {/* Admin Unlock Button */}
+                <button
+                  onClick={() => setShowAdminModal(true)}
+                  className="p-1 rounded-lg text-zinc-500 hover:text-[#D4AF37] hover:bg-[#1E252E] transition-colors"
+                  title={isAdminAuthenticated ? "Admin Panel Unlocked" : "Unlock Admin Panel"}
+                >
+                  {isAdminAuthenticated ? (
+                    <LockOpen className="w-4 h-4 text-emerald-400" />
+                  ) : (
+                    <Lock className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-zinc-400 font-mono mt-0.5">
+                <span>Real MT5 Feed</span>
+                <span>•</span>
+                <span className="text-zinc-300 font-medium">
+                  Tick Age: {liveData.tickAgeSeconds <= 0 ? '< 1s' : `${liveData.tickAgeSeconds}s`} ago
                 </span>
               </div>
-              <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 text-xs text-zinc-400 pt-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 ${
-                    liveTickInfo.isStale ? 'text-amber-400' : 'text-emerald-400'
+            </div>
+          </div>
+
+          {/* Right Header Controls: Live Price & Status Badge */}
+          <div className="flex items-center justify-between sm:justify-end gap-4 border-t sm:border-t-0 border-[#1E252E] pt-3 sm:pt-0">
+            <div className="text-right font-mono">
+              <div className="text-2xl sm:text-3xl font-black text-white tracking-wider tabular-nums">
+                {liveData.livePrice > 0 ? `$${liveData.livePrice.toFixed(2)}` : '—'}
+              </div>
+              <div className="text-[11px] text-zinc-400 uppercase tracking-wider">
+                XAU/USD Live Spot
+              </div>
+            </div>
+
+            {/* Live Status Badge */}
+            <div>
+              {liveData.tickStatus === 'LIVE' && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
+                  LIVE
+                </span>
+              )}
+              {liveData.tickStatus === 'LIVE_AMBER' && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" />
+                  LIVE
+                </span>
+              )}
+              {(liveData.tickStatus === 'STALE' || liveData.tickStatus === 'OFFLINE') && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">
+                  <span className="w-2 h-2 rounded-full bg-rose-400 shrink-0" />
+                  STALE
+                </span>
+              )}
+            </div>
+          </div>
+        </header>
+
+        {/* 2. PIPELINE STEPPER / STATUS BAR */}
+        <section className="bg-[#12161C] border border-[#1E252E] rounded-2xl p-3 sm:p-4 shadow-md">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-2 overflow-x-auto">
+            {steps.map((step, idx) => {
+              const isActive = currentStepKey === step.key;
+              return (
+                <div key={step.key} className="flex items-center gap-2 text-xs font-mono w-full sm:w-auto justify-between sm:justify-start">
+                  <div className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl border transition-all ${
+                    isActive 
+                      ? 'bg-[#D4AF37]/15 text-[#D4AF37] border-[#D4AF37]/40 font-bold shadow-sm'
+                      : 'bg-transparent text-zinc-500 border-transparent'
                   }`}>
-                    <span className={`w-2 h-2 rounded-full ${
-                      liveTickInfo.isStale ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400 animate-pulse'
-                    }`} />
-                    {liveTickInfo.isStale ? 'VERIFIED LIVE PRICE (XAU/USD) — STALE' : 'VERIFIED LIVE PRICE'}
+                    {isActive ? (
+                      <span className="w-2 h-2 rounded-full bg-[#D4AF37] animate-ping shrink-0" />
+                    ) : (
+                      <span className="w-1.5 h-1.5 rounded-full bg-zinc-700 shrink-0" />
+                    )}
+                    <span>{step.label}</span>
+                  </div>
+                  {idx < steps.length - 1 && (
+                    <span className="hidden sm:inline text-zinc-700 font-bold">›</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* 3. MAIN CARD: ACTIVE SIGNAL vs WAITING CARD */}
+        {activeSig && activeSig.status === 'ACTIVE' ? (
+          /* ACTIVE SIGNAL CARD */
+          <div className="bg-[#12161C] border border-emerald-500/40 rounded-2xl p-6 shadow-2xl space-y-6 relative overflow-hidden transition-all duration-300">
+            {/* Ambient Top Glow */}
+            <div className="absolute -top-16 left-1/2 -translate-x-1/2 w-3/4 h-32 bg-emerald-500/10 blur-3xl pointer-events-none" />
+
+            {/* Signal Header Row */}
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#1E252E] pb-4">
+              <div className="flex items-center gap-3">
+                {activeSig.direction === 'BUY' ? (
+                  <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-lg font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-emerald-500/10">
+                    <TrendingUp className="w-5 h-5" />
+                    BUY
                   </span>
-                  <span className="text-zinc-600">|</span>
-                  <span className="text-sm sm:text-base font-black text-white font-mono">
-                    XAU/USD: <span className="text-amber-300 font-black">${(liveTickInfo.price > 0 ? liveTickInfo.price : (activeMarket?.price ?? analysisResult?.currentLivePrice ?? 0)).toFixed(2)}</span>
+                ) : (
+                  <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-lg font-black bg-rose-500/20 text-rose-400 border border-rose-500/50 shadow-rose-500/10">
+                    <TrendingDown className="w-5 h-5" />
+                    SELL
+                  </span>
+                )}
+                <span className="text-xs font-mono font-bold text-zinc-400 px-2.5 py-1 rounded-lg bg-[#1E252E]">
+                  Timeframe: 15M
+                </span>
+              </div>
+
+              <div className="flex items-center gap-3 text-xs font-mono">
+                <span className="text-zinc-400">Signal Age:</span>
+                <span className="px-2.5 py-1 rounded-lg bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/30 font-bold flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5" />
+                  Active • {activeSig.signalAgeFormatted}
+                </span>
+              </div>
+            </div>
+
+            {/* Price Targets Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 font-mono">
+              {/* Entry */}
+              <div className="p-3.5 rounded-xl bg-[#0B0D10] border border-[#1E252E] flex items-center justify-between">
+                <span className="text-xs text-zinc-400 font-bold uppercase">Entry</span>
+                <span className="text-base font-black text-white tabular-nums">
+                  ${activeSig.preferredEntry.toFixed(2)}
+                </span>
+              </div>
+
+              {/* Stop Loss */}
+              <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-between">
+                <span className="text-xs text-rose-400 font-bold uppercase">Stop Loss</span>
+                <span className="text-base font-black text-rose-400 tabular-nums">
+                  ${activeSig.stopLoss.toFixed(2)}
+                </span>
+              </div>
+
+              {/* Take Profit 1 */}
+              <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-emerald-400 font-bold uppercase">Take Profit 1</span>
+                  {activeSig.tp1Reached && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/30 text-emerald-300">HIT</span>
+                  )}
+                </div>
+                <span className="text-base font-black text-emerald-400 tabular-nums">
+                  ${activeSig.takeProfit1.toFixed(2)}
+                </span>
+              </div>
+
+              {/* Take Profit 2 */}
+              <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-emerald-400 font-bold uppercase">Take Profit 2</span>
+                  {activeSig.tp2Reached && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/30 text-emerald-300">HIT</span>
+                  )}
+                </div>
+                <span className="text-base font-black text-emerald-400 tabular-nums">
+                  ${activeSig.takeProfit2.toFixed(2)}
+                </span>
+              </div>
+            </div>
+
+            {/* Metrics Row: Risk/Reward, Confidence, Status */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-[#1E252E]">
+              <div>
+                <span className="text-[11px] text-zinc-400 font-mono block mb-1">Risk / Reward</span>
+                <span className="text-sm font-bold font-mono text-white">
+                  {activeSig.riskRewardRatio || '1:2 / 1:3'}
+                </span>
+              </div>
+
+              <div>
+                <span className="text-[11px] text-zinc-400 font-mono block mb-1">Confidence</span>
+                <div className="flex items-center gap-2">
+                  <div className="w-full bg-[#1E252E] h-1.5 rounded-full overflow-hidden">
+                    <div 
+                      className="bg-emerald-400 h-full rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min(100, Math.max(0, activeSig.tradeConfidence))}%` }}
+                    />
+                  </div>
+                  <span className="text-xs font-bold font-mono text-emerald-400">
+                    {Math.round(activeSig.tradeConfidence)}%
                   </span>
                 </div>
-                <div className="flex items-center gap-2 text-[11px] text-zinc-400 font-mono">
-                  <span className="text-zinc-600 hidden sm:inline">•</span>
-                  <span className={liveTickInfo.isStale ? 'text-amber-400 font-medium' : 'text-zinc-300'}>
-                    {liveTickInfo.isStale ? 'Stale Tick' : 'Live Tick'} • Age: {liveTickInfo.ageSeconds}s ago
-                  </span>
-                  <span className="text-zinc-600">•</span>
-                  <span>15M Confirmation Bar: <strong className="text-zinc-300 font-mono">${(analysisResult?.signalConfirmationPrice ?? 0).toFixed(2)}</strong></span>
-                </div>
+              </div>
+
+              <div className="text-right">
+                <span className="text-[11px] text-zinc-400 font-mono block mb-1">Status</span>
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold font-mono text-emerald-400">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  ACTIVE
+                </span>
               </div>
             </div>
           </div>
-
-          {/* Right: AUTO MONITORING Indicator & Current Status */}
-          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
-            {/* Clear AUTO MONITORING Indicator */}
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-950/50 border border-emerald-500/40 text-emerald-300 text-xs font-bold shadow-lg shadow-emerald-500/10">
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-              </span>
-              <span className="tracking-wide">AUTO MONITORING: ACTIVE</span>
+        ) : (
+          /* WAITING CARD */
+          <div className="bg-[#12161C] border border-[#1E252E] rounded-2xl p-8 sm:p-10 shadow-lg text-center space-y-6 relative overflow-hidden">
+            <div className="w-12 h-12 rounded-2xl bg-[#D4AF37]/10 border border-[#D4AF37]/30 text-[#D4AF37] flex items-center justify-center mx-auto">
+              <Radio className="w-6 h-6 animate-pulse" />
             </div>
 
-            {/* Current Engine Status */}
-            <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold ${
-              analysisResult?.executionStatus === 'READY'
-                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50'
-                : analysisResult?.executionStatus === 'ACTIVE'
-                ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50'
-                : analysisResult?.executionStatus === 'WAITING_FOR_ENTRY'
-                ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
-                : 'bg-zinc-900 border-zinc-800 text-zinc-300'
-            }`}>
-              <span className="text-[10px] text-zinc-400 font-normal uppercase">Status:</span>
-              <span className="tracking-wider">
-                {!analysisResult
-                  ? 'CONNECTING...'
-                  : analysisResult.finalDirection === 'WAIT' || analysisResult.executionStatus === 'WAIT'
-                  ? analysisResult.displayStatusLabel || 'WAIT'
-                  : analysisResult.executionStatus === 'READY'
-                  ? `READY (${analysisResult.finalDirection})`
-                  : analysisResult.executionStatus === 'WAITING_FOR_ENTRY'
-                  ? `PENDING ENTRY (${analysisResult.finalDirection})`
-                  : analysisResult.executionStatus === 'ACTIVE'
-                  ? `ACTIVE (${analysisResult.finalDirection})`
-                  : analysisResult.displayStatusLabel || analysisResult.executionStatus || 'WAIT'}
-              </span>
+            <div className="space-y-1.5 max-w-md mx-auto">
+              <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight">
+                Waiting for Setup
+              </h2>
+              <p className="text-sm text-zinc-400">
+                Market is being monitored automatically for high-confluence setups.
+              </p>
+            </div>
+
+            {/* Empty Placeholders Row */}
+            <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 pt-4 border-t border-[#1E252E] font-mono text-xs">
+              <div className="p-2 rounded-lg bg-[#0B0D10] border border-[#1E252E]">
+                <span className="text-zinc-500 block text-[10px]">Entry</span>
+                <span className="text-zinc-400 font-bold">—</span>
+              </div>
+              <div className="p-2 rounded-lg bg-[#0B0D10] border border-[#1E252E]">
+                <span className="text-zinc-500 block text-[10px]">SL</span>
+                <span className="text-zinc-400 font-bold">—</span>
+              </div>
+              <div className="p-2 rounded-lg bg-[#0B0D10] border border-[#1E252E]">
+                <span className="text-zinc-500 block text-[10px]">TP1</span>
+                <span className="text-zinc-400 font-bold">—</span>
+              </div>
+              <div className="p-2 rounded-lg bg-[#0B0D10] border border-[#1E252E]">
+                <span className="text-zinc-500 block text-[10px]">TP2</span>
+                <span className="text-zinc-400 font-bold">—</span>
+              </div>
+              <div className="p-2 rounded-lg bg-[#0B0D10] border border-[#1E252E]">
+                <span className="text-zinc-500 block text-[10px]">R:R</span>
+                <span className="text-zinc-400 font-bold">—</span>
+              </div>
+              <div className="p-2 rounded-lg bg-[#0B0D10] border border-[#1E252E]">
+                <span className="text-zinc-500 block text-[10px]">Confidence</span>
+                <span className="text-zinc-400 font-bold">—</span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Continuous Monitoring Heartbeat Sub-bar */}
-        <div className="pt-2.5 border-t border-zinc-800/80 flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-400">
-          <div className="flex items-center gap-2">
-            <Radio className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-            <span>Continuous Real-Time Evaluation • Re-evaluating on verified ticks & closed candles</span>
+        {/* 4. SIGNAL HISTORY COMPACT LIST */}
+        <section className="bg-[#12161C] border border-[#1E252E] rounded-2xl p-5 shadow-md space-y-4">
+          <div className="flex items-center justify-between border-b border-[#1E252E] pb-3">
+            <h3 className="text-sm font-bold text-white font-mono flex items-center gap-2">
+              <Clock className="w-4 h-4 text-[#D4AF37]" />
+              Signal History
+            </h3>
+            <span className="text-xs text-zinc-500 font-mono">
+              Recorded Live Signals
+            </span>
           </div>
-          <div className="flex items-center gap-3 font-mono">
-            {isAnalyzing && (
-              <span className="inline-flex items-center gap-1.5 text-amber-400">
-                <RefreshCw className="w-3 h-3 animate-spin" />
-                <span>Evaluating...</span>
-              </span>
-            )}
-            {lastEvaluatedAt && (
-              <span className="text-zinc-500">
-                Last cycle: <strong className="text-zinc-300">{lastEvaluatedAt}</strong>
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
 
-      {/* 4. Real-Time Phase X Engine & Telegram Dispatch Diagnostics Panel */}
-      <PhaseXLiveDiagnosticsPanel />
+          {liveData.history && liveData.history.length > 0 ? (
+            <div className="divide-y divide-[#1E252E]">
+              {liveData.history.map((rec, idx) => (
+                <div key={rec.setupId || idx} className="py-2.5 flex items-center justify-between font-mono text-xs hover:bg-[#1E252E]/30 px-2 rounded-lg transition-colors">
+                  <div className="flex items-center gap-3">
+                    <span className="text-zinc-500">{rec.timeFormatted}</span>
+                    {rec.direction === 'BUY' ? (
+                      <span className="text-emerald-400 font-bold flex items-center gap-1">
+                        🟢 BUY
+                      </span>
+                    ) : (
+                      <span className="text-rose-400 font-bold flex items-center gap-1">
+                        🔴 SELL
+                      </span>
+                    )}
+                  </div>
 
-      {/* Error / Data Status Banner */}
-      {errorNotice && (
-        <div className="p-3.5 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-200 text-xs font-mono flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
-          <span>{errorNotice}</span>
-        </div>
-      )}
+                  <div className="flex items-center gap-3">
+                    {rec.result === 'TP1 HIT' || rec.result === 'TP2 HIT' ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+                        {rec.result}
+                      </span>
+                    ) : rec.result === 'SL HIT' ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/40">
+                        SL HIT
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40">
+                        EXPIRED
+                      </span>
+                    )}
 
-      {/* 4. PHASE X Result Card (Phase 4 Active Trade Card or Strict Clean User WAIT Card) */}
-      {analysisResult && (
-        <>
-          {analysisResult.finalDirection !== 'WAIT' && (analysisResult.executionStatus === 'READY' || analysisResult.executionStatus === 'WAITING_FOR_ENTRY' || analysisResult.liveTradeDetails != null) ? (
-            <PhaseXActiveTradeCard
-              result={analysisResult}
-              onRefresh={() => handleAnalyzePhase()}
-            />
+                    <span className={`w-12 text-right font-bold ${
+                      rec.rMultiple.startsWith('+') ? 'text-emerald-400' : rec.rMultiple.startsWith('-') ? 'text-rose-400' : 'text-zinc-500'
+                    }`}>
+                      {rec.rMultiple}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : (
-            <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-b from-[#0e111d] to-[#07090f] border border-amber-500/40 shadow-2xl space-y-4 font-mono-num relative overflow-hidden">
-              <div className="pointer-events-none absolute -top-16 inset-x-0 h-32 bg-amber-500/10 blur-3xl" />
-
-              {/* Asset Info Header */}
-              <div className="text-center space-y-1">
-                <div className="text-xs font-mono font-semibold text-zinc-400">
-                  {analysisResult.assetName}
-                </div>
-                <div className="text-xl sm:text-2xl font-black text-white tracking-wide">
-                  {analysisResult.symbol}
-                </div>
-                <div className="text-[11px] font-mono text-zinc-400 flex flex-wrap items-center justify-center gap-2 sm:gap-3">
-                  <span className={`font-bold flex items-center gap-1 ${
-                    liveTickInfo.isStale ? 'text-amber-400' : 'text-emerald-400'
-                  }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${
-                      liveTickInfo.isStale ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400 animate-pulse'
-                    }`} />
-                    {liveTickInfo.isStale ? 'VERIFIED LIVE PRICE (XAU/USD) — STALE:' : 'VERIFIED LIVE PRICE:'}
-                  </span>
-                  <span>XAU/USD: <strong className="text-amber-300 font-mono">${(liveTickInfo.price > 0 ? liveTickInfo.price : (activeMarket?.price ?? analysisResult.currentLivePrice)).toFixed(2)}</strong></span>
-                  <span className="text-zinc-600">•</span>
-                  <span className={liveTickInfo.isStale ? 'text-amber-400 font-medium' : 'text-zinc-300'}>
-                    {liveTickInfo.isStale ? 'Stale Tick' : 'Live Tick'} • Age: {liveTickInfo.ageSeconds}s ago
-                  </span>
-                  <span className="text-zinc-600">•</span>
-                  <span>15M Confirmation Bar: <strong className="text-zinc-300 font-mono">${analysisResult.signalConfirmationPrice.toFixed(analysisResult.signalConfirmationPrice < 5 ? 4 : 2)}</strong></span>
-                </div>
-              </div>
-
-              {/* Strict Clean User-Facing WAIT Card without Internal Strategy Terminology */}
-              <div className="text-center pt-2">
-                {(() => {
-                  const waitInfo = getWaitDisplayInfo(analysisResult);
-                  return (
-                    <div className="inline-flex flex-col items-center gap-1.5 p-3.5 sm:px-8 sm:py-4 rounded-2xl bg-amber-500/15 border-2 border-amber-500/60 shadow-lg shadow-amber-500/20 max-w-lg mx-auto">
-                      <div className="flex items-center gap-2 text-amber-300 font-mono font-black text-base sm:text-lg tracking-wider text-center">
-                        <PauseCircle className="w-5 h-5 text-amber-400 shrink-0" />
-                        <span>{waitInfo.title}</span>
-                      </div>
-                      <div className="text-xs font-mono text-zinc-300 text-center font-medium">
-                        {waitInfo.subtitle}
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-
-              {/* Verification Timestamp */}
-              <div className="text-[10px] font-mono text-zinc-400 pt-2 flex items-center justify-center gap-1.5 border-t border-zinc-800/60">
-                <Clock className="w-3 h-3 text-zinc-400" />
-                <span>Closed-candle verified: {analysisResult.engineDetails?.lastClosedCandleTimeFormatted || 'Live Verified'}</span>
-              </div>
+            <div className="py-6 text-center text-xs text-zinc-500 font-mono">
+              No historical trades recorded in current session.
             </div>
           )}
+        </section>
 
-          {/* Multi-Strategy Engine Overview, Live Telemetry & 15-Scenario Validation Suite */}
-          <PhaseXMultiStrategyPanel currentAnalysis={analysisResult} />
-        </>
-      )}
-
-      {/* 5. ADMIN PANEL 1: PHASE X ENGINE DETAILS (Locked for normal user) */}
-      <div className="rounded-2xl bg-[#090b14] border border-amber-500/30 overflow-hidden shadow-lg font-mono">
-        <button
-          onClick={handleTogglePanel1}
-          className="w-full p-3.5 flex items-center justify-between text-xs font-bold text-zinc-300 hover:text-amber-300 transition cursor-pointer bg-gradient-to-r from-[#0d101d] to-[#080911]"
-        >
-          <div className="flex items-center gap-2">
-            {isAdminAuthenticated ? (
-              <LockOpen className="w-4 h-4 text-emerald-400 shrink-0" />
-            ) : (
-              <Lock className="w-4 h-4 text-amber-400 shrink-0" />
-            )}
-            <span className="uppercase tracking-wider font-extrabold text-white">
-              {isAdminAuthenticated ? '🔓' : '🔒'} PHASE X ENGINE DETAILS
-            </span>
-            <span className="text-[10px] text-zinc-400 font-normal">
-              (Admin, Telemetry & Confidence Matrix)
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {!isAdminAuthenticated && (
-              <span className="px-2 py-0.5 rounded text-[9.5px] font-bold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                LOCKED
-              </span>
-            )}
-            {isAdminAuthenticated ? (
-              showEngineDetails1 ? <ChevronUp className="w-4 h-4 text-amber-400" /> : <ChevronDown className="w-4 h-4 text-zinc-400" />
-            ) : (
-              <ChevronDown className="w-4 h-4 text-zinc-500" />
-            )}
-          </div>
-        </button>
-
-        {isAdminAuthenticated && showEngineDetails1 && analysisResult && (
-          <div className="p-4 pt-2 border-t border-zinc-800/80 space-y-3 text-[11px] text-zinc-300 bg-[#07080f]">
-            {/* Phase 3 Stop Loss & Take Profit Telemetry */}
-            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-amber-400 font-bold uppercase text-[10px] flex items-center gap-1.5">
-                  <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Phase 3 Protected SL & TP Mathematical Telemetry</span>
-                </span>
-                <span className="text-[10px] text-zinc-400">
-                  SL Source: <strong className={`font-bold ${analysisResult.engineDetails.slAnchorSource === '5M' ? 'text-emerald-300' : 'text-amber-300'}`}>{analysisResult.engineDetails.slAnchorSource}</strong>
-                </span>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10.5px]">
-                <div className="p-2 rounded-lg bg-black/40 border border-zinc-800/60">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">SL Structural Anchor:</span>
-                  <span className="font-bold text-white">
-                    {analysisResult.engineDetails.slStructuralAnchor != null 
-                      ? `${analysisResult.engineDetails.slStructuralAnchor.toFixed(decimals)} (${analysisResult.engineDetails.slAnchorType})`
-                      : 'N/A'}
-                  </span>
-                </div>
-                <div className="p-2 rounded-lg bg-black/40 border border-zinc-800/60">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">5M ATR & Noise Multiplier:</span>
-                  <span className="font-bold text-amber-300">
-                    ATR: {analysisResult.engineDetails.atr5M} • Mult: {analysisResult.engineDetails.atrBufferMultiplier}x
-                  </span>
-                </div>
-                <div className="p-2 rounded-lg bg-black/40 border border-zinc-800/60">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">Final Protected SL:</span>
-                  <span className="font-bold text-rose-400">
-                    {analysisResult.engineDetails.finalProtectedSL ? analysisResult.engineDetails.finalProtectedSL.toFixed(decimals) : 'N/A'}
-                  </span>
-                </div>
-                <div className="p-2 rounded-lg bg-black/40 border border-zinc-800/60">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">SL Distance & ATR Multiple:</span>
-                  <span className="font-bold text-zinc-200">
-                    {analysisResult.engineDetails.slDistance != null ? `${analysisResult.engineDetails.slDistance.toFixed(decimals)} (${analysisResult.engineDetails.slDistanceAtr} ATR)` : 'N/A'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Phase 2 Trade Decision Telemetry */}
-            <div className="p-3 rounded-xl bg-zinc-900/80 border border-zinc-800 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-amber-400 font-bold uppercase text-[10px] flex items-center gap-1.5">
-                  <Crosshair className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Phase 2 Decision & Precision Entry Telemetry</span>
-                </span>
-                <span className="text-[10px] text-zinc-400">
-                  Setup ID: <strong className="text-zinc-300">{analysisResult.setupId}</strong>
-                </span>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10.5px]">
-                <div className="p-2 rounded-lg bg-black/40 border border-zinc-800/60">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">Final Direction:</span>
-                  <span className="font-bold text-white">{analysisResult.finalDirection}</span>
-                </div>
-                <div className="p-2 rounded-lg bg-black/40 border border-zinc-800/60">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">Execution Status:</span>
-                  <span className="font-bold text-amber-300">{analysisResult.executionStatus}</span>
-                </div>
-                <div className="p-2 rounded-lg bg-black/40 border border-zinc-800/60">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">Trade Confidence:</span>
-                  <span className="font-bold text-white">{analysisResult.tradeConfidence}%</span>
-                </div>
-                <div className="p-2 rounded-lg bg-black/40 border border-zinc-800/60">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">Wait Reason Code:</span>
-                  <span className="font-bold text-zinc-300">{analysisResult.waitReasonCode}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Trade Confidence Breakdown Matrix */}
-            {analysisResult.engineDetails.tradeConfidenceBreakdown && (
-              <div className="p-3 rounded-xl bg-zinc-900/80 border border-zinc-800 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-amber-400 font-bold uppercase text-[10px] flex items-center gap-1.5">
-                    <Layers className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Trade Confidence Scoring Breakdown (Gate: 75%)</span>
-                  </span>
-                  <span className="font-bold text-amber-300 text-[10.5px]">
-                    Total: {analysisResult.engineDetails.tradeConfidenceBreakdown.totalScore} pts
-                  </span>
-                </div>
-                <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 text-[10px]">
-                  <div className="p-1.5 rounded bg-black/40 border border-zinc-800">
-                    <span className="text-zinc-400 block">4H Macro Context:</span>
-                    <span className="font-bold text-zinc-200">{analysisResult.engineDetails.tradeConfidenceBreakdown.htfMacroContextScore} / 15</span>
-                  </div>
-                  <div className="p-1.5 rounded bg-black/40 border border-zinc-800">
-                    <span className="text-zinc-400 block">Wyckoff Phase:</span>
-                    <span className="font-bold text-zinc-200">{analysisResult.engineDetails.tradeConfidenceBreakdown.wyckoffPhaseQualityScore} / 15</span>
-                  </div>
-                  <div className="p-1.5 rounded bg-black/40 border border-zinc-800">
-                    <span className="text-zinc-400 block">Wyckoff Event:</span>
-                    <span className="font-bold text-zinc-200">{analysisResult.engineDetails.tradeConfidenceBreakdown.wyckoffEventQualityScore} / 15</span>
-                  </div>
-                  <div className="p-1.5 rounded bg-black/40 border border-zinc-800">
-                    <span className="text-zinc-400 block">30M Setup:</span>
-                    <span className="font-bold text-zinc-200">{analysisResult.engineDetails.tradeConfidenceBreakdown.setupConfirmation30MScore} / 15</span>
-                  </div>
-                  <div className="p-1.5 rounded bg-black/40 border border-zinc-800">
-                    <span className="text-zinc-400 block">15M Trigger:</span>
-                    <span className="font-bold text-zinc-200">{analysisResult.engineDetails.tradeConfidenceBreakdown.executionTrigger15MScore} / 15</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Autonomous Multi-Timeframe Alignment Matrix */}
-            <div className="p-3 rounded-xl bg-zinc-900/80 border border-zinc-800 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-amber-400 font-bold uppercase text-[10px]">
-                  Autonomous Multi-Timeframe Engine Synthesis
-                </span>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase ${
-                  analysisResult.engineDetails.timeframeAlignment === 'ALIGNED'
-                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                    : analysisResult.engineDetails.timeframeAlignment === 'PARTIALLY ALIGNED'
-                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                      : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
-                }`}>
-                  {analysisResult.engineDetails.timeframeAlignment}
-                </span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10.5px]">
-                <div className="p-2 rounded-lg bg-black/40 border border-zinc-800/60">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">4H Macro Context Layer:</span>
-                  <span className="text-zinc-200">{analysisResult.engineDetails.fourHourContext}</span>
-                </div>
-                <div className="p-2 rounded-lg bg-black/40 border border-zinc-800/60">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">1H Primary Wyckoff Phase:</span>
-                  <span className="text-zinc-200">{analysisResult.engineDetails.oneHourPhase}</span>
-                </div>
-                <div className="p-2 rounded-lg bg-black/40 border border-zinc-800/60">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">30M Setup Confirmation:</span>
-                  <span className="text-zinc-200">{analysisResult.engineDetails.thirtyMinSetup}</span>
-                </div>
-                <div className="p-2 rounded-lg bg-black/40 border border-zinc-800/60">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">15M Micro Structure:</span>
-                  <span className="text-zinc-200">{analysisResult.engineDetails.fifteenMinStructure}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Invalidation Architecture (15M Execution Anchor) */}
-            {analysisResult.engineDetails.precisionExecution15M && (
-              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-1.5">
-                <div className="flex items-center gap-1.5 text-amber-400 font-bold uppercase text-[10px]">
-                  <Target className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Micro Invalidation Architecture (15M Execution Anchor)</span>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-zinc-300 text-[10.5px]">
-                  <div>
-                    <span className="text-zinc-400 text-[10px] block">Execution Timeframe:</span>
-                    <span className="font-bold text-amber-300">15M (Micro Pivot)</span>
-                  </div>
-                  <div>
-                    <span className="text-zinc-400 text-[10px] block">15M Micro Swing High:</span>
-                    <span className="font-bold text-white">{analysisResult.engineDetails.precisionExecution15M.microSwingHigh.toFixed(decimals)}</span>
-                  </div>
-                  <div>
-                    <span className="text-zinc-400 text-[10px] block">15M Micro Swing Low:</span>
-                    <span className="font-bold text-white">{analysisResult.engineDetails.precisionExecution15M.microSwingLow.toFixed(decimals)}</span>
-                  </div>
-                  <div>
-                    <span className="text-zinc-400 text-[10px] block">15M ATR:</span>
-                    <span className="font-bold text-white">{analysisResult.engineDetails.precisionExecution15M.microAtr}</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Real Data Lineage & Data Provenance Matrix (Admin Only) */}
-            {analysisResult.engineDetails.dataProvenance && (
-              <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/30 space-y-2">
-                <div className="flex items-center justify-between border-b border-cyan-500/20 pb-1.5">
-                  <span className="text-cyan-300 font-bold uppercase text-[10px] flex items-center gap-1.5">
-                    <Database className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>Real Market Data Lineage & Data Provenance Audit</span>
-                  </span>
-                  <span className={`px-2 py-0.5 rounded text-[9.5px] font-bold uppercase border ${
-                    analysisResult.engineDetails.dataProvenance.realDataStatus === 'VERIFIED'
-                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                      : analysisResult.engineDetails.dataProvenance.realDataStatus === 'DEGRADED'
-                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                      : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                  }`}>
-                    {analysisResult.engineDetails.dataProvenance.realDataStatus}
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10.5px]">
-                  <div className="p-2 rounded-lg bg-black/40 border border-zinc-800/60">
-                    <span className="text-zinc-400 font-semibold block text-[10px]">Live Data Provider:</span>
-                    <span className="font-bold text-cyan-300">{analysisResult.engineDetails.dataProvenance.liveDataProvider}</span>
-                  </div>
-                  <div className="p-2 rounded-lg bg-black/40 border border-zinc-800/60">
-                    <span className="text-zinc-400 font-semibold block text-[10px]">Instrument / Symbol:</span>
-                    <span className="font-bold text-white">{analysisResult.engineDetails.dataProvenance.instrumentSymbol}</span>
-                  </div>
-                  <div className="p-2 rounded-lg bg-black/40 border border-zinc-800/60">
-                    <span className="text-zinc-400 font-semibold block text-[10px]">Bid/Ask Availability:</span>
-                    <span className="font-bold text-zinc-200">{analysisResult.engineDetails.dataProvenance.bidAskAvailability}</span>
-                  </div>
-                  <div className="p-2 rounded-lg bg-black/40 border border-zinc-800/60">
-                    <span className="text-zinc-400 font-semibold block text-[10px]">Tick Age / Freshness:</span>
-                    <span className="font-bold text-emerald-300">
-                      {analysisResult.engineDetails.dataProvenance.tickAgeFormatted} • {analysisResult.engineDetails.dataProvenance.dataFreshnessStatus}
-                    </span>
-                  </div>
-                  <div className="p-2 rounded-lg bg-black/40 border border-zinc-800/60 col-span-2">
-                    <span className="text-zinc-400 font-semibold block text-[10px]">Candle Data Sources (5M to 4H):</span>
-                    <span className="font-bold text-zinc-200 text-[10px]">
-                      5M: {analysisResult.engineDetails.dataProvenance.candleSource5M}<br />
-                      15M: {analysisResult.engineDetails.dataProvenance.candleSource15M}<br />
-                      1H/4H: {analysisResult.engineDetails.dataProvenance.candleSource1H}
-                    </span>
-                  </div>
-                  <div className="p-2 rounded-lg bg-black/40 border border-zinc-800/60">
-                    <span className="text-zinc-400 font-semibold block text-[10px]">Fallback Provider Used:</span>
-                    <span className={`font-bold ${analysisResult.engineDetails.dataProvenance.fallbackProviderUsed ? 'text-amber-300' : 'text-emerald-400'}`}>
-                      {analysisResult.engineDetails.dataProvenance.fallbackProviderUsed ? 'YES' : 'NO'}
-                    </span>
-                  </div>
-                  <div className="p-2 rounded-lg bg-black/40 border border-zinc-800/60">
-                    <span className="text-zinc-400 font-semibold block text-[10px]">Data Gaps Detected:</span>
-                    <span className="font-bold text-emerald-400">{analysisResult.engineDetails.dataProvenance.dataGapsDetails}</span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
-      {/* 6. ADMIN PANEL 2: PHASE 4 ENGINE DETAILS (Locked for normal user) */}
-      <div className="rounded-2xl bg-[#090b14] border border-amber-500/30 overflow-hidden shadow-lg font-mono">
-        <button
-          onClick={handleTogglePanel2}
-          className="w-full p-3.5 flex items-center justify-between text-xs font-bold text-zinc-300 hover:text-amber-300 transition cursor-pointer bg-gradient-to-r from-[#0d101d] to-[#080911]"
-        >
-          <div className="flex items-center gap-2">
-            {isAdminAuthenticated ? (
-              <LockOpen className="w-4 h-4 text-emerald-400 shrink-0" />
-            ) : (
-              <Lock className="w-4 h-4 text-amber-400 shrink-0" />
-            )}
-            <span className="uppercase tracking-wider font-extrabold text-white">
-              {isAdminAuthenticated ? '🔓' : '🔒'} PHASE 4 ENGINE DETAILS
-            </span>
-            <span className="text-[10px] text-zinc-400 font-normal">
-              (Live Trade Management & Capital Protection)
-            </span>
-          </div>
+      {/* 5. FOOTER STRIP */}
+      <footer className="max-w-4xl mx-auto w-full mt-6 bg-[#12161C] border border-[#1E252E] rounded-xl px-4 py-3 text-xs font-mono text-zinc-400 flex flex-col sm:flex-row items-center justify-between gap-2 shadow-inner">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span>Auto Monitoring: <strong className="text-emerald-400">ACTIVE</strong></span>
+        </div>
 
-          <div className="flex items-center gap-2">
-            {!isAdminAuthenticated && (
-              <span className="px-2 py-0.5 rounded text-[9.5px] font-bold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                LOCKED
-              </span>
-            )}
-            {isAdminAuthenticated ? (
-              showEngineDetails2 ? <ChevronUp className="w-4 h-4 text-amber-400" /> : <ChevronDown className="w-4 h-4 text-zinc-400" />
-            ) : (
-              <ChevronDown className="w-4 h-4 text-zinc-500" />
-            )}
-          </div>
-        </button>
+        <div className="flex items-center gap-2">
+          <span>Telegram:</span>
+          {telegramConnected ? (
+            <strong className="text-emerald-400">CONNECTED</strong>
+          ) : (
+            <strong className="text-amber-400">DISCONNECTED</strong>
+          )}
+        </div>
 
-        {isAdminAuthenticated && showEngineDetails2 && analysisResult && (
-          <div className="p-4 pt-2 border-t border-zinc-800/80 space-y-3 text-[11px] text-zinc-300 bg-[#07080f]">
-            {/* Phase 4 Full Telemetry Matrix */}
-            <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/30 space-y-3">
-              <div className="flex items-center justify-between border-b border-purple-500/20 pb-2">
-                <span className="text-purple-300 font-bold uppercase text-[10px] flex items-center gap-1.5">
-                  <Activity className="w-3.5 h-3.5 text-purple-400" />
-                  <span>Phase 4 Live Management & Level-Lock Telemetry (24 Attributes)</span>
-                </span>
-                <span className="text-[10px] text-zinc-400">
-                  Lifecycle State: <strong className="text-purple-300 font-bold">{liveDetails?.lifecycleState || analysisResult.lifecycleState || 'NONE'}</strong>
-                </span>
-              </div>
+        <div>
+          <span>Data: <strong className="text-zinc-200">Live MT5 Feed</strong></span>
+        </div>
+      </footer>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10.5px]">
-                {/* 1. Setup ID */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">Setup ID:</span>
-                  <span className="font-bold text-amber-300 truncate block">{analysisResult.setupId}</span>
-                </div>
-
-                {/* 2. Lifecycle State */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">Lifecycle State:</span>
-                  <span className="font-bold text-purple-300">{liveDetails?.lifecycleState || 'NONE'}</span>
-                </div>
-
-                {/* 3. Locked Entry */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">Locked Entry Price:</span>
-                  <span className="font-bold text-amber-300">
-                    {liveDetails?.lockedEntry != null ? liveDetails.lockedEntry.toFixed(decimals) : (analysisResult.preferredEntry ? analysisResult.preferredEntry.toFixed(decimals) : 'N/A')}
-                  </span>
-                </div>
-
-                {/* 4. Locked SL */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">Locked Stop Loss:</span>
-                  <span className="font-bold text-rose-400">
-                    {liveDetails?.lockedSL != null ? liveDetails.lockedSL.toFixed(decimals) : (analysisResult.stopLoss ? analysisResult.stopLoss.toFixed(decimals) : 'N/A')}
-                  </span>
-                </div>
-
-                {/* 5. Locked TP1 */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">Locked Take Profit 1:</span>
-                  <span className="font-bold text-emerald-400">
-                    {liveDetails?.lockedTP1 != null ? liveDetails.lockedTP1.toFixed(decimals) : (analysisResult.takeProfit1 ? analysisResult.takeProfit1.toFixed(decimals) : 'N/A')}
-                  </span>
-                </div>
-
-                {/* 6. Locked TP2 */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">Locked Take Profit 2:</span>
-                  <span className="font-bold text-sky-400">
-                    {liveDetails?.lockedTP2 != null ? liveDetails.lockedTP2.toFixed(decimals) : (analysisResult.takeProfit2 ? analysisResult.takeProfit2.toFixed(decimals) : 'N/A')}
-                  </span>
-                </div>
-
-                {/* 7. Original Risk */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">Original Risk (1R):</span>
-                  <span className="font-bold text-zinc-200">
-                    {liveDetails?.originalRisk != null ? `${liveDetails.originalRisk.toFixed(decimals)} pts` : (analysisResult.riskDistance ? `${analysisResult.riskDistance.toFixed(decimals)} pts` : 'N/A')}
-                  </span>
-                </div>
-
-                {/* 8. Activation Price */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">Activation Price:</span>
-                  <span className="font-bold text-amber-300">
-                    {liveDetails?.activationPrice != null ? liveDetails.activationPrice.toFixed(decimals) : 'N/A'}
-                  </span>
-                </div>
-
-                {/* 9. Current Verified Price */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">Current Verified Price:</span>
-                  <span className="font-bold text-white">
-                    {liveDetails?.currentVerifiedPrice ? liveDetails.currentVerifiedPrice.toFixed(decimals) : analysisResult.currentLivePrice.toFixed(decimals)}
-                  </span>
-                </div>
-
-                {/* 10. Current R */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">Current Progress R:</span>
-                  <span className="font-bold text-emerald-400">
-                    {liveDetails?.currentLiveR != null ? `${liveDetails.currentLiveR > 0 ? '+' : ''}${liveDetails.currentLiveR.toFixed(2)}R` : (analysisResult.liveProgressR != null ? `${analysisResult.liveProgressR.toFixed(2)}R` : '0.00R')}
-                  </span>
-                </div>
-
-                {/* 11. Price Source */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">Price Feed Source:</span>
-                  <span className="font-bold text-zinc-200">{liveDetails?.priceSource || 'VERIFIED_WEBSOCKET_ORACLE'}</span>
-                </div>
-
-                {/* 12. Bid/Ask Availability */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">Bid/Ask Availability:</span>
-                  <span className="font-bold text-white">{liveDetails?.bidAskAvailability || 'UNAVAILABLE'}</span>
-                </div>
-
-                {/* 13. Entry Timestamp */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">Entry Activation Time:</span>
-                  <span className="font-bold text-zinc-300 text-[10px]">
-                    {liveDetails?.entryTimestamp ? new Date(liveDetails.entryTimestamp).toLocaleString('en-US', { timeZone: 'America/New_York' }) + ' ET' : 'N/A'}
-                  </span>
-                </div>
-
-                {/* 14. TP1 Timestamp */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">TP1 Execution Time:</span>
-                  <span className="font-bold text-emerald-300 text-[10px]">
-                    {liveDetails?.tp1Timestamp ? new Date(liveDetails.tp1Timestamp).toLocaleString('en-US', { timeZone: 'America/New_York' }) + ' ET' : 'N/A'}
-                  </span>
-                </div>
-
-                {/* 15. TP2 Timestamp */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">TP2 Execution Time:</span>
-                  <span className="font-bold text-sky-300 text-[10px]">
-                    {liveDetails?.tp2Timestamp ? new Date(liveDetails.tp2Timestamp).toLocaleString('en-US', { timeZone: 'America/New_York' }) + ' ET' : 'N/A'}
-                  </span>
-                </div>
-
-                {/* 16. SL Timestamp */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">SL Hit Timestamp:</span>
-                  <span className="font-bold text-rose-300 text-[10px]">
-                    {liveDetails?.slTimestamp ? new Date(liveDetails.slTimestamp).toLocaleString('en-US', { timeZone: 'America/New_York' }) + ' ET' : 'N/A'}
-                  </span>
-                </div>
-
-                {/* 17. Expiration Status */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">Expiration Status:</span>
-                  <span className="font-bold text-zinc-200">{liveDetails?.expirationStatus || 'NOT_EXPIRED'}</span>
-                </div>
-
-                {/* 18. Pre-entry Invalidation Status */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">Pre-entry Invalidation:</span>
-                  <span className="font-bold text-zinc-200">{liveDetails?.preEntryInvalidationStatus || 'VALID'}</span>
-                </div>
-
-                {/* 19. Gap Execution Uncertainty */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">Gap / Slippage Risk:</span>
-                  <span className={`font-bold ${liveDetails?.gapExecutionUncertainty ? 'text-amber-300' : 'text-emerald-400'}`}>
-                    {liveDetails?.gapExecutionUncertainty ? 'UNCERTAINTY DETECTED' : 'NONE'}
-                  </span>
-                </div>
-
-                {/* 20. Last Verified Price Timestamp */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">Last Verified Tick:</span>
-                  <span className="font-bold text-zinc-300 text-[10px]">
-                    {liveDetails?.lastVerifiedPriceTimestamp ? new Date(liveDetails.lastVerifiedPriceTimestamp).toLocaleString('en-US', { timeZone: 'America/New_York' }) + ' ET' : 'N/A'}
-                  </span>
-                </div>
-
-                {/* 21. Concurrent Trades / Maximum */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">Concurrent Trades Cap:</span>
-                  <span className="font-bold text-white">
-                    {liveDetails?.concurrentActiveTrades ?? 0} / {liveDetails?.maxConcurrentAllowed ?? 1}
-                  </span>
-                </div>
-
-                {/* 22. Session Status */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">Session Status:</span>
-                  <span className="font-bold text-emerald-400">
-                    {liveDetails?.currentSessionStatus || 'OPEN'}
-                  </span>
-                </div>
-
-                {/* 23. Spread at Activation */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">Spread at Activation:</span>
-                  <span className="font-bold text-amber-300">
-                    {typeof liveDetails?.spreadAtActivation === 'number' ? `${liveDetails.spreadAtActivation} pts` : liveDetails?.spreadAtActivation || 'N/A'}
-                  </span>
-                </div>
-
-                {/* 24. Cancellation Source */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <span className="text-zinc-400 font-semibold block text-[10px]">Cancellation Source:</span>
-                  <span className="font-bold text-zinc-300">{liveDetails?.cancellationSource || 'N/A'}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* 7. ADMIN PANEL: PHASE 5 ENGINE DETAILS (Final Signal Quality & Execution Gate) */}
-      <div className="rounded-2xl bg-[#090b14] border border-amber-500/30 overflow-hidden shadow-lg font-mono">
-        <button
-          onClick={handleTogglePanel5}
-          className="w-full p-3.5 flex items-center justify-between text-xs font-bold text-zinc-300 hover:text-amber-300 transition cursor-pointer bg-gradient-to-r from-[#0d101d] to-[#080911]"
-        >
-          <div className="flex items-center gap-2">
-            {isAdminAuthenticated ? (
-              <LockOpen className="w-4 h-4 text-emerald-400 shrink-0" />
-            ) : (
-              <Lock className="w-4 h-4 text-amber-400 shrink-0" />
-            )}
-            <span className="uppercase tracking-wider font-extrabold text-white">
-              {isAdminAuthenticated ? '🔓' : '🔒'} PHASE 5 ENGINE DETAILS
-            </span>
-            <span className="text-[10px] text-zinc-400 font-normal">
-              (Final Signal Quality & Execution Gate)
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {!isAdminAuthenticated && (
-              <span className="px-2 py-0.5 rounded text-[9.5px] font-bold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                LOCKED
-              </span>
-            )}
-            {isAdminAuthenticated ? (
-              showEngineDetails5 ? <ChevronUp className="w-4 h-4 text-amber-400" /> : <ChevronDown className="w-4 h-4 text-zinc-400" />
-            ) : (
-              <ChevronDown className="w-4 h-4 text-zinc-500" />
-            )}
-          </div>
-        </button>
-
-        {isAdminAuthenticated && showEngineDetails5 && analysisResult && (
-          <div className="p-4 pt-2 border-t border-zinc-800/80 space-y-3 text-[11px] text-zinc-300 bg-[#07080f]">
-            {/* Gate Evaluation Result Banner */}
-            <div className={`p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${
-              analysisResult.phase5QualityGate?.finalGateStatus === 'APPROVED'
-                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-                : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
-            }`}>
-              <div className="flex items-center gap-2">
-                <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
-                <div>
-                  <span className="font-bold text-[11px] block">
-                    PHASE 5 DETERMINISTIC GATE: {analysisResult.phase5QualityGate?.finalGateStatus || 'REJECTED'}
-                  </span>
-                  <span className="text-[10px] text-zinc-400">
-                    Fail-Closed Arbitration • 17 Quality Dimensions • 11 Priority Tiers
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className={`px-2 py-0.5 rounded text-[9.5px] font-bold uppercase border ${
-                  analysisResult.phase5QualityGate?.finalGateStatus === 'APPROVED'
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                    : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                }`}>
-                  GATE: {analysisResult.phase5QualityGate?.finalGateStatus || 'REJECTED'}
-                </span>
-                <span className="px-2 py-0.5 rounded text-[9.5px] font-bold uppercase bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
-                  DATA: {analysisResult.phase5QualityGate?.liveDataStatus || 'VERIFIED'}
-                </span>
-              </div>
-            </div>
-
-            {/* Primary Rejection & Clean Wait State if Rejected */}
-            {analysisResult.phase5QualityGate?.finalGateStatus === 'REJECTED' && (
-              <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-[10.5px] flex items-center justify-between">
-                <div>
-                  <span className="font-bold block">
-                    Priority #{analysisResult.phase5QualityGate.rejectionPriority || 1} Reason: {analysisResult.phase5QualityGate.primaryRejectionReason}
-                  </span>
-                  <span className="text-[10px] text-zinc-400">
-                    Clean Wait Output: <strong className="text-white">{analysisResult.phase5QualityGate.cleanWaitState}</strong>
-                  </span>
-                </div>
-                <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-200 font-bold text-[9.5px]">
-                  FAIL-CLOSED
-                </span>
-              </div>
-            )}
-
-            {/* 17 Quality Dimensions Grid */}
-            <div className="space-y-1.5">
-              <div className="text-[10.5px] font-bold text-zinc-400 uppercase tracking-wider flex items-center justify-between">
-                <span>Phase 5 Deterministic Quality Checks (17 Attributes)</span>
-                <span className="text-[10px] text-amber-400">Priority Tiers 1–11</span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-[10px]">
-                {/* 1. Market Data Status */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <div className="flex items-center justify-between">
-                    <span className="text-zinc-400 font-semibold">1. Market Data Feed:</span>
-                    <span className={`font-bold ${analysisResult.phase5QualityGate?.liveDataStatus === 'VERIFIED' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {analysisResult.phase5QualityGate?.liveDataStatus || 'VERIFIED'}
-                    </span>
-                  </div>
-                  <span className="text-zinc-500 text-[9.5px]">Tick Age: {analysisResult.phase5QualityGate?.tickAgeFormatted || '0.0s'}</span>
-                </div>
-
-                {/* 2. 4H Macro Bias */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <div className="flex items-center justify-between">
-                    <span className="text-zinc-400 font-semibold">2. 4H Macro Bias:</span>
-                    <span className={`font-bold ${analysisResult.phase5QualityGate?.alignment4H === 'ALIGNED' ? 'text-emerald-400' : analysisResult.phase5QualityGate?.alignment4H === 'CONFLICTING' ? 'text-rose-400' : 'text-zinc-300'}`}>
-                      {analysisResult.phase5QualityGate?.alignment4H || 'NEUTRAL'}
-                    </span>
-                  </div>
-                  <span className="text-zinc-500 text-[9.5px] truncate block">{analysisResult.phase5QualityGate?.alignment4HDetails}</span>
-                </div>
-
-                {/* 3. 1H Wyckoff Phase */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <div className="flex items-center justify-between">
-                    <span className="text-zinc-400 font-semibold">3. 1H Wyckoff Phase:</span>
-                    <span className={`font-bold ${analysisResult.phase5QualityGate?.alignment1H === 'ALIGNED' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {analysisResult.phase5QualityGate?.alignment1H || 'ALIGNED'}
-                    </span>
-                  </div>
-                  <span className="text-zinc-500 text-[9.5px] truncate block">{analysisResult.phase5QualityGate?.alignment1HDetails}</span>
-                </div>
-
-                {/* 4. 30M Confirmation */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <div className="flex items-center justify-between">
-                    <span className="text-zinc-400 font-semibold">4. 30M Confirmation:</span>
-                    <span className={`font-bold ${analysisResult.phase5QualityGate?.confirmation30M === 'CONFIRMED' ? 'text-emerald-400' : 'text-amber-400'}`}>
-                      {analysisResult.phase5QualityGate?.confirmation30M || 'UNCONFIRMED'}
-                    </span>
-                  </div>
-                  <span className="text-zinc-500 text-[9.5px] truncate block">{analysisResult.phase5QualityGate?.confirmation30MDetails}</span>
-                </div>
-
-                {/* 5. 15M Trigger */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <div className="flex items-center justify-between">
-                    <span className="text-zinc-400 font-semibold">5. 15M Micro Trigger:</span>
-                    <span className={`font-bold ${analysisResult.phase5QualityGate?.execution15M === 'TRIGGERED' ? 'text-emerald-400' : 'text-amber-400'}`}>
-                      {analysisResult.phase5QualityGate?.execution15M || 'PENDING'}
-                    </span>
-                  </div>
-                  <span className="text-zinc-500 text-[9.5px] truncate block">{analysisResult.phase5QualityGate?.execution15MDetails}</span>
-                </div>
-
-                {/* 6. 5M SL Anchor */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <div className="flex items-center justify-between">
-                    <span className="text-zinc-400 font-semibold">6. 5M Structural Anchor:</span>
-                    <span className={`font-bold ${analysisResult.phase5QualityGate?.riskValidation5M === 'VALID' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {analysisResult.phase5QualityGate?.riskValidation5M || 'VALID'}
-                    </span>
-                  </div>
-                  <span className="text-zinc-500 text-[9.5px] truncate block">{analysisResult.phase5QualityGate?.riskValidation5MDetails}</span>
-                </div>
-
-                {/* 7. Entry Invalidation */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <div className="flex items-center justify-between">
-                    <span className="text-zinc-400 font-semibold">7. Entry Structure:</span>
-                    <span className={`font-bold ${analysisResult.phase5QualityGate?.entryValidation === 'VALID' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {analysisResult.phase5QualityGate?.entryValidation || 'VALID'}
-                    </span>
-                  </div>
-                  <span className="text-zinc-500 text-[9.5px] truncate block">{analysisResult.phase5QualityGate?.entryValidationDetails}</span>
-                </div>
-
-                {/* 8. Anti-Chase Validation (<0.5 ATR) */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <div className="flex items-center justify-between">
-                    <span className="text-zinc-400 font-semibold">8. Anti-Chase (&lt;0.5 ATR):</span>
-                    <span className={`font-bold ${analysisResult.phase5QualityGate?.antiChaseValidation === 'PASS' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {analysisResult.phase5QualityGate?.antiChaseValidation || 'PASS'}
-                    </span>
-                  </div>
-                  <span className="text-zinc-500 text-[9.5px] truncate block">{analysisResult.phase5QualityGate?.antiChaseDetails}</span>
-                </div>
-
-                {/* 9. Stop Loss Safety */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <div className="flex items-center justify-between">
-                    <span className="text-zinc-400 font-semibold">9. SL Placement Safety:</span>
-                    <span className={`font-bold ${analysisResult.phase5QualityGate?.slValidation === 'SAFE' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {analysisResult.phase5QualityGate?.slValidation || 'SAFE'}
-                    </span>
-                  </div>
-                  <span className="text-zinc-500 text-[9.5px] truncate block">{analysisResult.phase5QualityGate?.slValidationDetails}</span>
-                </div>
-
-                {/* 10. Noise Wick Validation */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <div className="flex items-center justify-between">
-                    <span className="text-zinc-400 font-semibold">10. Noise Wick Clearance:</span>
-                    <span className={`font-bold ${analysisResult.phase5QualityGate?.noiseValidation === 'OUTSIDE_NOISE_WICK' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {analysisResult.phase5QualityGate?.noiseValidation || 'OUTSIDE_NOISE_WICK'}
-                    </span>
-                  </div>
-                  <span className="text-zinc-500 text-[9.5px] truncate block">{analysisResult.phase5QualityGate?.noiseValidationDetails}</span>
-                </div>
-
-                {/* 11. TP1 Viability (>=2R) */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <div className="flex items-center justify-between">
-                    <span className="text-zinc-400 font-semibold">11. TP1 Path (≥2R):</span>
-                    <span className={`font-bold ${analysisResult.phase5QualityGate?.tp1Validation === 'QUALIFIED_2R' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {analysisResult.phase5QualityGate?.tp1Validation || 'QUALIFIED_2R'}
-                    </span>
-                  </div>
-                  <span className="text-zinc-500 text-[9.5px] truncate block">{analysisResult.phase5QualityGate?.tp1ValidationDetails}</span>
-                </div>
-
-                {/* 12. TP2 Viability (>=3R) */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <div className="flex items-center justify-between">
-                    <span className="text-zinc-400 font-semibold">12. TP2 Path (≥3R):</span>
-                    <span className={`font-bold ${analysisResult.phase5QualityGate?.tp2Validation === 'QUALIFIED_3R' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {analysisResult.phase5QualityGate?.tp2Validation || 'QUALIFIED_3R'}
-                    </span>
-                  </div>
-                  <span className="text-zinc-500 text-[9.5px] truncate block">{analysisResult.phase5QualityGate?.tp2ValidationDetails}</span>
-                </div>
-
-                {/* 13. R:R Synthesis */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <div className="flex items-center justify-between">
-                    <span className="text-zinc-400 font-semibold">13. R:R Viability Synthesis:</span>
-                    <span className={`font-bold ${analysisResult.phase5QualityGate?.rrValidation === 'QUALIFIED' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {analysisResult.phase5QualityGate?.rrValidation || 'QUALIFIED'}
-                    </span>
-                  </div>
-                  <span className="text-zinc-500 text-[9.5px] truncate block">{analysisResult.phase5QualityGate?.rrValidationDetails}</span>
-                </div>
-
-                {/* 14. Volatility Regime */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <div className="flex items-center justify-between">
-                    <span className="text-zinc-400 font-semibold">14. Volatility Threshold:</span>
-                    <span className={`font-bold ${analysisResult.phase5QualityGate?.volatilityStatus === 'SAFE' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {analysisResult.phase5QualityGate?.volatilityStatus || 'SAFE'}
-                    </span>
-                  </div>
-                  <span className="text-zinc-500 text-[9.5px] truncate block">{analysisResult.phase5QualityGate?.volatilityDetails}</span>
-                </div>
-
-                {/* 15. Spread Safety */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <div className="flex items-center justify-between">
-                    <span className="text-zinc-400 font-semibold">15. Spread Fraction (&lt;15%):</span>
-                    <span className={`font-bold ${analysisResult.phase5QualityGate?.spreadStatus === 'SAFE' ? 'text-emerald-400' : analysisResult.phase5QualityGate?.spreadStatus === 'LIMITED' ? 'text-amber-300' : 'text-rose-400'}`}>
-                      {analysisResult.phase5QualityGate?.spreadStatus || 'SAFE'}
-                    </span>
-                  </div>
-                  <span className="text-zinc-500 text-[9.5px] truncate block">{analysisResult.phase5QualityGate?.spreadDetails}</span>
-                </div>
-
-                {/* 16. Event Risk / News Gate */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <div className="flex items-center justify-between">
-                    <span className="text-zinc-400 font-semibold">16. Event Risk (±15m):</span>
-                    <span className={`font-bold ${analysisResult.phase5QualityGate?.newsEventStatus === 'CLEAR' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {analysisResult.phase5QualityGate?.newsEventStatus || 'CLEAR'}
-                    </span>
-                  </div>
-                  <span className="text-zinc-500 text-[9.5px] truncate block">{analysisResult.phase5QualityGate?.newsEventDetails}</span>
-                </div>
-
-                {/* 17. Trade Confidence */}
-                <div className="p-2 rounded-lg bg-black/50 border border-zinc-800/80">
-                  <div className="flex items-center justify-between">
-                    <span className="text-zinc-400 font-semibold">17. Confidence Gate (≥75%):</span>
-                    <span className={`font-bold ${analysisResult.phase5QualityGate?.tradeConfidenceStatus === 'QUALIFIED' ? 'text-emerald-400' : 'text-amber-400'}`}>
-                      {analysisResult.phase5QualityGate?.tradeConfidenceScore || 0}% ({analysisResult.phase5QualityGate?.tradeConfidenceStatus || 'WEAK'})
-                    </span>
-                  </div>
-                  <span className="text-zinc-500 text-[9.5px]">Threshold: Minimum 75 pts required</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* 8. PHASE X LIVE PERFORMANCE MONITOR & PERSISTENT SIGNAL HISTORY (Clean Public View) */}
-      <PhaseXLivePerformanceAndHistory />
-
-      {/* 9. ADMIN PANEL: PHASE 5 & 4 VERIFICATION, LIVE VALIDATION & ENGINE SUITE (Locked for normal user) */}
-      <div className="rounded-2xl bg-[#090b14] border border-amber-500/30 overflow-hidden shadow-lg font-mono">
-        <button
-          onClick={handleTogglePanel3}
-          className="w-full p-3.5 flex items-center justify-between text-xs font-bold text-zinc-300 hover:text-amber-300 transition cursor-pointer bg-gradient-to-r from-[#0d101d] to-[#080911]"
-        >
-          <div className="flex items-center gap-2">
-            {isAdminAuthenticated ? (
-              <LockOpen className="w-4 h-4 text-emerald-400 shrink-0" />
-            ) : (
-              <Lock className="w-4 h-4 text-amber-400 shrink-0" />
-            )}
-            <span className="uppercase tracking-wider font-extrabold text-white">
-              {isAdminAuthenticated ? '🔓' : '🔒'} PHASE 5 & 4 VERIFICATION & ENGINE SUITE
-            </span>
-            <span className="text-[10px] text-zinc-400 font-normal">
-              (Deterministic Quality Gate, Lifecycle Testing & Trade Records)
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {!isAdminAuthenticated && (
-              <span className="px-2 py-0.5 rounded text-[9.5px] font-bold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                LOCKED
-              </span>
-            )}
-            {isAdminAuthenticated ? (
-              showEngineDetails3 ? <ChevronUp className="w-4 h-4 text-amber-400" /> : <ChevronDown className="w-4 h-4 text-zinc-400" />
-            ) : (
-              <ChevronDown className="w-4 h-4 text-zinc-500" />
-            )}
-          </div>
-        </button>
-
-        {isAdminAuthenticated && showEngineDetails3 && (
-          <div className="p-4 pt-2 border-t border-zinc-800/80 bg-[#07080f]">
-            <PhaseXHistoryAndVerification selectedAssetId={selectedAssetId} />
-          </div>
-        )}
-      </div>
-
-      {/* ADMIN ACCESS REQUIRED PASSWORD MODAL */}
+      {/* ADMIN DIAGNOSTICS & VERIFICATION MODAL */}
       {showAdminModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md font-mono animate-in fade-in duration-200">
-          <div className="w-full max-w-md rounded-2xl bg-[#0b0e17] border-2 border-amber-500/60 shadow-2xl overflow-hidden space-y-4 p-5 sm:p-6 relative">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shrink-0">
-                  <KeyRound className="w-5 h-5 text-amber-400" />
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#12161C] border border-[#1E252E] rounded-2xl max-w-2xl w-full p-6 space-y-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={() => setShowAdminModal(false)}
+              className="absolute top-4 right-4 p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-[#1E252E]"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {!isAdminAuthenticated ? (
+              /* PASSWORD PROMPT */
+              <form onSubmit={handleAdminAuthSubmit} className="space-y-4">
+                <div className="flex items-center gap-3 border-b border-[#1E252E] pb-3">
+                  <KeyRound className="w-6 h-6 text-[#D4AF37]" />
+                  <div>
+                    <h3 className="text-lg font-bold text-white">Admin Authentication</h3>
+                    <p className="text-xs text-zinc-400">Unlock Phase X diagnostics and quality gate suites</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-sm font-black text-white uppercase tracking-wider">
-                    ADMIN ACCESS REQUIRED
-                  </h3>
-                  <p className="text-[10px] text-zinc-400">
-                    Phase X & Phase 4 Telemetry Control Gate
-                  </p>
-                </div>
-              </div>
 
-              <button
-                onClick={() => setShowAdminModal(false)}
-                className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800/80 transition cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+                {adminAuthError && (
+                  <div className="p-3 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{adminAuthError}</span>
+                  </div>
+                )}
 
-            {/* Error Notice Banner */}
-            {adminAuthError && (
-              <div className="p-3 rounded-xl bg-rose-500/20 border border-rose-500/50 text-rose-300 text-xs font-bold flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-                <span>{adminAuthError}</span>
-              </div>
-            )}
-
-            {/* Password Form */}
-            <form onSubmit={handleAdminAuthSubmit} className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-zinc-300 uppercase block">
-                  Admin Security Password:
-                </label>
-                <div className="relative">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-mono text-zinc-400">Admin Password</label>
                   <input
                     type="password"
                     value={adminPasswordInput}
                     onChange={(e) => setAdminPasswordInput(e.target.value)}
-                    placeholder="Enter admin password..."
+                    placeholder="Enter password..."
+                    className="w-full px-4 py-2.5 rounded-xl bg-[#0B0D10] border border-[#1E252E] text-white focus:outline-none focus:border-[#D4AF37] text-sm font-mono"
                     autoFocus
-                    className="w-full py-2.5 px-3.5 rounded-xl bg-zinc-950 border border-zinc-700 focus:border-amber-500 text-white font-mono text-xs focus:outline-none transition"
                   />
                 </div>
-                <p className="text-[10px] text-zinc-400 italic">
-                  Password verification is processed via secure server-side validation.
-                </p>
-              </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAdminModal(false)}
-                  className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-bold transition cursor-pointer"
-                >
-                  CANCEL
-                </button>
-                <button
-                  type="submit"
-                  disabled={isAuthSubmitting || !adminPasswordInput.trim()}
-                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-600 hover:brightness-110 text-black font-black text-xs uppercase tracking-wider transition shadow-lg shadow-amber-500/20 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isAuthSubmitting && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                  <span>VERIFY & UNLOCK PANELS</span>
-                </button>
+                <div className="flex justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAdminModal(false)}
+                    className="px-4 py-2 rounded-xl text-xs font-bold bg-[#1E252E] text-zinc-300 hover:bg-[#252e3a]"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isAuthSubmitting || !adminPasswordInput}
+                    className="px-5 py-2 rounded-xl text-xs font-bold bg-[#D4AF37] text-black hover:bg-[#c29f2e] disabled:opacity-50"
+                  >
+                    {isAuthSubmitting ? 'Authenticating...' : 'Unlock Panel'}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              /* UNLOCKED ADMIN PANEL */
+              <div className="space-y-6">
+                <div className="flex items-center justify-between border-b border-[#1E252E] pb-3">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                    <h3 className="text-lg font-bold text-white">Phase X Admin Telemetry</h3>
+                  </div>
+                  <button
+                    onClick={handleAdminLogout}
+                    className="text-xs font-mono text-rose-400 hover:underline"
+                  >
+                    Lock Panel
+                  </button>
+                </div>
+
+                {/* Sub-Tabs */}
+                <div className="flex gap-2 border-b border-[#1E252E] pb-2 font-mono text-xs">
+                  <button
+                    onClick={() => setAdminTab('diagnostics')}
+                    className={`px-3 py-1.5 rounded-lg font-bold transition-colors ${
+                      adminTab === 'diagnostics' ? 'bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/40' : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    Diagnostics
+                  </button>
+                  <button
+                    onClick={() => setAdminTab('history')}
+                    className={`px-3 py-1.5 rounded-lg font-bold transition-colors ${
+                      adminTab === 'history' ? 'bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/40' : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    Live Performance
+                  </button>
+                  <button
+                    onClick={() => setAdminTab('verification')}
+                    className={`px-3 py-1.5 rounded-lg font-bold transition-colors ${
+                      adminTab === 'verification' ? 'bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/40' : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    Verification Suites
+                  </button>
+                </div>
+
+                {/* Tab Contents */}
+                <div>
+                  {adminTab === 'diagnostics' && (
+                    <PhaseXLiveDiagnosticsPanel selectedAssetId="xau-usd" />
+                  )}
+                  {adminTab === 'history' && (
+                    <PhaseXLivePerformanceAndHistory />
+                  )}
+                  {adminTab === 'verification' && (
+                    <PhaseXHistoryAndVerification />
+                  )}
+                </div>
               </div>
-            </form>
+            )}
           </div>
         </div>
       )}
+
     </div>
   );
 };
-
-export default PhaseXView;

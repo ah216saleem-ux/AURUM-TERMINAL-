@@ -224,7 +224,7 @@ export const AiSignalCenter: React.FC = () => {
             }`}
           >
             <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>APPROVED ({stats.approved})</span>
+            <span>APPROVED ({stats.approvedCount})</span>
           </button>
 
           <button
@@ -237,7 +237,7 @@ export const AiSignalCenter: React.FC = () => {
             }`}
           >
             <Clock className="w-3.5 h-3.5" />
-            <span>WAITING ({stats.waiting})</span>
+            <span>WAITING ({stats.waitCount})</span>
           </button>
 
           <button
@@ -250,7 +250,7 @@ export const AiSignalCenter: React.FC = () => {
             }`}
           >
             <AlertOctagon className="w-3.5 h-3.5" />
-            <span>BLOCKED ({stats.blocked})</span>
+            <span>BLOCKED ({stats.blockedCount})</span>
           </button>
 
           <button
@@ -321,6 +321,7 @@ export const AiSignalCenter: React.FC = () => {
               isAdmin={isAdmin}
               onSendTelegram={handleSendTelegram}
               onOpenAssetDetail={handleOpenAssetDetail}
+              onRefreshGovernance={() => regenerateAiSignals()}
             />
           ))}
         </div>

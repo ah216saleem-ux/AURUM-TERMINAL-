@@ -312,7 +312,7 @@ export const PhaseXHistoryAndVerification: React.FC<PhaseXHistoryAndVerification
 
               {/* 12 Tests Results Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                {liveReport.results.map((r) => (
+                {(liveReport.results || []).map((r) => (
                   <div key={r.testId} className="p-3 rounded-xl bg-zinc-900/80 border border-zinc-800/90 space-y-1.5">
                     <div className="flex items-start justify-between gap-2">
                       <div className="font-bold text-zinc-200 text-xs flex items-center gap-1.5">
@@ -453,32 +453,97 @@ export const PhaseXHistoryAndVerification: React.FC<PhaseXHistoryAndVerification
                       ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' 
                       : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
                   }`}>
-                    {phase5Report.overallStatus === 'PASS' ? '10/10 TESTS PASS' : 'FAILED'}
+                    {phase5Report.overallStatus === 'PASS' ? 'VERIFICATION PASS' : 'FAILED'}
                   </span>
                 </div>
               </div>
 
-              {/* Test Cases Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                {phase5Report.results.map((r) => (
-                  <div key={r.testId} className="p-3 rounded-xl bg-zinc-900/80 border border-zinc-800/90 space-y-1.5">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="font-bold text-zinc-200 text-xs flex items-center gap-1.5">
-                        <Check className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                        <span>{r.title}</span>
+              {/* Checklist / Test Cases Grid */}
+              {phase5Report.checklist && phase5Report.checklist.length > 0 && (
+                <div className="space-y-2">
+                  <span className="text-zinc-400 font-bold uppercase text-[10px] block">
+                    Institutional Quality Gate Checklist ({phase5Report.checklist.length} Gate Rules)
+                  </span>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                    {phase5Report.checklist.map((c) => (
+                      <div key={c.id} className="p-3 rounded-xl bg-zinc-900/80 border border-zinc-800/90 space-y-1.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="font-bold text-zinc-200 text-xs flex items-center gap-1.5">
+                            <Check className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                            <span>{c.title}</span>
+                          </div>
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase shrink-0 ${
+                            c.status === 'PASS' 
+                              ? 'bg-emerald-500/20 text-emerald-300' 
+                              : c.status === 'LIMITED' 
+                              ? 'bg-amber-500/20 text-amber-300' 
+                              : 'bg-rose-500/20 text-rose-300'
+                          }`}>
+                            {c.status}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-zinc-400 pl-5">
+                          {c.details}
+                        </div>
                       </div>
-                      <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase shrink-0 ${
-                        r.passed ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
-                      }`}>
-                        {r.passed ? 'PASS' : 'FAIL'}
-                      </span>
-                    </div>
-                    <div className="text-[10px] text-zinc-400 pl-5">
-                      {r.details}
-                    </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </div>
+              )}
+
+              {phase5Report.testCases && phase5Report.testCases.length > 0 && (
+                <div className="space-y-2 pt-2">
+                  <span className="text-zinc-400 font-bold uppercase text-[10px] block">
+                    Deterministic Test Scenarios ({phase5Report.testCases.length} Scenarios)
+                  </span>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                    {phase5Report.testCases.map((tc) => (
+                      <div key={tc.scenarioId} className="p-3 rounded-xl bg-zinc-900/80 border border-zinc-800/90 space-y-1.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="font-bold text-zinc-200 text-xs flex items-center gap-1.5">
+                            <span className="text-purple-400 font-mono font-bold text-[10px]">{tc.scenarioId}</span>
+                            <span>{tc.scenarioName}</span>
+                          </div>
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase shrink-0 ${
+                            tc.passed ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
+                          }`}>
+                            {tc.passed ? 'PASS' : 'FAIL'}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-zinc-400 pl-5">
+                          {tc.inputCondition}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Fallback for generic results if checklist/testCases are missing */}
+              {(!phase5Report.checklist || phase5Report.checklist.length === 0) &&
+               (!phase5Report.testCases || phase5Report.testCases.length === 0) &&
+               ((phase5Report as any).results || []).length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                  {((phase5Report as any).results || []).map((r: any) => (
+                    <div key={r.testId || r.id} className="p-3 rounded-xl bg-zinc-900/80 border border-zinc-800/90 space-y-1.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="font-bold text-zinc-200 text-xs flex items-center gap-1.5">
+                          <Check className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                          <span>{r.title}</span>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase shrink-0 ${
+                          r.passed ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
+                        }`}>
+                          {r.passed ? 'PASS' : 'FAIL'}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-zinc-400 pl-5">
+                        {r.details}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </>
           ) : (
             <div className="text-center py-8 text-zinc-500 flex flex-col items-center gap-2">
@@ -619,7 +684,7 @@ export const PhaseXHistoryAndVerification: React.FC<PhaseXHistoryAndVerification
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {telegramReport.results.map((r) => (
+                {(telegramReport.results || []).map((r) => (
                   <div key={r.testId} className="p-2.5 rounded-lg bg-zinc-900/80 border border-zinc-800/90 space-y-1">
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-zinc-200 text-[11px]">{r.title}</span>

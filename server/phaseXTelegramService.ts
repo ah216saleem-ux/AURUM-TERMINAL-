@@ -32,12 +32,14 @@ export interface TelegramSignalPayload {
   livePriceTimestamp?: number;
 }
 
-export type TelegramLifecycleEvent = 'TP1_HIT' | 'TP2_HIT' | 'STOP_LOSS_HIT';
+export type TelegramLifecycleEvent = 'TP1_HIT' | 'TP2_HIT' | 'STOP_LOSS_HIT' | 'EXPIRED';
 
 export interface TelegramLifecyclePayload {
   setupId: string;
   assetId: string;
   event: TelegramLifecycleEvent;
+  direction?: 'BUY' | 'SELL';
+  replyToMessageId?: number;
   price?: number;
   timestamp?: number;
 }
@@ -46,7 +48,7 @@ export interface TelegramDeliveryLog {
   id: string;
   setupId: string;
   assetId: string;
-  type: 'INITIAL_SIGNAL' | 'TP1_HIT' | 'TP2_HIT' | 'STOP_LOSS_HIT';
+  type: 'INITIAL_SIGNAL' | 'TP1_HIT' | 'TP2_HIT' | 'STOP_LOSS_HIT' | 'EXPIRED';
   status: 'SENT' | 'FAILED' | 'CONFIG_MISSING' | 'SKIPPED';
   reason?: string;
   messageText: string;
@@ -113,7 +115,8 @@ function recordDeliveryLog(log: TelegramDeliveryLog) {
 export async function sendRawTelegramMessage(
   text: string,
   overrideToken?: string,
-  overrideChatId?: string
+  overrideChatId?: string,
+  replyToMessageId?: number
 ): Promise<{ success: boolean; status: 'SENT' | 'FAILED' | 'CONFIG_MISSING'; error?: string; messageId?: number; httpStatus?: number; apiResponse?: any }> {
   const rawBotToken = overrideToken || process.env.TELEGRAM_BOT_TOKEN || process.env.AURUM_TELEGRAM_BOT_TOKEN || '';
   const rawChatId = overrideChatId || process.env.TELEGRAM_CHAT_ID || process.env.TELEGRAM_CHANNEL_ID || process.env.AURUM_TELEGRAM_CHAT_ID || '';
@@ -161,18 +164,23 @@ export async function sendRawTelegramMessage(
 
   try {
     const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
-    console.log(`[PhaseXTelegram] Dispatching message to chat_id: ${chatId} (message length: ${text.length})`);
+    console.log(`[PhaseXTelegram] Dispatching message to chat_id: ${chatId} (message length: ${text.length}${replyToMessageId ? `, reply_to: ${replyToMessageId}` : ''})`);
     
+    const bodyObj: any = {
+      chat_id: chatId,
+      text,
+      disable_web_page_preview: true
+    };
+    if (replyToMessageId && replyToMessageId > 0) {
+      bodyObj.reply_to_message_id = replyToMessageId;
+    }
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        disable_web_page_preview: true
-      })
+      body: JSON.stringify(bodyObj)
     });
 
     const data = await response.json().catch(() => ({}));
@@ -353,40 +361,33 @@ export async function sendPhaseXApprovedSignalPreviewTest(
  * Builds the exact approved Telegram initial signal message format.
  */
 export function buildApprovedSignalMessage(payload: TelegramSignalPayload): string {
-  const timeStr = formatTimestamp(payload.timestamp || Date.now());
+  const d = new Date(payload.timestamp || Date.now());
+  const pad = (n: number) => (n < 10 ? '0' + n : '' + n);
+  const timeStr = `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} UTC`;
+
+  const dirBadge = payload.direction === 'BUY' ? '🟢 BUY' : '🔴 SELL';
   const entryStr = payload.preferredEntry.toFixed(2);
   const slStr = payload.stopLoss.toFixed(2);
   const tp1Str = payload.takeProfit1.toFixed(2);
   const tp2Str = payload.takeProfit2.toFixed(2);
   const rrStr = payload.riskRewardRatio || '1:2 / 1:3';
   const confidenceStr = `${Math.round(payload.tradeConfidence)}%`;
-  const setupTypeStr = payload.setupType || 'WYCKOFF STRUCTURE';
-  const livePriceStr = typeof payload.liveMarketPrice === 'number' && !isNaN(payload.liveMarketPrice)
-    ? `$${payload.liveMarketPrice.toFixed(2)}`
-    : `$${entryStr}`;
 
   return [
-    '🟡 AURUM XAU/USD SIGNAL',
+    '🟡 AURUM TERMINAL — XAU/USD',
     '',
-    `Direction: ${payload.direction}`,
-    `Setup Type: ${setupTypeStr}`,
+    `${dirBadge}  |  Timeframe: 15M`,
     '',
-    `Entry: ${entryStr}`,
-    `Protected SL: ${slStr}`,
-    '',
-    `TP1: ${tp1Str}`,
-    `TP2: ${tp2Str}`,
+    `Entry: $${entryStr}`,
+    `Stop Loss: $${slStr}`,
+    `Take Profit 1: $${tp1Str}`,
+    `Take Profit 2: $${tp2Str}`,
     '',
     `Risk/Reward: ${rrStr}`,
-    `Trade Confidence: ${confidenceStr}`,
-    `Live Price at Approval: ${livePriceStr}`,
-    '',
-    'Status: READY',
+    `Confidence: ${confidenceStr}`,
     `Time: ${timeStr}`,
-    `Setup ID: ${payload.setupId}`,
     '',
-    'This is a signal notification only.',
-    'No broker execution.'
+    'Trade responsibly. Use proper risk management.'
   ].join('\n');
 }
 
@@ -394,32 +395,20 @@ export function buildApprovedSignalMessage(payload: TelegramSignalPayload): stri
  * Builds the exact approved Telegram lifecycle update message formats.
  */
 export function buildLifecycleUpdateMessage(payload: TelegramLifecyclePayload): string {
+  const dir = payload.direction || 'BUY';
   if (payload.event === 'TP1_HIT') {
-    return [
-      '🟢 XAU/USD — TP1 HIT',
-      `Setup ID: ${payload.setupId}`,
-      'TP1 reached.',
-      'TP2 remains active.'
-    ].join('\n');
+    return `✅ TP1 HIT — XAU/USD ${dir} — +2R`;
   }
-
   if (payload.event === 'TP2_HIT') {
-    return [
-      '🏁 XAU/USD — TP2 HIT',
-      `Setup ID: ${payload.setupId}`,
-      'Trade completed.'
-    ].join('\n');
+    return `✅ TP2 HIT — XAU/USD ${dir} — +3R`;
   }
-
   if (payload.event === 'STOP_LOSS_HIT') {
-    return [
-      '🔴 XAU/USD — STOP LOSS HIT',
-      `Setup ID: ${payload.setupId}`,
-      'Trade closed by protected SL.'
-    ].join('\n');
+    return `❌ SL HIT — XAU/USD ${dir} — -1R`;
   }
-
-  return `AURUM XAU/USD UPDATE\nSetup ID: ${payload.setupId}\nEvent: ${payload.event}`;
+  if (payload.event === 'EXPIRED') {
+    return `⏱ SIGNAL EXPIRED — XAU/USD ${dir} — closed, no target reached`;
+  }
+  return `XAU/USD ${dir} — ${payload.event}`;
 }
 
 /**
@@ -582,6 +571,8 @@ export async function dispatchPhaseXLifecycleTelegramUpdate(
     return { dispatched: false, status: 'SKIPPED_NOT_XAU_USD' };
   }
 
+  const sentExpiredUpdates = new Set<string>();
+
   // Requirement 3 & 5: Deduplicate each lifecycle event per Setup ID
   if (payload.event === 'TP1_HIT') {
     if (sentTP1Updates.has(payload.setupId)) {
@@ -598,12 +589,17 @@ export async function dispatchPhaseXLifecycleTelegramUpdate(
       return { dispatched: false, status: 'SKIPPED_DUPLICATE_SL' };
     }
     sentSLUpdates.add(payload.setupId);
+  } else if (payload.event === 'EXPIRED') {
+    if (sentExpiredUpdates.has(payload.setupId)) {
+      return { dispatched: false, status: 'SKIPPED_DUPLICATE_EXPIRED' };
+    }
+    sentExpiredUpdates.add(payload.setupId);
   } else {
     return { dispatched: false, status: 'SKIPPED_UNHANDLED_EVENT' };
   }
 
   const messageText = buildLifecycleUpdateMessage(payload);
-  const result = await sendRawTelegramMessage(messageText);
+  const result = await sendRawTelegramMessage(messageText, undefined, undefined, payload.replyToMessageId);
 
   const deliveryLog: TelegramDeliveryLog = {
     id: `tl_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,

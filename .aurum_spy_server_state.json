@@ -10,29 +10,29 @@
     "maxAcceptableLatencySeconds": 180
   },
   "session": {
-    "sessionId": "spy_session_1790003522555",
+    "sessionId": "spy_session_1790191127358",
     "status": "ACTIVE",
     "selectedDuration": "30 MIN",
     "trailingStopMode": true,
     "isLiveMode": true,
-    "startedAt": 1790003522555,
-    "startedAtET": "11:12:02 AM ET",
-    "endsAt": 1790005322555,
-    "nextScanAt": 1790003522555,
+    "startedAt": 1790191127358,
+    "startedAtET": "03:18:47 PM ET",
+    "endsAt": 1790192927358,
+    "nextScanAt": 1790191127358,
     "scansCompleted": 1,
     "bestCandidate": null,
     "activeSignal": {
-      "signalId": "spy_call_1790003522986",
+      "signalId": "spy_put_1790191127568",
       "type": "SPY_UNDERLYING_SIGNAL",
-      "direction": "CALL",
-      "spyPrice": 769.46,
-      "entryPrice": 769.46,
-      "stopLossPrice": 767.86,
-      "target1Price": 771.86,
-      "target2Price": 773.46,
+      "direction": "PUT",
+      "spyPrice": 767.81,
+      "entryPrice": 767.81,
+      "stopLossPrice": 769.41,
+      "target1Price": 765.41,
+      "target2Price": 763.81,
       "timeframe": "5M / 15M Intraday",
       "confidence": 100,
-      "setupType": "SPY Bullish Breakout & VWAP Reclaim",
+      "setupType": "SPY Bearish Breakdown & VWAP Rejection",
       "scores": {
         "marketStructure": 20,
         "liquidity": 20,
@@ -43,19 +43,19 @@
         "riskTiming": 10
       },
       "keyLevels": {
-        "vwap": 761.76,
-        "orh": 761.76,
-        "orl": 758.96,
-        "pdh": 769.63,
-        "pdl": 757.97
+        "vwap": 771.62,
+        "orh": 775.14,
+        "orl": 773.65,
+        "pdh": 775.14,
+        "pdl": 766.5
       },
-      "generatedAt": 1790003522986,
-      "generatedAtET": "11:12:02 AM ET",
-      "currentSpyPrice": 773.38,
+      "generatedAt": 1790191127568,
+      "generatedAtET": "03:18:47 PM ET",
+      "currentSpyPrice": 767.79,
       "status": "ACTIVE",
-      "currentPnlPoints": 3.92,
-      "currentPnlPercent": 0.51,
-      "target1Hit": true,
+      "currentPnlPoints": 0.02,
+      "currentPnlPercent": 0,
+      "target1Hit": false,
       "target2Hit": false,
       "stopHit": false,
       "completedAtET": null,
@@ -65,7 +65,30 @@
     "preflightError": null
   },
   "activeTrade": null,
-  "signalHistory": [],
+  "signalHistory": [
+    {
+      "signalId": "spy_call_1790003522986",
+      "date": "2026-09-23T19:05:14.955Z",
+      "marketDateET": "2026-09-23",
+      "direction": "CALL",
+      "signalType": "SPY_UNDERLYING_SIGNAL",
+      "spyPriceAtEntry": 769.46,
+      "entryPrice": 769.46,
+      "exitPrice": 767.82,
+      "stopLossPrice": 767.86,
+      "target1Price": 771.86,
+      "target2Price": 773.46,
+      "pnlPoints": -1.64,
+      "pnlPercent": -0.21,
+      "result": "STOP_LOSS_HIT",
+      "confidence": 100,
+      "timeframe": "5M / 15M Intraday",
+      "startedAtET": "11:12:02 AM ET",
+      "closedAtET": "03:05:14 PM ET",
+      "marketDataProvider": "FINNHUB (LIVE SPY)",
+      "outcomeReason": "Stop Loss Invalidation Hit 🛑"
+    }
+  ],
   "dailyRisk": {
     "marketDateET": "2026-09-23",
     "dailyPnL": 0,
@@ -74,5 +97,5 @@
     "dailyLocked": false,
     "lockReason": null
   },
-  "updatedAt": 1790168089469
+  "updatedAt": 1790193153034
 }

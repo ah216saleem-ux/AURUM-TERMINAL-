@@ -10,6 +10,7 @@ import {
 } from './phaseXLiveHistoryService';
 import {
   getPhaseXDiagnostics,
+  getPhaseXLiveState,
   startPhaseXBackgroundScanner,
   stopPhaseXBackgroundScanner
 } from './phaseXBackgroundScanner';
@@ -158,7 +159,7 @@ export async function handlePhaseXRequest(req: IncomingMessage, res: ServerRespo
         return true;
       }
 
-      const expectedPass = process.env.ADMIN_PASSWORD || process.env.PHASE_X_ADMIN_PASSWORD || process.env.AURUM_ADMIN_UNLOCK_PASSWORD || 'AurumAdmin2026!';
+      const expectedPass = process.env.ADMIN_PASSWORD || process.env.PHASE_X_ADMIN_PASSWORD || process.env.AURUM_ADMIN_UNLOCK_PASSWORD || '9663059aA@';
 
       if (password === expectedPass) {
         failedAttemptsMap.delete(ip);
@@ -219,6 +220,13 @@ export async function handlePhaseXRequest(req: IncomingMessage, res: ServerRespo
         executionLayer: 'Deterministic Multi-Tier Verification & Level-Locked Ready Signal Gate',
         timestamp: Date.now()
       }));
+      return true;
+    }
+
+    if (pathname === '/api/phase-x/live-state') {
+      const liveState = getPhaseXLiveState();
+      res.statusCode = 200;
+      res.end(JSON.stringify(liveState));
       return true;
     }
 

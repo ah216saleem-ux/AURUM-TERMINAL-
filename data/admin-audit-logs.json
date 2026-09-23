@@ -1,5 +1,23 @@
 [
   {
+    "id": "aud_1790193819796_h7igf",
+    "timestamp": 1790193819796,
+    "timestampET": "04:03:39 PM ET",
+    "eventType": "TEMPORARY_UNLOCK_SUCCESS",
+    "userId": "user",
+    "ip": "127.0.0.1",
+    "detail": "Temporary 30m unlock granted for module: ALL_PROTECTED"
+  },
+  {
+    "id": "aud_1790193228131_mjlp2",
+    "timestamp": 1790193228131,
+    "timestampET": "03:53:48 PM ET",
+    "eventType": "TEMPORARY_UNLOCK_SUCCESS",
+    "userId": "user",
+    "ip": "127.0.0.1",
+    "detail": "Temporary 30m unlock granted for module: ALL_PROTECTED"
+  },
+  {
     "id": "aud_1789920346125_fasgu",
     "timestamp": 1789920346125,
     "timestampET": "12:05:46 PM ET",

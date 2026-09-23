@@ -38,7 +38,7 @@ export const REGISTERED_ACCOUNTS: Record<string, RegisteredAccount> = {
   },
   'gmcf7': {
     username: 'gmcf7',
-    password: 'whynotmerijaan',
+    password: 'gmcf7',
     role: 'USER',
     name: 'GMC Trader',
     email: 'gmcf7@aurum-terminal.internal',
@@ -49,7 +49,7 @@ export const REGISTERED_ACCOUNTS: Record<string, RegisteredAccount> = {
   },
   'admin': {
     username: 'admin',
-    password: 'aurum2026',
+    password: '9663059aA@',
     role: 'ADMIN',
     name: 'Terminal Administrator',
     email: 'admin@aurum-terminal.internal',
@@ -60,7 +60,7 @@ export const REGISTERED_ACCOUNTS: Record<string, RegisteredAccount> = {
   },
   'trader': {
     username: 'trader',
-    password: 'aurum2026',
+    password: '9663059aA@',
     role: 'USER',
     name: 'Institutional Trader',
     email: 'trader@aurum-terminal.internal',
