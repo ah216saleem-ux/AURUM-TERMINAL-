@@ -316,10 +316,12 @@ export const PhaseXView: React.FC = () => {
 
   // Helper for formatting user-facing WAIT display states strictly without revealing internal strategy terms
   const getWaitDisplayInfo = (result: PhaseXResult): { title: string; subtitle: string } => {
-    if (liveTickInfo.isStale) {
+    if (liveTickInfo.isStale || liveTickInfo.ageSeconds > 5) {
       return {
         title: 'WAIT — MARKET DATA',
-        subtitle: `Market data feed is stale (${liveTickInfo.ageSeconds}s old). Waiting for verified tick.`
+        subtitle: liveTickInfo.isStale 
+          ? `Market data feed is stale (${liveTickInfo.ageSeconds}s old). Waiting for verified tick.`
+          : `Live tick age (${liveTickInfo.ageSeconds}s) exceeds strict 5.0s signal limit. Real-time tick required.`
       };
     }
 

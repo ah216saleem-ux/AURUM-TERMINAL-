@@ -366,52 +366,55 @@ async function fetchBinanceTicker(symbol: string = 'BTCUSDT') {
   }
 }
 
-// Fetch single market from Yahoo Finance
+// Fetch single market from Yahoo Finance with query1/query2 fallback
 export async function fetchYahooQuote(symbol: string) {
   try {
     const encoded = encodeURIComponent(symbol);
-    const res = await fetch(
-      `https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=1d&range=2d`,
-      { 
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-        signal: AbortSignal.timeout(4500)
+    const path = `/v8/finance/chart/${encoded}?interval=1d&range=2d`;
+    const hosts = ['https://query1.finance.yahoo.com', 'https://query2.finance.yahoo.com'];
+
+    for (const host of hosts) {
+      try {
+        const res = await fetch(`${host}${path}`, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+          signal: AbortSignal.timeout(3500)
+        });
+        if (!res.ok) continue;
+        const d = await res.json();
+        const meta = d.chart?.result?.[0]?.meta;
+        if (!meta || meta.regularMarketPrice == null) continue;
+
+        const price = meta.regularMarketPrice;
+        const prevClose = meta.chartPreviousClose || meta.previousClose || price;
+        const change = +(price - prevClose).toFixed(4);
+        const changePercent = meta.regularMarketChangePercent != null 
+          ? +meta.regularMarketChangePercent.toFixed(2) 
+          : +((change / prevClose) * 100).toFixed(2);
+        const high24h = meta.regularMarketDayHigh || price;
+        const low24h = meta.regularMarketDayLow || price;
+
+        return {
+          price,
+          change,
+          changePercent,
+          high24h,
+          low24h,
+          volume24h: meta.regularMarketVolume ? '$' + (meta.regularMarketVolume / 1e9).toFixed(1) + 'B' : undefined,
+          provider: 'YAHOO_FINANCE',
+          providerSymbol: symbol,
+          timestamp: (meta.regularMarketTime ? meta.regularMarketTime * 1000 : Date.now())
+        };
+      } catch {
+        // Try secondary host
       }
-    );
-    if (!res.ok) {
-      return null;
     }
-    const d = await res.json();
-    const meta = d.chart?.result?.[0]?.meta;
-    if (!meta || meta.regularMarketPrice == null) {
-      return null;
-    }
-
-    const price = meta.regularMarketPrice;
-    const prevClose = meta.chartPreviousClose || meta.previousClose || price;
-    const change = +(price - prevClose).toFixed(4);
-    const changePercent = meta.regularMarketChangePercent != null 
-      ? +meta.regularMarketChangePercent.toFixed(2) 
-      : +((change / prevClose) * 100).toFixed(2);
-    const high24h = meta.regularMarketDayHigh || price;
-    const low24h = meta.regularMarketDayLow || price;
-
-    return {
-      price,
-      change,
-      changePercent,
-      high24h,
-      low24h,
-      volume24h: meta.regularMarketVolume ? '$' + (meta.regularMarketVolume / 1e9).toFixed(1) + 'B' : undefined,
-      provider: 'YAHOO_FINANCE',
-      providerSymbol: symbol,
-      timestamp: (meta.regularMarketTime ? meta.regularMarketTime * 1000 : Date.now())
-    };
+    return null;
   } catch {
     return null;
   }
 }
 
-// Fetch OHLC candles from Yahoo Finance
+// Fetch OHLC candles from Yahoo Finance with query1/query2 fallback
 export async function fetchYahooCandles(symbol: string, interval: string = '1h', range: string = '5d') {
   const cacheKey = `candles_${symbol}_${interval}_${range}`;
   const now = Date.now();
@@ -421,67 +424,64 @@ export async function fetchYahooCandles(symbol: string, interval: string = '1h',
 
   try {
     const encoded = encodeURIComponent(symbol);
-    const res = await fetch(
-      `https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=${interval}&range=${range}`,
-      { 
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-        signal: AbortSignal.timeout(4000)
+    const path = `/v8/finance/chart/${encoded}?interval=${interval}&range=${range}`;
+    const hosts = ['https://query1.finance.yahoo.com', 'https://query2.finance.yahoo.com'];
+
+    for (const host of hosts) {
+      try {
+        const res = await fetch(`${host}${path}`, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+          signal: AbortSignal.timeout(3500)
+        });
+        if (!res.ok) continue;
+        const d = await res.json();
+        const result = d.chart?.result?.[0];
+        if (!result || !result.timestamp) continue;
+
+        const timestamps: number[] = result.timestamp;
+        const quote = result.indicators?.quote?.[0] || {};
+        const opens = quote.open || [];
+        const highs = quote.high || [];
+        const lows = quote.low || [];
+        const closes = quote.close || [];
+        const volumes = quote.volume || [];
+
+        const candles = timestamps.map((t, idx) => {
+          const open = opens[idx];
+          const high = highs[idx];
+          const low = lows[idx];
+          const close = closes[idx];
+          const volume = volumes[idx] || 0;
+
+          return {
+            time: t * 1000,
+            timeLabel: new Date(t * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            open: open != null ? +open.toFixed(4) : 0,
+            high: high != null ? +high.toFixed(4) : 0,
+            low: low != null ? +low.toFixed(4) : 0,
+            close: close != null ? +close.toFixed(4) : 0,
+            volume: volume || 0
+          };
+        }).filter(c => c.close > 0 && !isNaN(c.close));
+
+        if (candles.length > 0) {
+          memoryCache[cacheKey] = {
+            timestamp: now,
+            data: candles
+          };
+          return candles;
+        }
+      } catch {
+        // Try next host
       }
-    );
-    if (!res.ok) {
-      throw new Error(`Yahoo chart status ${res.status}`);
-    }
-    const d = await res.json();
-    const result = d.chart?.result?.[0];
-    if (!result || !result.timestamp) {
-      throw new Error('No timestamp in Yahoo chart result');
-    }
-
-    const timestamps: number[] = result.timestamp;
-    const quote = result.indicators?.quote?.[0] || {};
-    const opens = quote.open || [];
-    const highs = quote.high || [];
-    const lows = quote.low || [];
-    const closes = quote.close || [];
-    const volumes = quote.volume || [];
-
-    const candles = timestamps.map((t, idx) => {
-      const open = opens[idx];
-      const high = highs[idx];
-      const low = lows[idx];
-      const close = closes[idx];
-      const volume = volumes[idx] || 0;
-
-      return {
-        time: t * 1000,
-        timeLabel: new Date(t * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        open: open != null ? +open.toFixed(4) : 0,
-        high: high != null ? +high.toFixed(4) : 0,
-        low: low != null ? +low.toFixed(4) : 0,
-        close: close != null ? +close.toFixed(4) : 0,
-        volume: volume || 0
-      };
-    }).filter(c => c.close > 0 && !isNaN(c.close));
-
-    if (candles.length > 0) {
-      memoryCache[cacheKey] = {
-        timestamp: now,
-        data: candles
-      };
-      return candles;
     }
   } catch {
-    // If request fails or times out, fallback to previously cached data if available
-    if (memoryCache[cacheKey]?.data && memoryCache[cacheKey].data.length > 0) {
-      return memoryCache[cacheKey].data;
-    }
+    // Fall through to cache fallback
   }
 
-  // Fallback to previously cached candles even if expired
   if (memoryCache[cacheKey]?.data && memoryCache[cacheKey].data.length > 0) {
     return memoryCache[cacheKey].data;
   }
-
   return [];
 }
 

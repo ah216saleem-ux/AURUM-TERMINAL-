@@ -1,5 +1,5 @@
 import { fetchYahooCandles, fetchYahooQuote, fetchBiquoteQuote, ASSET_CONFIGS, fetchAllMarketData } from './marketDataRouter';
-import { getLatestLivePrices } from './websocketServer';
+import { getLatestLivePrices, getVerifiedXauPrice } from './websocketServer';
 import { getLiveEconomicEvents, EconomicEvent } from './newsRouter';
 import {
   dispatchPhaseXApprovedTelegramSignal,
@@ -1523,7 +1523,8 @@ export async function analyzePhaseX(
   const lastClosed15M = closed15M[closed15M.length - 1];
   const signalConfirmationPrice = lastClosed15M.close;
 
-  // Authoritative verified real-time tick resolution
+  // Authoritative verified real-time tick resolution (Strict 5-Second Freshness Requirement)
+  const verifiedXau = assetId === 'xau-usd' ? getVerifiedXauPrice(5000) : null;
   const liveTicks = getLatestLivePrices();
   const liveTick = liveTicks[assetId] || (assetId === 'xau-usd' ? liveTicks['xau-usd'] : undefined);
   let currentLivePrice = signalConfirmationPrice;
@@ -1531,11 +1532,17 @@ export async function analyzePhaseX(
   let livePriceSource = assetConfig.name ? `${assetConfig.name} Feed` : 'BIQUOTE Gold Spot Feed';
   let isLiveTickFresh = false;
 
-  if (liveTick && liveTick.price > 0 && (Date.now() - liveTick.timestamp) <= 60000) {
+  if (verifiedXau && verifiedXau.price > 0) {
+    currentLivePrice = verifiedXau.price;
+    livePriceTimestamp = verifiedXau.timestamp;
+    livePriceSource = verifiedXau.source || livePriceSource;
+    isLiveTickFresh = verifiedXau.isSignalFresh;
+  } else if (liveTick && liveTick.price > 0) {
+    const tickAgeMs = Math.max(0, Date.now() - liveTick.timestamp);
     currentLivePrice = liveTick.price;
     livePriceTimestamp = liveTick.timestamp;
     livePriceSource = liveTick.source || livePriceSource;
-    isLiveTickFresh = true;
+    isLiveTickFresh = tickAgeMs <= 5000 && liveTick.isRealTick;
   } else if (typeof clientLivePrice === 'number' && clientLivePrice > 0 && !isNaN(clientLivePrice)) {
     currentLivePrice = clientLivePrice;
     livePriceTimestamp = Date.now();
@@ -1547,14 +1554,14 @@ export async function analyzePhaseX(
         currentLivePrice = bQuote.price;
         livePriceTimestamp = bQuote.timestamp || Date.now();
         livePriceSource = 'BIQUOTE Live API';
-        isLiveTickFresh = (Date.now() - livePriceTimestamp) <= 60000;
+        isLiveTickFresh = (Date.now() - livePriceTimestamp) <= 5000;
       } else {
         const yQuote = await fetchYahooQuote(yahooSymbol);
         if (yQuote?.price && yQuote.price > 0) {
           currentLivePrice = yQuote.price;
           livePriceTimestamp = yQuote.timestamp || Date.now();
           livePriceSource = 'Yahoo Finance API (GC=F)';
-          isLiveTickFresh = (Date.now() - livePriceTimestamp) <= 60000;
+          isLiveTickFresh = (Date.now() - livePriceTimestamp) <= 5000;
         } else {
           const allQuotes = await fetchAllMarketData();
           const quote = allQuotes?.data?.[assetId];
@@ -1562,7 +1569,7 @@ export async function analyzePhaseX(
             currentLivePrice = quote.price;
             livePriceTimestamp = quote.timestamp || Date.now();
             livePriceSource = quote.provider || 'Market Data Oracle';
-            isLiveTickFresh = (Date.now() - livePriceTimestamp) <= 60000;
+            isLiveTickFresh = (Date.now() - livePriceTimestamp) <= 5000;
           }
         }
       }
@@ -2714,7 +2721,7 @@ export async function analyzePhaseX(
     assetId,
     symbol: assetConfig.symbol,
     currentLivePrice,
-    lastTickTimestamp: liveTradeDetails?.lastVerifiedPriceTimestamp || lastClosedTimestamp,
+    lastTickTimestamp: livePriceTimestamp || liveTradeDetails?.lastVerifiedPriceTimestamp || Date.now(),
     primaryCandlesCount: primaryCandles.length,
     closed5MCount: closed5M.length,
     closed15MCount: closed15M.length,
@@ -3245,14 +3252,14 @@ export function evaluatePhase5QualityGate(input: Phase5EvaluationInput): Phase5Q
   const failures: FailureRecord[] = [];
 
   // ==========================================
-  // Check 1: Live Market Data Integrity (Priority 1)
+  // Check 1: Live Market Data Integrity (Priority 1 - Strict 5.0s Signal Freshness Requirement)
   // ==========================================
   let liveDataStatus: 'VERIFIED' | 'STALE' | 'INSUFFICIENT' | 'DISRUPTED' = 'VERIFIED';
-  if (input.currentLivePrice <= 0 || input.dataFreshness === 'OFFLINE' || input.dataFreshness === 'STALE' || tickAgeMs > 60000) {
+  if (input.currentLivePrice <= 0 || isNaN(input.currentLivePrice) || input.dataFreshness === 'OFFLINE' || input.dataFreshness === 'STALE' || tickAgeMs > 5000) {
     liveDataStatus = 'STALE';
     failures.push({
       priority: 1,
-      reason: `Live market price feed is stale or offline (tick age: ${tickAgeFormatted}).`,
+      reason: `Live market price feed is stale (>5.0s signal limit, current age: ${tickAgeFormatted}) or offline. Real-time tick freshness required.`,
       waitState: 'WAIT — MARKET DATA'
     });
   } else if (input.primaryCandlesCount < 15 || input.closed15MCount < 10 || input.closed5MCount < 5 || input.realDataStatus === 'UNAVAILABLE') {
@@ -3858,6 +3865,38 @@ export function runPhase5VerificationSuite(): Phase5VerificationReport {
       },
       expectedGateStatus: 'APPROVED',
       expectedWaitReason: null
+    },
+    {
+      scenarioId: 'SCN-17',
+      scenarioName: '6-Second Old Tick (Over 5s Freshness Limit)',
+      inputCondition: 'Tick age is 6.0 seconds (>5.0s signal approval limit).',
+      override: { lastTickTimestamp: Date.now() - 6000 },
+      expectedGateStatus: 'REJECTED',
+      expectedWaitReason: 'WAIT — MARKET DATA'
+    },
+    {
+      scenarioId: 'SCN-18',
+      scenarioName: '10-Second Old Tick (Over 5s Freshness Limit)',
+      inputCondition: 'Tick age is 10.0 seconds (>5.0s signal approval limit).',
+      override: { lastTickTimestamp: Date.now() - 10000 },
+      expectedGateStatus: 'REJECTED',
+      expectedWaitReason: 'WAIT — MARKET DATA'
+    },
+    {
+      scenarioId: 'SCN-19',
+      scenarioName: '60-Second Old Tick (Hard UI Safety Boundary)',
+      inputCondition: 'Tick age is 60.0 seconds (>5.0s signal approval limit).',
+      override: { lastTickTimestamp: Date.now() - 60000 },
+      expectedGateStatus: 'REJECTED',
+      expectedWaitReason: 'WAIT — MARKET DATA'
+    },
+    {
+      scenarioId: 'SCN-20',
+      scenarioName: 'Invalid / Zero Market Price',
+      inputCondition: 'Live market price is 0 or invalid NaN.',
+      override: { currentLivePrice: 0 },
+      expectedGateStatus: 'REJECTED',
+      expectedWaitReason: 'WAIT — MARKET DATA'
     }
   ];
 

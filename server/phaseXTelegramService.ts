@@ -14,7 +14,7 @@
  * 6. Secret Security (Credentials stored strictly server-side, never exposed in client responses).
  */
 
-import { getLatestLivePrices } from './websocketServer';
+import { getLatestLivePrices, getVerifiedXauPrice } from './websocketServer';
 
 export interface TelegramSignalPayload {
   setupId: string;
@@ -454,12 +454,17 @@ export async function dispatchPhaseXApprovedTelegramSignal(
     return { dispatched: false, status: 'SKIPPED_GATE_NOT_APPROVED' };
   }
 
-  // Live Market Price Freshness & Verification Check (Requirement 2 & 4)
+  // Live Market Price Freshness & Verification Check (Strict 5-Second Freshness Requirement)
   const now = Date.now();
+  const verifiedXau = getVerifiedXauPrice(5000);
+  
   let verifiedLivePrice = payload.liveMarketPrice;
   let verifiedPriceTimestamp = payload.livePriceTimestamp;
 
-  if (verifiedLivePrice == null || verifiedLivePrice <= 0) {
+  if (verifiedXau && verifiedXau.price > 0) {
+    verifiedLivePrice = verifiedXau.price;
+    verifiedPriceTimestamp = verifiedXau.timestamp;
+  } else if (verifiedLivePrice == null || verifiedLivePrice <= 0) {
     const liveTicks = getLatestLivePrices();
     const xauTick = liveTicks['xau-usd'];
     if (xauTick && xauTick.price > 0) {
@@ -468,7 +473,7 @@ export async function dispatchPhaseXApprovedTelegramSignal(
     }
   }
 
-  // Reject synthetic, negative, or placeholder prices
+  // Reject synthetic, negative, zero, or placeholder prices
   if (verifiedLivePrice == null || verifiedLivePrice <= 0 || isNaN(verifiedLivePrice)) {
     console.warn(`[PhaseXTelegram] Dispatch rejected for ${payload.setupId}: Missing or invalid live XAU/USD market price.`);
     return {
@@ -478,14 +483,31 @@ export async function dispatchPhaseXApprovedTelegramSignal(
     };
   }
 
-  // Check freshness (stale data block: > 60 seconds stale)
-  const priceFreshnessMs = verifiedPriceTimestamp ? Math.max(0, now - verifiedPriceTimestamp) : 0;
-  if (verifiedPriceTimestamp && priceFreshnessMs > 60000) {
-    console.warn(`[PhaseXTelegram] Dispatch rejected for ${payload.setupId}: Stale market data (${priceFreshnessMs}ms old).`);
+  // Check strict tick freshness (Target maximum tick age: 5 seconds for signal approval/dispatch)
+  const priceFreshnessMs = verifiedPriceTimestamp ? Math.max(0, now - verifiedPriceTimestamp) : 99999;
+  if (priceFreshnessMs > 5000) {
+    console.warn(`[PhaseXTelegram] Dispatch rejected for ${payload.setupId}: Stale market data (${(priceFreshnessMs / 1000).toFixed(1)}s old > 5.0s limit).`);
     return {
       dispatched: false,
       status: 'SKIPPED_STALE_MARKET_DATA',
-      reason: 'WAIT — MARKET DATA (Stale price feed > 60s)'
+      reason: `WAIT — MARKET DATA (Tick age ${(priceFreshnessMs / 1000).toFixed(1)}s exceeds 5s limit)`
+    };
+  }
+
+  // Revalidate Anti-Chase & Entry Zone using this exact real-time live price
+  if (payload.direction === 'BUY' && verifiedLivePrice > (payload.preferredEntry + 4.5)) {
+    console.warn(`[PhaseXTelegram] Dispatch rejected for ${payload.setupId}: Live price ($${verifiedLivePrice}) moved past entry (${payload.preferredEntry}) beyond anti-chase buffer.`);
+    return {
+      dispatched: false,
+      status: 'SKIPPED_MISSED_ENTRY',
+      reason: 'MISSED ENTRY — DO NOT CHASE'
+    };
+  } else if (payload.direction === 'SELL' && verifiedLivePrice < (payload.preferredEntry - 4.5)) {
+    console.warn(`[PhaseXTelegram] Dispatch rejected for ${payload.setupId}: Live price ($${verifiedLivePrice}) moved below entry (${payload.preferredEntry}) beyond anti-chase buffer.`);
+    return {
+      dispatched: false,
+      status: 'SKIPPED_MISSED_ENTRY',
+      reason: 'MISSED ENTRY — DO NOT CHASE'
     };
   }
 

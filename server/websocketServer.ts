@@ -30,7 +30,9 @@ export interface VerifiedTickInfo {
   timestamp: number;
   ageMs: number;
   ageSeconds: number;
-  isFresh: boolean;
+  isFresh: boolean; // General UI safety boundary (<= 60s)
+  isSignalFresh: boolean; // Strict Phase X signal approval boundary (<= 5.0s)
+  isWsHealthy: boolean;
   source: string;
 }
 
@@ -449,20 +451,30 @@ async function pollYahooTicks() {
     { id: 'crude-oil', symbol: 'CL=F', name: 'WTI Crude Oil', decimals: 2 }
   ];
 
+  const hosts = ['https://query1.finance.yahoo.com', 'https://query2.finance.yahoo.com'];
+
   await Promise.all(
     yahooItems.map(async ({ id, symbol, name, decimals }) => {
       try {
         const encoded = encodeURIComponent(symbol);
-        const res = await fetch(
-          `https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=1d&range=2d`,
-          {
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-            signal: AbortSignal.timeout(4000)
+        const path = `/v8/finance/chart/${encoded}?interval=1d&range=2d`;
+        let meta: any = null;
+
+        for (const host of hosts) {
+          try {
+            const res = await fetch(`${host}${path}`, {
+              headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+              signal: AbortSignal.timeout(3500)
+            });
+            if (!res.ok) continue;
+            const d = await res.json();
+            meta = d.chart?.result?.[0]?.meta;
+            if (meta && meta.regularMarketPrice != null) break;
+          } catch {
+            // Try next host
           }
-        );
-        if (!res.ok) return;
-        const d = await res.json();
-        const meta = d.chart?.result?.[0]?.meta;
+        }
+
         if (!meta || meta.regularMarketPrice == null) return;
 
         const newPrice = +meta.regularMarketPrice.toFixed(decimals);
@@ -533,15 +545,16 @@ export function getLatestLivePrices(): Record<string, LivePriceData> {
  * Returns the single authoritative verified XAU/USD real-time price and freshness status.
  * Never invents, interpolates, or fabricates price movement.
  */
-export function getVerifiedXauPrice(): VerifiedTickInfo | null {
+export function getVerifiedXauPrice(maxSignalAgeMs: number = 5000): VerifiedTickInfo | null {
   const tick = latestPrices['xau-usd'];
-  if (!tick || !tick.price || tick.price <= 0) {
+  if (!tick || !tick.price || tick.price <= 0 || isNaN(tick.price)) {
     return null;
   }
   const now = Date.now();
   const ageMs = Math.max(0, now - tick.timestamp);
   const ageSeconds = Math.floor(ageMs / 1000);
   const isFresh = ageSeconds <= 60 && tick.isRealTick;
+  const isSignalFresh = ageMs <= maxSignalAgeMs && tick.isRealTick;
 
   return {
     assetId: 'xau-usd',
@@ -554,6 +567,8 @@ export function getVerifiedXauPrice(): VerifiedTickInfo | null {
     ageMs,
     ageSeconds,
     isFresh,
+    isSignalFresh,
+    isWsHealthy: true,
     source: tick.source || 'BIQUOTE Spot Feed'
   };
 }

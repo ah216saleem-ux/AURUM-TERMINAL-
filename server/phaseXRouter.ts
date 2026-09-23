@@ -413,7 +413,7 @@ export async function handlePhaseXRequest(req: IncomingMessage, res: ServerRespo
     }
 
     if (pathname === '/api/phase-x/live-price' && req.method === 'GET') {
-      const verified = getVerifiedXauPrice();
+      const verified = getVerifiedXauPrice(5000);
       if (!verified || verified.price <= 0) {
         res.statusCode = 200;
         res.end(JSON.stringify({
@@ -422,6 +422,7 @@ export async function handlePhaseXRequest(req: IncomingMessage, res: ServerRespo
           price: 0,
           status: 'UNAVAILABLE',
           isFresh: false,
+          isSignalFresh: false,
           ageSeconds: 999,
           waitState: 'WAIT — MARKET DATA',
           message: 'Waiting for verified market data feed'
@@ -441,8 +442,10 @@ export async function handlePhaseXRequest(req: IncomingMessage, res: ServerRespo
         ageMs: verified.ageMs,
         ageSeconds: verified.ageSeconds,
         isFresh: verified.isFresh,
+        isSignalFresh: verified.isSignalFresh,
         status: verified.isFresh ? 'LIVE' : 'STALE',
-        waitState: verified.isFresh ? 'OK' : 'WAIT — MARKET DATA',
+        signalFreshnessStatus: verified.isSignalFresh ? 'QUALIFIED' : 'STALE_FOR_SIGNAL',
+        waitState: verified.isSignalFresh ? 'OK' : 'WAIT — MARKET DATA',
         source: verified.source
       }));
       return true;

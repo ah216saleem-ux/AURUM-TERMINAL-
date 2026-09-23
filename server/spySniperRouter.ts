@@ -472,7 +472,8 @@ class ServerSpySniperEngine {
 
     try {
       const res = await fetch("https://cdn.cboe.com/api/global/delayed_quotes/options/SPY.json", {
-        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" }
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+        signal: AbortSignal.timeout(4000)
       });
       if (!res.ok) {
         throw new Error(`CBOE API responded with status ${res.status}`);
@@ -492,10 +493,36 @@ class ServerSpySniperEngine {
           return this.cachedCboeOptions;
         }
       }
-    } catch (err) {
-      console.error('[SPY Sniper] Error fetching CBOE fallback options:', err);
+    } catch {
+      // Graceful fallback to cached or empty options
     }
     return this.cachedCboeOptions;
+  }
+
+  /**
+   * Safely fetch chart data from Yahoo Finance with fast 3s timeout and multi-endpoint fallback
+   */
+  private async fetchYahooChartSafely(symbol: string, interval: string = '5m', range: string = '1d'): Promise<any> {
+    const encoded = encodeURIComponent(symbol);
+    const path = `/v8/finance/chart/${encoded}?interval=${interval}&range=${range}`;
+    const hosts = ['https://query1.finance.yahoo.com', 'https://query2.finance.yahoo.com'];
+
+    for (const host of hosts) {
+      try {
+        const res = await fetch(`${host}${path}`, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+          signal: AbortSignal.timeout(3000)
+        });
+        if (res.ok) {
+          const json = await res.json();
+          const result = json?.chart?.result?.[0];
+          if (result) return result;
+        }
+      } catch {
+        // Continue to secondary host or fallback
+      }
+    }
+    return null;
   }
 
   /**
@@ -507,30 +534,12 @@ class ServerSpySniperEngine {
       const finnhubQuote = await finnhubSpyProvider.fetchSpyQuote();
 
       // 2. Fetch candles and intermarket indices (QQQ, ES, VIX) safely
-      let spyResult = null;
-      let qqqResult = null;
-      let esResult = null;
-      let vixResult = null;
-
-      try {
-        const [spyRes, qqqRes, esRes, vixRes] = await Promise.all([
-          fetch("https://query1.finance.yahoo.com/v8/finance/chart/SPY?interval=5m&range=2d", { headers: { "User-Agent": "Mozilla/5.0" } }),
-          fetch("https://query1.finance.yahoo.com/v8/finance/chart/QQQ?interval=5m&range=1d", { headers: { "User-Agent": "Mozilla/5.0" } }),
-          fetch("https://query1.finance.yahoo.com/v8/finance/chart/ES=F?interval=5m&range=1d", { headers: { "User-Agent": "Mozilla/5.0" } }),
-          fetch("https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX?interval=5m&range=1d", { headers: { "User-Agent": "Mozilla/5.0" } })
-        ]);
-
-        const [spyJson, qqqJson, esJson, vixJson] = await Promise.all([
-          spyRes.json(), qqqRes.json(), esRes.json(), vixRes.json()
-        ]);
-
-        spyResult = spyJson?.chart?.result?.[0];
-        qqqResult = qqqJson?.chart?.result?.[0];
-        esResult = esJson?.chart?.result?.[0];
-        vixResult = vixJson?.chart?.result?.[0];
-      } catch (err) {
-        console.warn('[SPY Sniper] Yahoo Finance fetch failed, using Finnhub quote fallback:', err);
-      }
+      const [spyResult, qqqResult, esResult, vixResult] = await Promise.all([
+        this.fetchYahooChartSafely('SPY', '5m', '2d'),
+        this.fetchYahooChartSafely('QQQ', '5m', '1d'),
+        this.fetchYahooChartSafely('ES=F', '5m', '1d'),
+        this.fetchYahooChartSafely('^VIX', '5m', '1d')
+      ]);
 
       if (!spyResult || !qqqResult || !esResult || !vixResult) {
         if (finnhubQuote && finnhubQuote.current > 0) {
