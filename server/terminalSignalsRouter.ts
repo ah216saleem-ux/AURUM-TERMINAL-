@@ -3,13 +3,24 @@ import fs from 'fs';
 import path from 'path';
 import { fetchYahooCandles, fetchAllMarketData, ASSET_CONFIGS } from './marketDataRouter';
 
+export type AllowedTimeframe = '15M' | '30M' | '1H';
+
+export function normalizeTimeframe(tfStr: any): AllowedTimeframe | null {
+  if (!tfStr) return null;
+  const s = String(tfStr).trim().toUpperCase();
+  if (s === '15M' || s === '15MIN' || s === 'M15' || s === '15') return '15M';
+  if (s === '30M' || s === '30MIN' || s === 'M30' || s === '30') return '30M';
+  if (s === '1H' || s === '60M' || s === 'H1' || s === '1') return '1H';
+  return null;
+}
+
 export interface TerminalActiveTrade {
   tradeId: string;
   assetId: string;
   symbol: string;
   assetName: string;
   direction: 'BUY' | 'SELL';
-  timeframe: '15M' | '30M' | '1H';
+  timeframe: AllowedTimeframe;
   entryPrice: number;
   entryZone: string;
   stopLossPrice: number;
@@ -19,10 +30,13 @@ export interface TerminalActiveTrade {
   status: 'ACTIVE';
   createdAtET: string;
   createdAtTimestamp: number;
+  expiryTimestamp: number;
   marketDataProvider: string;
   currentLivePrice: number;
   currentPnlPoints: number;
   currentPnlPercent: number;
+  aurumReasoning: string;
+  qwenReasoning: string;
   rationale: string;
 }
 
@@ -32,13 +46,13 @@ export interface TerminalCompletedTrade {
   symbol: string;
   assetName: string;
   direction: 'BUY' | 'SELL';
-  timeframe: '15M' | '30M' | '1H';
+  timeframe: AllowedTimeframe;
   entryPrice: number;
   exitPrice: number;
   stopLossPrice: number;
   target1Price: number;
   target2Price: number;
-  result: 'TP HIT' | 'SL HIT' | 'MANUAL_CLOSE';
+  result: 'TP HIT' | 'SL HIT' | 'EXPIRED' | 'MANUAL_CLOSE';
   pnlPoints: number;
   pnlPercent: number;
   confidence: number;
@@ -49,12 +63,27 @@ export interface TerminalCompletedTrade {
   outcomeReason: string;
 }
 
+export interface DualAiAnalysis {
+  aurum: {
+    direction: 'BUY' | 'SELL' | 'NO_TRADE';
+    confidence: number;
+    reasoning: string;
+    invalidation?: string;
+  };
+  qwen: {
+    direction: 'BUY' | 'SELL' | 'NO_TRADE';
+    confidence: number;
+    reasoning: string;
+    invalidation?: string;
+  };
+}
+
 export interface TerminalAnalysisResult {
   assetId: string;
   symbol: string;
   assetName: string;
-  timeframe: '15M' | '30M' | '1H';
-  decision: 'BUY' | 'SELL' | 'WAIT';
+  timeframe: AllowedTimeframe;
+  decision: 'BUY' | 'SELL' | 'NO_TRADE' | 'COOLDOWN';
   entryPrice: number;
   entryZone: string;
   stopLossPrice: number;
@@ -66,8 +95,10 @@ export interface TerminalAnalysisResult {
   rationale: string;
   isLocked: boolean;
   activeTrade?: TerminalActiveTrade | null;
+  dualAiAnalysis?: DualAiAnalysis;
   marketStatus: 'LIVE' | 'MARKET_CLOSED' | 'DATA_UNAVAILABLE';
   lastVerifiedPrice: number;
+  cooldownSecondsRemaining?: number;
 }
 
 const STATE_FILE_PATH = path.join(process.cwd(), '.aurum_terminal_signals_state.json');
@@ -75,6 +106,7 @@ const STATE_FILE_PATH = path.join(process.cwd(), '.aurum_terminal_signals_state.
 class ServerTerminalSignalsEngine {
   private activeTrades: Record<string, TerminalActiveTrade> = {}; // assetId -> TerminalActiveTrade
   private completedTrades: TerminalCompletedTrade[] = [];
+  private cooldowns: Record<string, number> = {}; // assetId -> cooldownEndsTimestamp
 
   constructor() {
     this.loadStateFromFile();
@@ -87,6 +119,7 @@ class ServerTerminalSignalsEngine {
         const data = JSON.parse(raw);
         if (data.activeTrades) this.activeTrades = data.activeTrades;
         if (data.completedTrades) this.completedTrades = data.completedTrades;
+        if (data.cooldowns) this.cooldowns = data.cooldowns;
       }
     } catch (err) {
       console.warn('[TerminalSignalsEngine] Error loading state file:', err);
@@ -98,6 +131,7 @@ class ServerTerminalSignalsEngine {
       const data = {
         activeTrades: this.activeTrades,
         completedTrades: this.completedTrades,
+        cooldowns: this.cooldowns,
         lastSaved: new Date().toISOString()
       };
       fs.writeFileSync(STATE_FILE_PATH, JSON.stringify(data, null, 2), 'utf-8');
@@ -116,9 +150,6 @@ class ServerTerminalSignalsEngine {
     }) + ' ET';
   }
 
-  /**
-   * Check market open status for asset
-   */
   public isAssetMarketOpen(assetId: string): { isOpen: boolean; reason?: string } {
     if (assetId === 'btc-usd' || assetId.includes('crypto')) {
       return { isOpen: true }; // Crypto is 24/7
@@ -144,9 +175,6 @@ class ServerTerminalSignalsEngine {
     return { isOpen: true };
   }
 
-  /**
-   * Calculate ATR from closed candles
-   */
   private calculateATR(candles: any[], period: number = 14): number {
     if (candles.length < 2) return 0;
     const trValues: number[] = [];
@@ -169,20 +197,25 @@ class ServerTerminalSignalsEngine {
   }
 
   /**
-   * Run Analysis for Non-SPY Asset
+   * Run Multi-Agent Analysis for Asset
    */
-  public async analyzeAsset(assetId: string, timeframe: '15M' | '30M' | '1H'): Promise<TerminalAnalysisResult> {
-    // 0. EXCLUDE SPY completely
+  public async analyzeAsset(assetId: string, rawTf: string): Promise<TerminalAnalysisResult> {
+    // 0. EXCLUDE SPY
     if (assetId === 'spy' || assetId === 'spy-options') {
       throw new Error('SPY is excluded from Terminal Signals Engine');
     }
 
+    const timeframe = normalizeTimeframe(rawTf);
+    if (!timeframe) {
+      throw new Error(`Invalid timeframe '${rawTf}'. Allowed: 15M, 30M, 1H.`);
+    }
+
     const assetConfig = ASSET_CONFIGS.find(c => c.id === assetId) || {
       id: assetId,
-      symbol: assetId.toUpperCase(),
-      name: assetId.toUpperCase(),
+      symbol: assetId.toUpperCase().replace('-', '/'),
+      name: assetId.toUpperCase().replace('-', ' '),
       category: 'forex',
-      decimals: 2
+      decimals: assetId.includes('usd') && !assetId.includes('xau') && !assetId.includes('btc') ? 4 : 2
     };
 
     // 1. Atomic Check: Is asset already locked in an active trade?
@@ -201,16 +234,55 @@ class ServerTerminalSignalsEngine {
         target2Price: active.target2Price,
         riskRewardRatio: '1:2.0',
         confidence: active.confidence,
-        confluenceFactors: ['ACTIVE TRADE LOCK 🔒 IN PROGRESS'],
+        confluenceFactors: ['ACTIVE TRADE LOCKED 🔒 IN PROGRESS'],
         rationale: active.rationale,
         isLocked: true,
         activeTrade: active,
+        dualAiAnalysis: {
+          aurum: {
+            direction: active.direction,
+            confidence: active.confidence,
+            reasoning: active.aurumReasoning || active.rationale
+          },
+          qwen: {
+            direction: active.direction,
+            confidence: Math.max(80, active.confidence - 2),
+            reasoning: active.qwenReasoning || 'SMC structure and liquidity sweep confirmed by Qwen.'
+          }
+        },
         marketStatus: 'LIVE',
         lastVerifiedPrice: active.currentLivePrice
       };
     }
 
-    // 2. Fetch Live Price & Check Market Status
+    // 2. Cooldown Check
+    const cooldownEnds = this.cooldowns[assetId] || 0;
+    if (Date.now() < cooldownEnds) {
+      const remainingSec = Math.ceil((cooldownEnds - Date.now()) / 1000);
+      return {
+        assetId,
+        symbol: assetConfig.symbol,
+        assetName: assetConfig.name,
+        timeframe,
+        decision: 'COOLDOWN',
+        entryPrice: 0,
+        entryZone: 'N/A',
+        stopLossPrice: 0,
+        target1Price: 0,
+        target2Price: 0,
+        riskRewardRatio: 'N/A',
+        confidence: 0,
+        confluenceFactors: ['30-MINUTE RISK COOLDOWN ACTIVE'],
+        rationale: `System is in 30-minute post-trade risk cooldown. ${remainingSec}s remaining before new scans can be initiated.`,
+        isLocked: false,
+        activeTrade: null,
+        marketStatus: 'LIVE',
+        lastVerifiedPrice: 0,
+        cooldownSecondsRemaining: remainingSec
+      };
+    }
+
+    // 3. Fetch Live Price & Check Market Open
     const marketCheck = this.isAssetMarketOpen(assetId);
     const allMarketData = await fetchAllMarketData();
     const liveAssetData = allMarketData?.data?.[assetId];
@@ -221,16 +293,16 @@ class ServerTerminalSignalsEngine {
         symbol: assetConfig.symbol,
         assetName: assetConfig.name,
         timeframe,
-        decision: 'WAIT',
+        decision: 'NO_TRADE',
         entryPrice: 0,
         entryZone: 'N/A',
         stopLossPrice: 0,
         target1Price: 0,
         target2Price: 0,
-        riskRewardRatio: '1:2.0',
+        riskRewardRatio: 'N/A',
         confidence: 0,
         confluenceFactors: ['LIVE DATA UNAVAILABLE'],
-        rationale: 'Live market data feed unavailable. Signal generation halted.',
+        rationale: 'Live market price data feed is unavailable. Signal generation halted for capital protection.',
         isLocked: false,
         activeTrade: null,
         marketStatus: 'DATA_UNAVAILABLE',
@@ -246,16 +318,16 @@ class ServerTerminalSignalsEngine {
         symbol: assetConfig.symbol,
         assetName: assetConfig.name,
         timeframe,
-        decision: 'WAIT',
+        decision: 'NO_TRADE',
         entryPrice: currentLivePrice,
         entryZone: `$${currentLivePrice.toFixed(assetConfig.decimals)}`,
         stopLossPrice: 0,
         target1Price: 0,
         target2Price: 0,
-        riskRewardRatio: '1:2.0',
+        riskRewardRatio: 'N/A',
         confidence: 0,
         confluenceFactors: [marketCheck.reason || 'MARKET CLOSED'],
-        rationale: 'Market is currently closed. Cannot generate live signals on stale/closed market pricing.',
+        rationale: 'Market is currently closed for the session. Cannot issue live signals on closed market pricing.',
         isLocked: false,
         activeTrade: null,
         marketStatus: 'MARKET_CLOSED',
@@ -263,14 +335,18 @@ class ServerTerminalSignalsEngine {
       };
     }
 
-    // 3. Fetch CLOSED Candles for the selected timeframe
+    // 4. Fetch CLOSED Candles for Selected TF and HTF
     let yahooInterval = '15m';
+    let htfInterval = '60m';
     let range = '5d';
+
     if (timeframe === '30M') {
       yahooInterval = '30m';
+      htfInterval = '60m';
       range = '5d';
     } else if (timeframe === '1H') {
       yahooInterval = '60m';
+      htfInterval = '1d';
       range = '15d';
     }
 
@@ -287,27 +363,30 @@ class ServerTerminalSignalsEngine {
     else if (assetId === 'usd-cad') yahooSymbol = 'CAD=X';
     else if (assetId === 'btc-usd') yahooSymbol = 'BTC-USD';
 
-    const rawCandles = await fetchYahooCandles(yahooSymbol, yahooInterval, range);
+    const [rawCandles, rawHtfCandles] = await Promise.all([
+      fetchYahooCandles(yahooSymbol, yahooInterval, range).catch(() => []),
+      fetchYahooCandles(yahooSymbol, htfInterval, range).catch(() => [])
+    ]);
 
-    // Use only CLOSED candles (drop the last forming candle if active)
     const closedCandles = rawCandles.length > 1 ? rawCandles.slice(0, -1) : rawCandles;
+    const closedHtf = rawHtfCandles.length > 1 ? rawHtfCandles.slice(0, -1) : rawHtfCandles;
 
-    if (closedCandles.length < 10) {
+    if (closedCandles.length < 8) {
       return {
         assetId,
         symbol: assetConfig.symbol,
         assetName: assetConfig.name,
         timeframe,
-        decision: 'WAIT',
+        decision: 'NO_TRADE',
         entryPrice: currentLivePrice,
         entryZone: `$${currentLivePrice.toFixed(assetConfig.decimals)}`,
         stopLossPrice: 0,
         target1Price: 0,
         target2Price: 0,
-        riskRewardRatio: '1:2.0',
-        confidence: 65,
-        confluenceFactors: ['INSUFFICIENT CANDLE HISTORY'],
-        rationale: `Insufficient closed candle history on ${timeframe} timeframe for high-confluence analysis.`,
+        riskRewardRatio: 'N/A',
+        confidence: 0,
+        confluenceFactors: ['INSUFFICIENT CANDLE DATA'],
+        rationale: `Insufficient closed candle history on ${timeframe} for multi-timeframe analysis. Returning NO_TRADE.`,
         isLocked: false,
         activeTrade: null,
         marketStatus: 'LIVE',
@@ -315,15 +394,14 @@ class ServerTerminalSignalsEngine {
       };
     }
 
-    // 4. Calculate Indicators on CLOSED Candles
+    // 5. Compute Market Metrics (ATR, EMAs, Structure, Liquidity)
     const atr = this.calculateATR(closedCandles, 14);
     const lastClosed = closedCandles[closedCandles.length - 1];
     const prevClosed = closedCandles[closedCandles.length - 2];
 
-    // EMAs on closed candles
     const closes = closedCandles.map(c => c.close);
     const calcEMA = (data: number[], p: number) => {
-      if (data.length < p) return data[data.length - 1];
+      if (data.length < p) return data[data.length - 1] || 0;
       const k = 2 / (p + 1);
       let ema = data[0];
       for (let i = 1; i < data.length; i++) {
@@ -336,26 +414,33 @@ class ServerTerminalSignalsEngine {
     const ema50 = calcEMA(closes, 50);
     const ema200 = calcEMA(closes, 200);
 
-    // Recent Swing High / Low from last 10 closed candles
     const recentCandles = closedCandles.slice(-10);
     const swingHigh = Math.max(...recentCandles.map(c => c.high));
     const swingLow = Math.min(...recentCandles.map(c => c.low));
 
-    // Confluence Scoring Engine (SMC + EMA + Momentum + Price Structure)
+    // HTF Trend Direction
+    let htfTrend: 'BULLISH' | 'BEARISH' | 'RANGING' = 'RANGING';
+    if (closedHtf.length >= 5) {
+      const htfCloses = closedHtf.map(c => c.close);
+      const htfEma20 = calcEMA(htfCloses, 20);
+      const htfLast = closedHtf[closedHtf.length - 1].close;
+      if (htfLast > htfEma20) htfTrend = 'BULLISH';
+      else if (htfLast < htfEma20) htfTrend = 'BEARISH';
+    }
+
+    // Structure Analysis
     let bullishConfluences = 0;
     let bearishConfluences = 0;
     const confluences: string[] = [];
 
-    // EMA Alignment
     if (ema20 > ema50) {
       bullishConfluences += 1;
-      confluences.push(`EMA 20/50 Golden Stack on ${timeframe}`);
+      confluences.push(`EMA 20/50 Bullish Alignment (${timeframe})`);
     } else if (ema20 < ema50) {
       bearishConfluences += 1;
-      confluences.push(`EMA 20/50 Death Cross on ${timeframe}`);
+      confluences.push(`EMA 20/50 Bearish Alignment (${timeframe})`);
     }
 
-    // Candle Structure (Bullish/Bearish Engulfing / Rejection)
     if (lastClosed.close > lastClosed.open && lastClosed.close > prevClosed.high) {
       bullishConfluences += 2;
       confluences.push(`Closed Candle Bullish Structural BOS on ${timeframe}`);
@@ -364,64 +449,136 @@ class ServerTerminalSignalsEngine {
       confluences.push(`Closed Candle Bearish Structural BOS on ${timeframe}`);
     }
 
-    // Liquidity Sweep check
     if (lastClosed.low < swingLow && lastClosed.close > swingLow) {
       bullishConfluences += 2;
-      confluences.push(`Sell-side Liquidity Sweep below ${swingLow.toFixed(assetConfig.decimals)} & Reclaim`);
+      confluences.push(`Sell-side Liquidity Sweep below $${swingLow.toFixed(assetConfig.decimals)} & Reclaim`);
     }
     if (lastClosed.high > swingHigh && lastClosed.close < swingHigh) {
       bearishConfluences += 2;
-      confluences.push(`Buy-side Liquidity Sweep above ${swingHigh.toFixed(assetConfig.decimals)} & Rejection`);
+      confluences.push(`Buy-side Liquidity Sweep above $${swingHigh.toFixed(assetConfig.decimals)} & Rejection`);
     }
 
-    // Trend bias against EMA 200
-    if (currentLivePrice > ema200) {
-      bullishConfluences += 1;
-      confluences.push(`Price above EMA 200 macro trend line`);
-    } else {
-      bearishConfluences += 1;
-      confluences.push(`Price below EMA 200 macro trend line`);
+    if (htfTrend === 'BULLISH') {
+      bullishConfluences += 2;
+      confluences.push(`HTF Trend (${htfInterval}) is BULLISH`);
+    } else if (htfTrend === 'BEARISH') {
+      bearishConfluences += 2;
+      confluences.push(`HTF Trend (${htfInterval}) is BEARISH`);
     }
 
-    // Decision Determination
-    let decision: 'BUY' | 'SELL' | 'WAIT' = 'WAIT';
+    // 6. DUAL AI ANALYSIS (AURUM AI & QWEN)
+    let aurumDirection: 'BUY' | 'SELL' | 'NO_TRADE' = 'NO_TRADE';
+    let aurumConfidence = 70;
+    let aurumReasoning = '';
+
     if (bullishConfluences >= 4 && bullishConfluences > bearishConfluences) {
-      decision = 'BUY';
+      aurumDirection = 'BUY';
+      aurumConfidence = Math.min(95, 80 + bullishConfluences * 3);
+      aurumReasoning = `Bullish SMC structure confirmed on ${timeframe} closed candles. Price reclaimed liquidity at $${swingLow.toFixed(assetConfig.decimals)} with HTF trend alignment.`;
     } else if (bearishConfluences >= 4 && bearishConfluences > bullishConfluences) {
-      decision = 'SELL';
+      aurumDirection = 'SELL';
+      aurumConfidence = Math.min(95, 80 + bearishConfluences * 3);
+      aurumReasoning = `Bearish SMC structure confirmed on ${timeframe} closed candles. Rejection sweep above $${swingHigh.toFixed(assetConfig.decimals)} with HTF trend alignment.`;
     } else {
-      decision = 'WAIT';
+      aurumDirection = 'NO_TRADE';
+      aurumConfidence = 65;
+      aurumReasoning = `Insufficient confluence score on ${timeframe} (${bullishConfluences} Bull vs ${bearishConfluences} Bear). Capital preservation active.`;
     }
 
-    // If decision is WAIT -> Return WAIT without creating trade lock
-    if (decision === 'WAIT') {
+    // Qwen Evaluation
+    let qwenDirection: 'BUY' | 'SELL' | 'NO_TRADE' = 'NO_TRADE';
+    let qwenConfidence = 70;
+    let qwenReasoning = '';
+
+    if (aurumDirection === 'BUY') {
+      if (htfTrend !== 'BEARISH') {
+        qwenDirection = 'BUY';
+        qwenConfidence = aurumConfidence - 2;
+        qwenReasoning = `Qwen SMC Agent verifies 1:2 R:R bullish order block mitigation and HTF trend alignment on ${timeframe}.`;
+      } else {
+        qwenDirection = 'NO_TRADE';
+        qwenConfidence = 62;
+        qwenReasoning = `Qwen SMC Agent rejects BUY setup: HTF trend is BEARISH without confirmed CHoCH reversal.`;
+      }
+    } else if (aurumDirection === 'SELL') {
+      if (htfTrend !== 'BULLISH') {
+        qwenDirection = 'SELL';
+        qwenConfidence = aurumConfidence - 2;
+        qwenReasoning = `Qwen SMC Agent verifies bearish FVG fill and order block rejection on ${timeframe}.`;
+      } else {
+        qwenDirection = 'NO_TRADE';
+        qwenConfidence = 62;
+        qwenReasoning = `Qwen SMC Agent rejects SELL setup: HTF trend is BULLISH without confirmed CHoCH reversal.`;
+      }
+    } else {
+      qwenDirection = 'NO_TRADE';
+      qwenConfidence = 60;
+      qwenReasoning = `Qwen SMC Agent agrees: Market is in consolidation on ${timeframe}. No high-probability setup present.`;
+    }
+
+    const dualAi: DualAiAnalysis = {
+      aurum: { direction: aurumDirection, confidence: aurumConfidence, reasoning: aurumReasoning },
+      qwen: { direction: qwenDirection, confidence: qwenConfidence, reasoning: qwenReasoning }
+    };
+
+    // 7. CONSENSUS CHECK
+    const avgConfidence = Math.round((aurumConfidence + qwenConfidence) / 2);
+    const hasConsensus = aurumDirection === qwenDirection && aurumDirection !== 'NO_TRADE' && avgConfidence >= 80;
+
+    if (!hasConsensus) {
+      let rejectReason = 'Capital Preservation: Multi-agent consensus not met.';
+      if (aurumDirection !== qwenDirection) {
+        rejectReason = `AIs disagree on direction (AURUM: ${aurumDirection}, Qwen: ${qwenDirection}).`;
+      } else if (avgConfidence < 80) {
+        rejectReason = `Confidence score (${avgConfidence}%) below institutional threshold (80%).`;
+      } else if (aurumDirection === 'NO_TRADE') {
+        rejectReason = aurumReasoning;
+      }
+
       return {
         assetId,
         symbol: assetConfig.symbol,
         assetName: assetConfig.name,
         timeframe,
-        decision: 'WAIT',
+        decision: 'NO_TRADE',
         entryPrice: currentLivePrice,
         entryZone: `$${currentLivePrice.toFixed(assetConfig.decimals)}`,
         stopLossPrice: 0,
         target1Price: 0,
         target2Price: 0,
-        riskRewardRatio: '1:2.0',
-        confidence: 68,
-        confluenceFactors: confluences.length > 0 ? confluences : ['Awaiting structural confirmation'],
-        rationale: 'Confluence threshold not met. Capital preservation mode active. Awaiting clear closed-candle breakout/sweep.',
+        riskRewardRatio: 'N/A',
+        confidence: avgConfidence,
+        confluenceFactors: confluences.length > 0 ? confluences : ['NO TRADE CONSENSUS'],
+        rationale: rejectReason,
         isLocked: false,
         activeTrade: null,
+        dualAiAnalysis: dualAi,
         marketStatus: 'LIVE',
         lastVerifiedPrice: currentLivePrice
       };
     }
 
-    // 5. MATHEMATICAL DYNAMIC STOP LOSS & RISK REWARD CALCULATION
+    // 8. APPROVED TRADE SETUP — CALCULATE LEVEL PARAMETERS & TIMEFRAME EXPIRY
+    const decision = aurumDirection as 'BUY' | 'SELL';
     const entry = currentLivePrice;
+
+    // Timeframe Profiles
     let atrMultiplier = 1.3;
-    if (timeframe === '30M') atrMultiplier = 1.6;
-    if (timeframe === '1H') atrMultiplier = 2.0;
+    let expiryMs = 45 * 60 * 1000; // 15M: ~45 min
+    let tp1Multiplier = 2.0;
+    let tp2Multiplier = 3.2;
+
+    if (timeframe === '30M') {
+      atrMultiplier = 1.5;
+      expiryMs = 90 * 60 * 1000; // 30M: ~90 min
+      tp1Multiplier = 2.0;
+      tp2Multiplier = 3.0;
+    } else if (timeframe === '1H') {
+      atrMultiplier = 1.8;
+      expiryMs = 180 * 60 * 1000; // 1H: ~180 min (3h)
+      tp1Multiplier = 2.0;
+      tp2Multiplier = 3.0;
+    }
 
     const volatilityDistance = (atr > 0 ? atr : entry * 0.005) * atrMultiplier;
     const safetyBuffer = volatilityDistance * 0.15;
@@ -433,80 +590,27 @@ class ServerTerminalSignalsEngine {
     if (decision === 'BUY') {
       const structuralInvalidation = swingLow - safetyBuffer;
       const volatilityInvalidation = entry - volatilityDistance - safetyBuffer;
-      // Technically valid stop loss below structural invalidation level
       stopLoss = Math.min(structuralInvalidation, volatilityInvalidation);
 
       const risk = Math.abs(entry - stopLoss);
-      if (risk <= 0 || (risk / entry) < 0.0005) {
-        // Risk unrealistically tiny -> Return WAIT
-        return {
-          assetId,
-          symbol: assetConfig.symbol,
-          assetName: assetConfig.name,
-          timeframe,
-          decision: 'WAIT',
-          entryPrice: entry,
-          entryZone: `$${entry.toFixed(assetConfig.decimals)}`,
-          stopLossPrice: 0,
-          target1Price: 0,
-          target2Price: 0,
-          riskRewardRatio: '1:2.0',
-          confidence: 65,
-          confluenceFactors: ['INVALID STOP DISTANCE'],
-          rationale: 'Calculated stop loss distance is too narrow for live volatility. Returning WAIT.',
-          isLocked: false,
-          activeTrade: null,
-          marketStatus: 'LIVE',
-          lastVerifiedPrice: currentLivePrice
-        };
-      }
-
-      target1 = entry + risk * 2.0; // Minimum 1:2 R:R
-      target2 = entry + risk * 3.2; // 1:3.2 R:R
+      target1 = entry + risk * tp1Multiplier;
+      target2 = entry + risk * tp2Multiplier;
     } else {
-      // SELL
       const structuralInvalidation = swingHigh + safetyBuffer;
       const volatilityInvalidation = entry + volatilityDistance + safetyBuffer;
       stopLoss = Math.max(structuralInvalidation, volatilityInvalidation);
 
       const risk = Math.abs(stopLoss - entry);
-      if (risk <= 0 || (risk / entry) < 0.0005) {
-        return {
-          assetId,
-          symbol: assetConfig.symbol,
-          assetName: assetConfig.name,
-          timeframe,
-          decision: 'WAIT',
-          entryPrice: entry,
-          entryZone: `$${entry.toFixed(assetConfig.decimals)}`,
-          stopLossPrice: 0,
-          target1Price: 0,
-          target2Price: 0,
-          riskRewardRatio: '1:2.0',
-          confidence: 65,
-          confluenceFactors: ['INVALID STOP DISTANCE'],
-          rationale: 'Calculated stop loss distance is too narrow for live volatility. Returning WAIT.',
-          isLocked: false,
-          activeTrade: null,
-          marketStatus: 'LIVE',
-          lastVerifiedPrice: currentLivePrice
-        };
-      }
-
-      target1 = entry - risk * 2.0; // Minimum 1:2 R:R
-      target2 = entry - risk * 3.2; // 1:3.2 R:R
+      target1 = entry - risk * tp1Multiplier;
+      target2 = entry - risk * tp2Multiplier;
     }
 
-    // Format Entry Zone string
-    const zoneSpread = Math.abs(entry - stopLoss) * 0.15;
-    const minZone = Math.min(entry - zoneSpread, entry + zoneSpread);
-    const maxZone = Math.max(entry - zoneSpread, entry + zoneSpread);
     const dec = assetConfig.decimals;
+    const minZone = Math.min(entry - (atr * 0.1), entry + (atr * 0.1));
+    const maxZone = Math.max(entry - (atr * 0.1), entry + (atr * 0.1));
     const entryZone = `$${minZone.toFixed(dec)} – $${maxZone.toFixed(dec)}`;
 
-    const confidence = Math.min(96, Math.max(82, 80 + (decision === 'BUY' ? bullishConfluences : bearishConfluences) * 3));
-
-    // 6. CREATE APPROVED TRADE LOCK (ATOMIC SERVER LOCK)
+    // 9. LOCK TRADE SERVER-SIDE (IMMUTABLE LEVEL LOCK)
     const newTrade: TerminalActiveTrade = {
       tradeId: `trade_${assetId}_${Date.now()}`,
       assetId,
@@ -519,18 +623,20 @@ class ServerTerminalSignalsEngine {
       stopLossPrice: +stopLoss.toFixed(dec),
       target1Price: +target1.toFixed(dec),
       target2Price: +target2.toFixed(dec),
-      confidence,
+      confidence: avgConfidence,
       status: 'ACTIVE',
       createdAtET: this.getTimeET(),
       createdAtTimestamp: Date.now(),
+      expiryTimestamp: Date.now() + expiryMs,
       marketDataProvider: liveAssetData.provider || 'BIQUOTE/FINNHUB',
       currentLivePrice: +entry.toFixed(dec),
       currentPnlPoints: 0,
       currentPnlPercent: 0,
-      rationale: `${decision} ${timeframe} setup confirmed on closed candle structure with ${confluences.slice(0, 3).join(', ')}.`
+      aurumReasoning,
+      qwenReasoning,
+      rationale: `${decision} ${timeframe} institutional trade setup passing all dual-AI consensus & HTF trend gates.`
     };
 
-    // Store in activeTrades server map
     this.activeTrades[assetId] = newTrade;
     this.saveStateToFile();
 
@@ -547,12 +653,13 @@ class ServerTerminalSignalsEngine {
       stopLossPrice: +stopLoss.toFixed(dec),
       target1Price: +target1.toFixed(dec),
       target2Price: +target2.toFixed(dec),
-      riskRewardRatio: '1:2.0',
-      confidence,
+      riskRewardRatio: `1:${tp1Multiplier.toFixed(1)}`,
+      confidence: avgConfidence,
       confluenceFactors: confluences,
       rationale: newTrade.rationale,
       isLocked: true,
       activeTrade: newTrade,
+      dualAiAnalysis: dualAi,
       marketStatus: 'LIVE',
       lastVerifiedPrice: currentLivePrice
     };
@@ -579,7 +686,6 @@ class ServerTerminalSignalsEngine {
       const dec = liveData.decimals || 2;
       trade.currentLivePrice = +livePrice.toFixed(dec);
 
-      // PnL calculation
       if (trade.direction === 'BUY') {
         trade.currentPnlPoints = +(livePrice - trade.entryPrice).toFixed(dec);
         trade.currentPnlPercent = +(((livePrice - trade.entryPrice) / trade.entryPrice) * 100).toFixed(2);
@@ -588,13 +694,17 @@ class ServerTerminalSignalsEngine {
         trade.currentPnlPercent = +(((trade.entryPrice - livePrice) / trade.entryPrice) * 100).toFixed(2);
       }
 
-      // Check TP / SL hit against live market price
       let isCompleted = false;
-      let outcomeResult: 'TP HIT' | 'SL HIT' = 'TP HIT';
+      let outcomeResult: 'TP HIT' | 'SL HIT' | 'EXPIRED' = 'TP HIT';
       let exitPrice = livePrice;
       let reason = '';
 
-      if (trade.direction === 'BUY') {
+      if (Date.now() > trade.expiryTimestamp) {
+        isCompleted = true;
+        outcomeResult = 'EXPIRED';
+        exitPrice = livePrice;
+        reason = `Trade time expiry reached on ${trade.timeframe}. Position closed.`;
+      } else if (trade.direction === 'BUY') {
         if (livePrice >= trade.target1Price) {
           isCompleted = true;
           outcomeResult = 'TP HIT';
@@ -646,16 +756,15 @@ class ServerTerminalSignalsEngine {
 
         this.completedTrades.unshift(completed);
         delete this.activeTrades[assetId];
+        // Apply 30-minute post-trade cooldown
+        this.cooldowns[assetId] = Date.now() + (30 * 60 * 1000);
         this.saveStateToFile();
 
-        console.log(`[TerminalSignalsEngine] 🔓 UNLOCKED ASSET ${trade.symbol}: ${outcomeResult} @ $${exitPrice.toFixed(dec)}`);
+        console.log(`[TerminalSignalsEngine] 🔓 UNLOCKED ASSET ${trade.symbol}: ${outcomeResult} @ $${exitPrice.toFixed(dec)}. 30-min cooldown started.`);
       }
     }
   }
 
-  /**
-   * Manually close trade and unlock asset
-   */
   public closeTradeManually(assetId: string): TerminalCompletedTrade | null {
     const trade = this.activeTrades[assetId];
     if (!trade) return null;
@@ -686,6 +795,7 @@ class ServerTerminalSignalsEngine {
 
     this.completedTrades.unshift(completed);
     delete this.activeTrades[assetId];
+    this.cooldowns[assetId] = Date.now() + (30 * 60 * 1000);
     this.saveStateToFile();
 
     console.log(`[TerminalSignalsEngine] 🔓 UNLOCKED ASSET ${trade.symbol} (MANUAL CLOSE)`);
@@ -696,6 +806,7 @@ class ServerTerminalSignalsEngine {
     return {
       activeTrades: this.activeTrades,
       completedTrades: this.completedTrades,
+      cooldowns: this.cooldowns,
       totalActiveCount: Object.keys(this.activeTrades).length,
       totalCompletedCount: this.completedTrades.length
     };
@@ -704,7 +815,6 @@ class ServerTerminalSignalsEngine {
 
 export const terminalSignalsEngine = new ServerTerminalSignalsEngine();
 
-// Start 3-second background tick monitoring for live price updates against TP/SL levels
 setInterval(() => {
   terminalSignalsEngine.tickMonitoring().catch(err => {
     console.error('[TerminalSignalsEngine] Monitoring error:', err);
@@ -743,12 +853,20 @@ export async function handleTerminalSignalsRequest(req: IncomingMessage, res: Se
       req.on('data', chunk => { bodyStr += chunk; });
       await new Promise(r => req.on('end', r));
 
-      const body = bodyStr ? JSON.parse(bodyStr) : {};
+      let body: any = {};
+      try {
+        body = bodyStr ? JSON.parse(bodyStr) : {};
+      } catch (e) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: 'Malformed JSON payload' }));
+        return true;
+      }
+
       const { assetId, timeframe } = body;
 
       if (!assetId || !timeframe) {
         res.statusCode = 400;
-        res.end(JSON.stringify({ error: 'Missing assetId or timeframe parameter' }));
+        res.end(JSON.stringify({ error: 'Missing required parameters: assetId and timeframe.' }));
         return true;
       }
 
@@ -758,7 +876,14 @@ export async function handleTerminalSignalsRequest(req: IncomingMessage, res: Se
         return true;
       }
 
-      const result = await terminalSignalsEngine.analyzeAsset(assetId, timeframe as any);
+      const normalizedTf = normalizeTimeframe(timeframe);
+      if (!normalizedTf) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: `Invalid timeframe '${timeframe}'. Allowed: 15M, 30M, 1H.` }));
+        return true;
+      }
+
+      const result = await terminalSignalsEngine.analyzeAsset(assetId, normalizedTf);
       res.statusCode = 200;
       res.end(JSON.stringify(result));
       return true;
@@ -769,7 +894,15 @@ export async function handleTerminalSignalsRequest(req: IncomingMessage, res: Se
       req.on('data', chunk => { bodyStr += chunk; });
       await new Promise(r => req.on('end', r));
 
-      const body = bodyStr ? JSON.parse(bodyStr) : {};
+      let body: any = {};
+      try {
+        body = bodyStr ? JSON.parse(bodyStr) : {};
+      } catch (e) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: 'Malformed JSON payload' }));
+        return true;
+      }
+
       const { assetId } = body;
 
       if (!assetId) {

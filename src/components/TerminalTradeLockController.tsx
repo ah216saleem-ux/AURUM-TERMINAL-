@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Lock, 
   Unlock, 
@@ -13,10 +13,11 @@ import {
   Copy, 
   Check, 
   Send, 
-  BarChart2,
-  Activity,
-  Flame,
-  Sparkles
+  Sparkles,
+  Bot,
+  Brain,
+  ShieldAlert,
+  ArrowRight
 } from 'lucide-react';
 import { MarketItem, Timeframe } from '../types';
 import { useMarket } from '../context/MarketContext';
@@ -37,11 +38,29 @@ export interface TerminalActiveTrade {
   status: 'ACTIVE';
   createdAtET: string;
   createdAtTimestamp: number;
+  expiryTimestamp: number;
   marketDataProvider: string;
   currentLivePrice: number;
   currentPnlPoints: number;
   currentPnlPercent: number;
+  aurumReasoning?: string;
+  qwenReasoning?: string;
   rationale: string;
+}
+
+export interface DualAiAnalysis {
+  aurum: {
+    direction: 'BUY' | 'SELL' | 'NO_TRADE';
+    confidence: number;
+    reasoning: string;
+    invalidation?: string;
+  };
+  qwen: {
+    direction: 'BUY' | 'SELL' | 'NO_TRADE';
+    confidence: number;
+    reasoning: string;
+    invalidation?: string;
+  };
 }
 
 export interface TerminalAnalysisResponse {
@@ -49,7 +68,7 @@ export interface TerminalAnalysisResponse {
   symbol: string;
   assetName: string;
   timeframe: '15M' | '30M' | '1H';
-  decision: 'BUY' | 'SELL' | 'WAIT';
+  decision: 'BUY' | 'SELL' | 'NO_TRADE' | 'COOLDOWN';
   entryPrice: number;
   entryZone: string;
   stopLossPrice: number;
@@ -61,8 +80,10 @@ export interface TerminalAnalysisResponse {
   rationale: string;
   isLocked: boolean;
   activeTrade?: TerminalActiveTrade | null;
+  dualAiAnalysis?: DualAiAnalysis;
   marketStatus: 'LIVE' | 'MARKET_CLOSED' | 'DATA_UNAVAILABLE';
   lastVerifiedPrice: number;
+  cooldownSecondsRemaining?: number;
 }
 
 interface TerminalTradeLockControllerProps {
@@ -72,15 +93,56 @@ interface TerminalTradeLockControllerProps {
   onOpenChart?: () => void;
 }
 
+/**
+ * Safe fetch wrapper with timeout, status checking, and text-then-JSON parsing.
+ * Prevents Safari DOMException ("The string did not match the expected pattern").
+ */
+async function safeFetchJson<T>(
+  url: string, 
+  options: RequestInit = {}, 
+  timeoutMs: number = 25000
+): Promise<{ ok: boolean; data?: T; error?: string }> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    const text = await res.text();
+    let json: any = null;
+
+    try {
+      json = text ? JSON.parse(text) : {};
+    } catch (e) {
+      return { ok: false, error: `Invalid response format from server (${res.status}).` };
+    }
+
+    if (!res.ok) {
+      return { ok: false, error: json?.error || `Server error (${res.status}).` };
+    }
+
+    return { ok: true, data: json as T };
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    if (err?.name === 'AbortError') {
+      return { ok: false, error: 'Analysis timed out (25s). Please tap Retry.' };
+    }
+    return { ok: false, error: err?.message || 'Network error connecting to Signal Engine.' };
+  }
+}
+
 export const TerminalTradeLockController: React.FC<TerminalTradeLockControllerProps> = ({
   market,
   selectedTf,
-  onTimeframeSelect,
-  onOpenChart
+  onTimeframeSelect
 }) => {
   const { sendSignalToTelegram } = useMarket();
 
-  // Allowed signal timeframes
+  // Allowed timeframes
   const allowedTfs: { tf: '15M' | '30M' | '1H'; label: string; mode: string }[] = [
     { tf: '15M', label: '15M', mode: 'Scalping' },
     { tf: '30M', label: '30M', mode: 'Scalp / Short Intraday' },
@@ -94,24 +156,31 @@ export const TerminalTradeLockController: React.FC<TerminalTradeLockControllerPr
   const [activeTrade, setActiveTrade] = useState<TerminalActiveTrade | null>(null);
   const [lastAnalysis, setLastAnalysis] = useState<TerminalAnalysisResponse | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
+  const [progressStep, setProgressStep] = useState<number>(0);
   const [isClosing, setIsClosing] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [copied, setCopied] = useState<boolean>(false);
   const [telegramSuccess, setTelegramSuccess] = useState<string | null>(null);
+  const [cooldownRemaining, setCooldownRemaining] = useState<number>(0);
 
-  // 1. Fetch server state for this asset
+  const analysisTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Sync server state
   const fetchServerState = useCallback(async () => {
-    try {
-      const res = await fetch('/api/terminal-signals/state');
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data.activeTrades && data.activeTrades[market.id]) {
-        setActiveTrade(data.activeTrades[market.id]);
+    const res = await safeFetchJson<{ activeTrades: Record<string, TerminalActiveTrade>; cooldowns: Record<string, number> }>('/api/terminal-signals/state');
+    if (res.ok && res.data) {
+      if (res.data.activeTrades && res.data.activeTrades[market.id]) {
+        setActiveTrade(res.data.activeTrades[market.id]);
       } else {
         setActiveTrade(null);
       }
-    } catch (err) {
-      console.warn('[TerminalTradeLockController] Failed to sync state:', err);
+
+      const cdEnds = res.data.cooldowns?.[market.id] || 0;
+      if (Date.now() < cdEnds) {
+        setCooldownRemaining(Math.ceil((cdEnds - Date.now()) / 1000));
+      } else {
+        setCooldownRemaining(0);
+      }
     }
   }, [market.id]);
 
@@ -121,68 +190,99 @@ export const TerminalTradeLockController: React.FC<TerminalTradeLockControllerPr
     return () => clearInterval(interval);
   }, [fetchServerState]);
 
-  // 2. Handle START SIGNAL button
+  // Cooldown countdown timer
+  useEffect(() => {
+    if (cooldownRemaining <= 0) return;
+    const cdInterval = setInterval(() => {
+      setCooldownRemaining(prev => {
+        if (prev <= 1) {
+          clearInterval(cdInterval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(cdInterval);
+  }, [cooldownRemaining]);
+
+  // Handle START SIGNAL Button Click
   const handleStartSignal = async () => {
     if (market.id === 'spy' || market.id === 'spy-options') return;
-    setIsAnalyzing(true);
-    setErrorMsg(null);
-    setLastAnalysis(null);
 
-    try {
-      const res = await fetch('/api/terminal-signals/analyze', {
+    setIsAnalyzing(true);
+    setProgressStep(1);
+    setErrorMsg(null);
+
+    // Terminal progress animation steps
+    if (analysisTimerRef.current) clearInterval(analysisTimerRef.current);
+    let step = 1;
+    analysisTimerRef.current = setInterval(() => {
+      step++;
+      if (step <= 5) {
+        setProgressStep(step);
+      } else {
+        if (analysisTimerRef.current) clearInterval(analysisTimerRef.current);
+      }
+    }, 450);
+
+    const res = await safeFetchJson<TerminalAnalysisResponse>(
+      '/api/terminal-signals/analyze',
+      {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           assetId: market.id,
           timeframe: currentTf
         })
-      });
+      },
+      25000
+    );
 
-      if (!res.ok) {
-        const errJson = await res.json();
-        throw new Error(errJson.error || 'Signal analysis request failed');
-      }
+    if (analysisTimerRef.current) clearInterval(analysisTimerRef.current);
+    setIsAnalyzing(false);
 
-      const result: TerminalAnalysisResponse = await res.json();
-      setLastAnalysis(result);
+    if (!res.ok) {
+      setErrorMsg(res.error || 'Signal analysis failed. Please tap Retry.');
+      return;
+    }
 
-      if (result.activeTrade) {
-        setActiveTrade(result.activeTrade);
-      } else {
-        setActiveTrade(null);
-      }
-    } catch (err: any) {
-      console.error('[TerminalTradeLockController] Signal analysis error:', err);
-      setErrorMsg(err?.message || 'Error executing signal analysis');
-    } finally {
-      setIsAnalyzing(false);
+    const result = res.data!;
+    setLastAnalysis(result);
+
+    if (result.activeTrade) {
+      setActiveTrade(result.activeTrade);
+    } else {
+      setActiveTrade(null);
+    }
+
+    if (result.decision === 'COOLDOWN' && result.cooldownSecondsRemaining) {
+      setCooldownRemaining(result.cooldownSecondsRemaining);
     }
   };
 
-  // 3. Handle Manual Close Trade & Unlock
+  // Handle Manual Close & Unlock
   const handleCloseAndUnlock = async () => {
     if (!activeTrade) return;
     setIsClosing(true);
-    try {
-      const res = await fetch('/api/terminal-signals/close', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assetId: market.id })
-      });
-      if (res.ok) {
-        setActiveTrade(null);
-        setLastAnalysis(null);
-        await fetchServerState();
-      }
-    } catch (err) {
-      console.error('[TerminalTradeLockController] Manual close error:', err);
-    } finally {
-      setIsClosing(false);
+
+    const res = await safeFetchJson<{ success: boolean }>('/api/terminal-signals/close', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ assetId: market.id })
+    });
+
+    setIsClosing(false);
+    if (res.ok) {
+      setActiveTrade(null);
+      setLastAnalysis(null);
+      await fetchServerState();
+    } else {
+      setErrorMsg(res.error || 'Failed to close trade');
     }
   };
 
   const handleCopy = () => {
-    const trade = activeTrade || (lastAnalysis?.decision !== 'WAIT' ? lastAnalysis : null);
+    const trade = activeTrade || (lastAnalysis?.decision === 'BUY' || lastAnalysis?.decision === 'SELL' ? lastAnalysis : null);
     if (!trade) return;
 
     const dir = activeTrade ? activeTrade.direction : lastAnalysis?.decision;
@@ -216,7 +316,6 @@ Provider: ${activeTrade?.marketDataProvider || 'FINNHUB/BIQUOTE'}`;
   };
 
   // Calculate live PnL if active
-  const isBuy = activeTrade ? activeTrade.direction === 'BUY' : lastAnalysis?.decision === 'BUY';
   const livePrice = market.price;
   const dec = market.decimals;
 
@@ -234,19 +333,26 @@ Provider: ${activeTrade?.marketDataProvider || 'FINNHUB/BIQUOTE'}`;
 
   const isProfitable = pnlPoints >= 0;
 
+  const progressLabels = [
+    'Fetching closed candles & OHLC structure...',
+    'AURUM AI multi-timeframe analysis...',
+    'Qwen Institutional agent evaluation...',
+    'Multi-agent consensus & HTF trend check...',
+    'Risk & ATR validation...'
+  ];
+
   return (
     <div className="w-full space-y-3 font-mono-num">
-      {/* 1. Timeframe Selection & Start Signal Banner */}
       <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-b from-[#0c0f1d] via-[#090b14] to-[#06070a] border border-amber-500/40 shadow-2xl relative overflow-hidden space-y-4">
         {/* Ambient Top Glow */}
         <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-amber-500/10 blur-3xl" />
 
-        {/* Header Title */}
+        {/* Section Header: Title strictly follows market.symbol */}
         <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
-            <h3 className="text-xs sm:text-sm font-black text-amber-300 uppercase tracking-wider font-syne">
-              AURUM SIGNAL ENGINE — {market.symbol}
+            <h3 className="text-xs sm:text-sm font-black text-amber-300 uppercase tracking-wider font-syne truncate">
+              {market.symbol} — {market.name}
             </h3>
           </div>
 
@@ -258,7 +364,7 @@ Provider: ${activeTrade?.marketDataProvider || 'FINNHUB/BIQUOTE'}`;
           ) : (
             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 text-[10.5px] font-bold">
               <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span>CLOSED-CANDLE ATR ENGINE</span>
+              <span>DUAL AI CONSENSUS ENGINE</span>
             </div>
           )}
         </div>
@@ -305,9 +411,10 @@ Provider: ${activeTrade?.marketDataProvider || 'FINNHUB/BIQUOTE'}`;
           </div>
         </div>
 
-        {/* ACTIVE TRADE LOCK BANNER vs START SIGNAL TRIGGER */}
+        {/* ====================================================================
+            STATE A: ACTIVE TRADE LOCKED DISPLAY
+        ==================================================================== */}
         {activeTrade ? (
-          /* ACTIVE TRADE LOCKED DISPLAY */
           <div className="p-4 rounded-2xl bg-zinc-950/90 border-2 border-amber-500/60 space-y-3.5 shadow-2xl relative">
             <div className="flex items-center justify-between border-b border-zinc-800 pb-2.5">
               <div className="flex items-center gap-2">
@@ -329,7 +436,6 @@ Provider: ${activeTrade?.marketDataProvider || 'FINNHUB/BIQUOTE'}`;
                 </div>
               </div>
 
-              {/* Confidence */}
               <div className="text-right">
                 <span className="text-[10px] text-zinc-500 uppercase font-bold block">CONFIDENCE</span>
                 <span className="text-lg font-black text-amber-400">{activeTrade.confidence}%</span>
@@ -374,6 +480,39 @@ Provider: ${activeTrade?.marketDataProvider || 'FINNHUB/BIQUOTE'}`;
               </div>
             </div>
 
+            {/* DUAL AI SIDE-BY-SIDE VERDICTS */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
+              <div className="p-3 rounded-xl bg-zinc-900/90 border border-amber-500/30 space-y-1">
+                <div className="flex items-center justify-between border-b border-zinc-800 pb-1">
+                  <span className="font-black text-amber-300 flex items-center gap-1 text-[11px]">
+                    <Brain className="w-3.5 h-3.5 text-amber-400" />
+                    AURUM AI VERDICT
+                  </span>
+                  <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-bold">
+                    {activeTrade.direction}
+                  </span>
+                </div>
+                <p className="text-[11px] text-zinc-300 leading-relaxed pt-0.5">
+                  {activeTrade.aurumReasoning || activeTrade.rationale}
+                </p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-zinc-900/90 border border-sky-500/30 space-y-1">
+                <div className="flex items-center justify-between border-b border-zinc-800 pb-1">
+                  <span className="font-black text-sky-300 flex items-center gap-1 text-[11px]">
+                    <Bot className="w-3.5 h-3.5 text-sky-400" />
+                    QWEN AI VERDICT
+                  </span>
+                  <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-bold">
+                    {activeTrade.direction}
+                  </span>
+                </div>
+                <p className="text-[11px] text-zinc-300 leading-relaxed pt-0.5">
+                  {activeTrade.qwenReasoning || 'SMC order block mitigation and HTF trend alignment verified independently.'}
+                </p>
+              </div>
+            </div>
+
             {/* ACTION BUTTONS: COPY, WIRE, CLOSE & UNLOCK */}
             <div className="flex flex-wrap items-center gap-2 pt-1">
               <button
@@ -409,76 +548,197 @@ Provider: ${activeTrade?.marketDataProvider || 'FINNHUB/BIQUOTE'}`;
             )}
           </div>
         ) : (
-          /* NO ACTIVE TRADE LOCK — SHOW START SIGNAL TRIGGER */
+          /* ====================================================================
+             STATE B: NO ACTIVE TRADE — START SIGNAL BUTTON & IDLE / RESULTS
+          ==================================================================== */
           <div className="space-y-3 pt-1">
-            <button
-              onClick={handleStartSignal}
-              disabled={isAnalyzing}
-              className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#B38728] text-black font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-xl shadow-amber-500/20 hover:brightness-105 active:scale-[0.99] transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {isAnalyzing ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin text-black" />
-                  <span>ANALYZING {currentTf} CLOSED CANDLES & ATR...</span>
-                </>
-              ) : (
-                <>
-                  <Zap className="w-4 h-4 text-black fill-black" />
-                  <span>START SIGNAL ({currentTf})</span>
-                </>
-              )}
-            </button>
-
-            {/* LAST ANALYSIS RESULT (WAIT OR APPROVED) */}
-            {lastAnalysis && (
-              <div className={`p-4 rounded-2xl border space-y-2.5 transition-all ${
-                lastAnalysis.decision === 'BUY'
-                  ? 'bg-emerald-950/20 border-emerald-500/50'
-                  : lastAnalysis.decision === 'SELL'
-                    ? 'bg-rose-950/20 border-rose-500/50'
-                    : 'bg-zinc-950/90 border-zinc-800'
-              }`}>
-                <div className="flex items-center justify-between">
+            {/* 1. START SIGNAL BUTTON or LIVE ANALYSIS PROGRESS PANEL */}
+            {isAnalyzing ? (
+              <div className="p-4 rounded-2xl bg-zinc-950 border border-amber-500/50 space-y-3">
+                <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-zinc-400 font-bold uppercase">DECISION:</span>
-                    <span className={`px-3 py-1 rounded-xl text-sm font-black tracking-wider ${
-                      lastAnalysis.decision === 'BUY'
-                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                        : lastAnalysis.decision === 'SELL'
-                          ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
-                          : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                    }`}>
-                      {lastAnalysis.decision === 'BUY' ? 'BUY 🟢' : lastAnalysis.decision === 'SELL' ? 'SELL 🔴' : 'WAIT 🟡'}
+                    <RefreshCw className="w-4 h-4 text-amber-400 animate-spin" />
+                    <span className="text-xs font-black text-amber-300 uppercase tracking-wider">
+                      RUNNING DUAL-AI ANALYSIS ({currentTf})
                     </span>
                   </div>
-
-                  {lastAnalysis.confidence > 0 && (
-                    <span className="text-xs font-black text-amber-400">
-                      Confidence: {lastAnalysis.confidence}%
-                    </span>
-                  )}
+                  <span className="text-xs font-bold text-zinc-400 font-mono">
+                    [{progressStep}/5]
+                  </span>
                 </div>
 
-                <p className="text-xs text-zinc-300 font-sans leading-relaxed">
-                  {lastAnalysis.rationale}
-                </p>
+                <div className="w-full bg-zinc-900 rounded-full h-2 overflow-hidden border border-zinc-800">
+                  <div 
+                    className="bg-gradient-to-r from-amber-500 to-amber-300 h-full transition-all duration-300 ease-out" 
+                    style={{ width: `${(progressStep / 5) * 100}%` }}
+                  />
+                </div>
 
-                {lastAnalysis.confluenceFactors && lastAnalysis.confluenceFactors.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 pt-1">
-                    {lastAnalysis.confluenceFactors.map((c, i) => (
-                      <span key={i} className="px-2 py-0.5 rounded-md bg-zinc-900 border border-zinc-800 text-zinc-400 text-[10px] font-semibold">
-                        • {c}
-                      </span>
-                    ))}
-                  </div>
-                )}
+                <div className="p-2.5 rounded-xl bg-zinc-900/80 border border-zinc-800 text-xs font-mono text-zinc-300 flex items-center gap-2">
+                  <ArrowRight className="w-3.5 h-3.5 text-amber-400 shrink-0 animate-pulse" />
+                  <span>{progressLabels[Math.min(progressStep - 1, 4)]}</span>
+                </div>
+              </div>
+            ) : cooldownRemaining > 0 ? (
+              <div className="p-4 rounded-2xl bg-amber-950/20 border border-amber-500/40 space-y-2 text-center">
+                <div className="flex items-center justify-center gap-2 text-amber-400">
+                  <Clock className="w-5 h-5 animate-pulse" />
+                  <span className="text-sm font-black uppercase tracking-wider">
+                    30-MINUTE COOLDOWN ACTIVE
+                  </span>
+                </div>
+                <div className="text-2xl font-black text-white font-mono">
+                  {Math.floor(cooldownRemaining / 60)}m {cooldownRemaining % 60}s
+                </div>
+                <p className="text-xs text-zinc-400 max-w-md mx-auto">
+                  To protect capital and prevent overtrading, a 30-minute cooldown is applied after each trade.
+                </p>
+              </div>
+            ) : (
+              <button
+                onClick={handleStartSignal}
+                disabled={isAnalyzing}
+                className="w-full py-4 px-4 rounded-2xl bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#B38728] text-black font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-xl shadow-amber-500/20 hover:brightness-105 active:scale-[0.99] transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <Zap className="w-4 h-4 text-black fill-black" />
+                <span>START SIGNAL ({currentTf})</span>
+              </button>
+            )}
+
+            {/* 2. ERROR STATE WITH RETRY BUTTON */}
+            {errorMsg && (
+              <div className="p-4 rounded-2xl bg-rose-950/30 border border-rose-500/50 text-rose-300 text-xs font-sans space-y-2.5">
+                <div className="flex items-center gap-2 font-bold text-rose-400">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span>SIGNAL ENGINE ANALYSIS ERROR</span>
+                </div>
+                <p className="text-zinc-300 leading-relaxed">{errorMsg}</p>
+                <button
+                  onClick={handleStartSignal}
+                  className="px-4 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>RETRY ANALYSIS</span>
+                </button>
               </div>
             )}
 
-            {errorMsg && (
-              <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-bold flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
-                <span>{errorMsg}</span>
+            {/* 3. POST-ANALYSIS RESULT DISPLAY (APPROVED OR NO_TRADE) */}
+            {lastAnalysis && !isAnalyzing && (
+              <div className="space-y-3">
+                {lastAnalysis.decision === 'NO_TRADE' ? (
+                  /* NO TRADE STATE CARD */
+                  <div className="p-4 rounded-2xl bg-zinc-950/90 border border-amber-500/30 space-y-3">
+                    <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
+                      <div className="flex items-center gap-2">
+                        <ShieldAlert className="w-4 h-4 text-amber-400" />
+                        <span className="text-xs font-black text-amber-300 uppercase tracking-wider">
+                          NO TRADE SETUP — CAPITAL PRESERVATION ACTIVE
+                        </span>
+                      </div>
+                      <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/30">
+                        CONFIDENCE: {lastAnalysis.confidence}%
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-zinc-300 leading-relaxed">
+                      {lastAnalysis.rationale}
+                    </p>
+
+                    {/* DUAL AI BREAKDOWN */}
+                    {lastAnalysis.dualAiAnalysis && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
+                        <div className="p-2.5 rounded-xl bg-zinc-900/80 border border-zinc-800 space-y-1">
+                          <div className="flex items-center justify-between text-[11px] font-bold text-amber-300 border-b border-zinc-800 pb-1">
+                            <span>AURUM AI VERDICT</span>
+                            <span className="text-zinc-400">{lastAnalysis.dualAiAnalysis.aurum.direction}</span>
+                          </div>
+                          <p className="text-[10.5px] text-zinc-400 leading-normal">
+                            {lastAnalysis.dualAiAnalysis.aurum.reasoning}
+                          </p>
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-zinc-900/80 border border-zinc-800 space-y-1">
+                          <div className="flex items-center justify-between text-[11px] font-bold text-sky-300 border-b border-zinc-800 pb-1">
+                            <span>QWEN AI VERDICT</span>
+                            <span className="text-zinc-400">{lastAnalysis.dualAiAnalysis.qwen.direction}</span>
+                          </div>
+                          <p className="text-[10.5px] text-zinc-400 leading-normal">
+                            {lastAnalysis.dualAiAnalysis.qwen.reasoning}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (lastAnalysis.decision === 'BUY' || lastAnalysis.decision === 'SELL') ? (
+                  /* APPROVED TRADE CARD */
+                  <div className={`p-4 rounded-2xl border space-y-3.5 transition-all ${
+                    lastAnalysis.decision === 'BUY'
+                      ? 'bg-emerald-950/20 border-emerald-500/50'
+                      : 'bg-rose-950/20 border-rose-500/50'
+                  }`}>
+                    <div className="flex items-center justify-between border-b border-zinc-800 pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className={`px-3 py-1 rounded-xl text-sm font-black tracking-wider ${
+                          lastAnalysis.decision === 'BUY'
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                            : 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
+                        }`}>
+                          {lastAnalysis.decision === 'BUY' ? 'BUY 🟢' : 'SELL 🔴'}
+                        </span>
+                        <span className="text-xs text-zinc-400 font-bold uppercase">
+                          {lastAnalysis.timeframe}
+                        </span>
+                      </div>
+
+                      <div className="text-right">
+                        <span className="text-[10px] text-zinc-500 uppercase font-bold block">CONFIDENCE</span>
+                        <span className="text-base font-black text-amber-400">{lastAnalysis.confidence}%</span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                      <div className="p-2 rounded-xl bg-zinc-900/90 border border-zinc-800 text-center">
+                        <span className="text-[10px] text-zinc-500 uppercase font-bold block">Entry</span>
+                        <span className="text-xs font-black text-white mt-0.5 block">${lastAnalysis.entryPrice.toFixed(dec)}</span>
+                      </div>
+                      <div className="p-2 rounded-xl bg-zinc-900/90 border border-rose-500/30 text-center">
+                        <span className="text-[10px] text-rose-400 uppercase font-bold block">SL</span>
+                        <span className="text-xs font-black text-rose-400 mt-0.5 block">${lastAnalysis.stopLossPrice.toFixed(dec)}</span>
+                      </div>
+                      <div className="p-2 rounded-xl bg-zinc-900/90 border border-emerald-500/30 text-center">
+                        <span className="text-[10px] text-emerald-400 uppercase font-bold block">TP1</span>
+                        <span className="text-xs font-black text-emerald-400 mt-0.5 block">${lastAnalysis.target1Price.toFixed(dec)}</span>
+                      </div>
+                      <div className="p-2 rounded-xl bg-zinc-900/90 border border-emerald-500/30 text-center">
+                        <span className="text-[10px] text-emerald-400 uppercase font-bold block">TP2</span>
+                        <span className="text-xs font-black text-emerald-300 mt-0.5 block">${lastAnalysis.target2Price.toFixed(dec)}</span>
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-zinc-300 leading-relaxed font-sans">
+                      {lastAnalysis.rationale}
+                    </p>
+
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <button
+                        onClick={handleCopy}
+                        className="flex-1 py-2 px-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                      >
+                        {copied ? <Check className="w-3.5 h-3.5 text-amber-400" /> : <Copy className="w-3.5 h-3.5 text-zinc-400" />}
+                        <span>{copied ? 'COPIED' : 'COPY SETUP'}</span>
+                      </button>
+
+                      <button
+                        onClick={handleWireTelegram}
+                        className="py-2 px-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+                      >
+                        <Send className="w-3.5 h-3.5 text-sky-400" />
+                        <span>WIRE</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             )}
           </div>
