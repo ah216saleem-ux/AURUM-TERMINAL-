@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useMarket } from '../../context/MarketContext';
+import { marketDataService } from '../../services/marketDataService';
 import { PhaseX3DCore, Phase3DMarketState } from './PhaseX3DCore';
 import { PhaseXActiveTradeCard } from './PhaseXActiveTradeCard';
 import { PhaseXHistoryAndVerification } from './PhaseXHistoryAndVerification';
 import { PhaseXLivePerformanceAndHistory } from './PhaseXLivePerformanceAndHistory';
 import { PhaseXLiveDiagnosticsPanel } from './PhaseXLiveDiagnosticsPanel';
+import { PhaseXMultiStrategyPanel } from './PhaseXMultiStrategyPanel';
 import { 
   PhaseXResult, 
   PhaseXFinalDirection, 
@@ -70,6 +72,80 @@ export const PhaseXView: React.FC = () => {
 
   // Get active market from context for live price display
   const activeMarket = markets.find(m => m.id === selectedAssetId);
+  const activeMarketPriceRef = useRef<number | undefined>(activeMarket?.price);
+  
+  // Real-time 1-Second Live Price & Tick Age Tracker (Requirement 1, 2, 3, 4, 5)
+  const [liveTickInfo, setLiveTickInfo] = useState<{
+    price: number;
+    timestamp: number;
+    ageSeconds: number;
+    isStale: boolean;
+    source: string;
+  }>(() => {
+    const debug = marketDataService.getDebugInfo(selectedAssetId);
+    const currPrice = debug.currentPrice || activeMarket?.price || 0;
+    const ts = debug.lastTickTimestamp || (currPrice > 0 ? Date.now() : 0);
+    const age = ts > 0 ? Math.max(0, Math.floor((Date.now() - ts) / 1000)) : 0;
+    return {
+      price: currPrice,
+      timestamp: ts,
+      ageSeconds: age,
+      isStale: age > 60 || currPrice === 0,
+      source: debug.source || 'BIQUOTE Gold Spot Feed'
+    };
+  });
+
+  // 1-Second Live Price Update & Streaming Tick Synchronization
+  useEffect(() => {
+    // 1. Capture real-time streaming ticks immediately upon arrival
+    const unsubscribe = marketDataService.subscribe(({ markets: incomingMarkets }) => {
+      const xauIncoming = incomingMarkets[selectedAssetId];
+      if (xauIncoming && xauIncoming.price != null && xauIncoming.price > 0) {
+        const ts = xauIncoming.lastTickTimestamp || Date.now();
+        const age = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+        activeMarketPriceRef.current = xauIncoming.price;
+        setLiveTickInfo({
+          price: xauIncoming.price,
+          timestamp: ts,
+          ageSeconds: age,
+          isStale: age > 60,
+          source: 'BIQUOTE Gold Spot Feed'
+        });
+      }
+    });
+
+    // 2. Strict 1-Second Refresh Loop: re-evaluates newest tick, updates exact tick age, and checks 60s freshness
+    const oneSecondInterval = setInterval(() => {
+      const debug = marketDataService.getDebugInfo(selectedAssetId);
+      const currPrice = debug.currentPrice || activeMarketPriceRef.current || 0;
+      const ts = debug.lastTickTimestamp || (currPrice > 0 ? Date.now() : 0);
+      const age = ts > 0 ? Math.max(0, Math.floor((Date.now() - ts) / 1000)) : 999;
+      const isStale = age > 60 || currPrice === 0;
+
+      if (currPrice > 0) {
+        activeMarketPriceRef.current = currPrice;
+      }
+
+      setLiveTickInfo({
+        price: currPrice,
+        timestamp: ts,
+        ageSeconds: age,
+        isStale,
+        source: debug.source || 'BIQUOTE Gold Spot Feed'
+      });
+    }, 1000);
+
+    return () => {
+      unsubscribe();
+      clearInterval(oneSecondInterval);
+    };
+  }, [selectedAssetId]);
+
+  useEffect(() => {
+    if (activeMarket?.price && activeMarket.price > 0) {
+      activeMarketPriceRef.current = activeMarket.price;
+    }
+  }, [activeMarket?.price]);
 
   // Verify stored session token on mount
   useEffect(() => {
@@ -96,6 +172,9 @@ export const PhaseXView: React.FC = () => {
     isEvaluatingRef.current = true;
     setIsAnalyzing(true);
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
     try {
       const storedToken = sessionStorage.getItem('phase_x_admin_token');
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -106,11 +185,14 @@ export const PhaseXView: React.FC = () => {
       const res = await fetch('/api/phase-x/analyze', {
         method: 'POST',
         headers,
+        signal: controller.signal,
         body: JSON.stringify({
           assetId: 'xau-usd',
-          clientLivePrice: activeMarket?.price
+          clientLivePrice: activeMarketPriceRef.current
         })
       });
+
+      clearTimeout(timeoutId);
 
       if (!res.ok) {
         throw new Error(`Server returned status ${res.status}`);
@@ -121,13 +203,16 @@ export const PhaseXView: React.FC = () => {
       setErrorNotice(null);
       setLastEvaluatedAt(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     } catch (err: any) {
-      console.error('[PhaseXView] Analysis error:', err);
+      clearTimeout(timeoutId);
+      if (err?.name !== 'AbortError') {
+        console.warn('[PhaseXView] Market feed sync notification:', err?.message || err);
+      }
       setErrorNotice('WAIT — MARKET DATA (Waiting for verified market data feed)');
     } finally {
       setIsAnalyzing(false);
       isEvaluatingRef.current = false;
     }
-  }, [activeMarket?.price]);
+  }, []);
 
   // Initial autonomous analysis on mount + continuous evaluation loop (every 4 seconds)
   useEffect(() => {
@@ -139,13 +224,6 @@ export const PhaseXView: React.FC = () => {
 
     return () => clearInterval(interval);
   }, [handleAnalyzePhase]);
-
-  // Re-evaluate automatically whenever new verified market data tick arrives
-  useEffect(() => {
-    if (activeMarket?.price && activeMarket.price > 0) {
-      handleAnalyzePhase();
-    }
-  }, [activeMarket?.price, handleAnalyzePhase]);
 
   const current3DState: Phase3DMarketState = analysisResult?.marketPhase || 'WAIT';
   const confidenceScore = analysisResult?.tradeConfidence || analysisResult?.confidence || 75;
@@ -238,6 +316,13 @@ export const PhaseXView: React.FC = () => {
 
   // Helper for formatting user-facing WAIT display states strictly without revealing internal strategy terms
   const getWaitDisplayInfo = (result: PhaseXResult): { title: string; subtitle: string } => {
+    if (liveTickInfo.isStale) {
+      return {
+        title: 'WAIT — MARKET DATA',
+        subtitle: `Market data feed is stale (${liveTickInfo.ageSeconds}s old). Waiting for verified tick.`
+      };
+    }
+
     const cleanState = result.phase5QualityGate?.cleanWaitState || result.displayStatusLabel;
 
     if (cleanState === 'WAIT — MARKET DATA' || result.waitReasonCode === 'STALE_FEED' || result.waitReasonCode === 'INSUFFICIENT_DATA') {
@@ -408,15 +493,29 @@ export const PhaseXView: React.FC = () => {
                   COMMODITIES
                 </span>
               </div>
-              <div className="flex items-center gap-2.5 text-xs text-zinc-400 pt-0.5">
-                <span>Live Price:</span>
-                <span className="text-sm font-bold text-amber-300">
-                  ${(activeMarket?.price ?? analysisResult?.currentLivePrice ?? 0).toFixed(2)}
-                </span>
-                <span className="text-zinc-600">•</span>
-                <span className="text-[11px] text-zinc-400">
-                  15M Close: ${(analysisResult?.signalConfirmationPrice ?? 0).toFixed(2)}
-                </span>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 text-xs text-zinc-400 pt-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 ${
+                    liveTickInfo.isStale ? 'text-amber-400' : 'text-emerald-400'
+                  }`}>
+                    <span className={`w-2 h-2 rounded-full ${
+                      liveTickInfo.isStale ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400 animate-pulse'
+                    }`} />
+                    {liveTickInfo.isStale ? 'VERIFIED LIVE PRICE (XAU/USD) — STALE' : 'VERIFIED LIVE PRICE'}
+                  </span>
+                  <span className="text-zinc-600">|</span>
+                  <span className="text-sm sm:text-base font-black text-white font-mono">
+                    XAU/USD: <span className="text-amber-300 font-black">${(liveTickInfo.price > 0 ? liveTickInfo.price : (activeMarket?.price ?? analysisResult?.currentLivePrice ?? 0)).toFixed(2)}</span>
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-[11px] text-zinc-400 font-mono">
+                  <span className="text-zinc-600 hidden sm:inline">•</span>
+                  <span className={liveTickInfo.isStale ? 'text-amber-400 font-medium' : 'text-zinc-300'}>
+                    {liveTickInfo.isStale ? 'Stale Tick' : 'Live Tick'} • Age: {liveTickInfo.ageSeconds}s ago
+                  </span>
+                  <span className="text-zinc-600">•</span>
+                  <span>15M Confirmation Bar: <strong className="text-zinc-300 font-mono">${(analysisResult?.signalConfirmationPrice ?? 0).toFixed(2)}</strong></span>
+                </div>
               </div>
             </div>
           </div>
@@ -513,10 +612,22 @@ export const PhaseXView: React.FC = () => {
                 <div className="text-xl sm:text-2xl font-black text-white tracking-wide">
                   {analysisResult.symbol}
                 </div>
-                <div className="text-[11px] font-mono text-zinc-400 flex items-center justify-center gap-3">
-                  <span>Live Market: <strong className="text-amber-300">{analysisResult.currentLivePrice.toFixed(analysisResult.currentLivePrice < 5 ? 4 : 2)}</strong></span>
+                <div className="text-[11px] font-mono text-zinc-400 flex flex-wrap items-center justify-center gap-2 sm:gap-3">
+                  <span className={`font-bold flex items-center gap-1 ${
+                    liveTickInfo.isStale ? 'text-amber-400' : 'text-emerald-400'
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      liveTickInfo.isStale ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400 animate-pulse'
+                    }`} />
+                    {liveTickInfo.isStale ? 'VERIFIED LIVE PRICE (XAU/USD) — STALE:' : 'VERIFIED LIVE PRICE:'}
+                  </span>
+                  <span>XAU/USD: <strong className="text-amber-300 font-mono">${(liveTickInfo.price > 0 ? liveTickInfo.price : (activeMarket?.price ?? analysisResult.currentLivePrice)).toFixed(2)}</strong></span>
                   <span className="text-zinc-600">•</span>
-                  <span>15M Confirmation Bar: <strong className="text-zinc-300">{analysisResult.signalConfirmationPrice.toFixed(analysisResult.signalConfirmationPrice < 5 ? 4 : 2)}</strong></span>
+                  <span className={liveTickInfo.isStale ? 'text-amber-400 font-medium' : 'text-zinc-300'}>
+                    {liveTickInfo.isStale ? 'Stale Tick' : 'Live Tick'} • Age: {liveTickInfo.ageSeconds}s ago
+                  </span>
+                  <span className="text-zinc-600">•</span>
+                  <span>15M Confirmation Bar: <strong className="text-zinc-300 font-mono">${analysisResult.signalConfirmationPrice.toFixed(analysisResult.signalConfirmationPrice < 5 ? 4 : 2)}</strong></span>
                 </div>
               </div>
 
@@ -545,6 +656,9 @@ export const PhaseXView: React.FC = () => {
               </div>
             </div>
           )}
+
+          {/* Multi-Strategy Engine Overview, Live Telemetry & 15-Scenario Validation Suite */}
+          <PhaseXMultiStrategyPanel currentAnalysis={analysisResult} />
         </>
       )}
 

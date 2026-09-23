@@ -39,6 +39,7 @@ export const PhaseXActiveTradeCard: React.FC<PhaseXActiveTradeCardProps> = ({ re
 
   const isBuy = result.finalDirection === 'BUY';
   const isSell = result.finalDirection === 'SELL';
+  const setupType = result.setupType || liveDetails?.setupType || result.engineDetails?.strategyTelemetry?.setupTypeLabel || 'WYCKOFF STRUCTURE';
 
   // Manual cancellation handler (WAITING_FOR_ENTRY only)
   const handleCancelSetup = async () => {
@@ -128,8 +129,13 @@ export const PhaseXActiveTradeCard: React.FC<PhaseXActiveTradeCardProps> = ({ re
       {/* Top Header: Asset info and Status Badge */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800/80 pb-3.5">
         <div>
-          <div className="text-xs font-mono font-semibold text-zinc-400">
-            {result.assetName}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-mono font-semibold text-zinc-400">
+              {result.assetName}
+            </span>
+            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40">
+              {setupType}
+            </span>
           </div>
           <div className="text-xl sm:text-2xl font-black text-white tracking-wide flex items-center gap-2.5">
             <span>{result.symbol}</span>
@@ -272,10 +278,12 @@ export const PhaseXActiveTradeCard: React.FC<PhaseXActiveTradeCardProps> = ({ re
           <Clock className="w-3 h-3 text-zinc-400" />
           <span>Locked Setup ID: <strong className="text-zinc-300">{result.setupId}</strong></span>
         </div>
-        <div>
+        <div className="flex items-center gap-2">
+          <span>Strategy: <strong className="text-amber-300">{setupType}</strong></span>
+          <span className="text-zinc-600">•</span>
           <span>Confidence: <strong className="text-emerald-400">{result.tradeConfidence}%</strong></span>
-          <span className="mx-2 text-zinc-600">•</span>
-          <span>Max Concurrent Trades: <strong className="text-zinc-300">1</strong></span>
+          <span className="text-zinc-600">•</span>
+          <span>Max Concurrent: <strong className="text-zinc-300">1</strong></span>
         </div>
       </div>
     </div>

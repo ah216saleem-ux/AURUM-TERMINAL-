@@ -22,6 +22,7 @@ export interface PhaseXLiveSignalRecord {
   assetId: 'xau-usd';
   symbol: 'XAU/USD';
   direction: 'BUY' | 'SELL';
+  setupType?: string;
   preferredEntry: number;
   stopLoss: number;
   takeProfit1: number;
@@ -158,6 +159,7 @@ export function recordNewApprovedLiveSignal(signal: {
   setupId: string;
   assetId: string;
   direction: 'BUY' | 'SELL';
+  setupType?: string;
   preferredEntry: number;
   stopLoss: number;
   takeProfit1: number;
@@ -194,6 +196,7 @@ export function recordNewApprovedLiveSignal(signal: {
     assetId: 'xau-usd',
     symbol: 'XAU/USD',
     direction: signal.direction,
+    setupType: signal.setupType || 'WYCKOFF STRUCTURE',
     preferredEntry: signal.preferredEntry,
     stopLoss: signal.stopLoss,
     takeProfit1: signal.takeProfit1,

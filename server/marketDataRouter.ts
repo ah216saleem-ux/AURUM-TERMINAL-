@@ -138,7 +138,7 @@ export const ASSET_CONFIGS: AssetConfigItem[] = [
 ];
 
 // Fetch Biquote public quote for Gold Spot, Silver Spot & Forex pairs
-async function fetchBiquoteQuote(symbol: string = 'XAUUSD') {
+export async function fetchBiquoteQuote(symbol: string = 'XAUUSD') {
   const cached = biquoteSymbolCache[symbol];
   const now = Date.now();
   if (cached && now - cached.timestamp < BIQUOTE_CACHE_TTL_MS) {
@@ -367,7 +367,7 @@ async function fetchBinanceTicker(symbol: string = 'BTCUSDT') {
 }
 
 // Fetch single market from Yahoo Finance
-async function fetchYahooQuote(symbol: string) {
+export async function fetchYahooQuote(symbol: string) {
   try {
     const encoded = encodeURIComponent(symbol);
     const res = await fetch(
@@ -423,7 +423,10 @@ export async function fetchYahooCandles(symbol: string, interval: string = '1h',
     const encoded = encodeURIComponent(symbol);
     const res = await fetch(
       `https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=${interval}&range=${range}`,
-      { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' } }
+      { 
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+        signal: AbortSignal.timeout(4000)
+      }
     );
     if (!res.ok) {
       throw new Error(`Yahoo chart status ${res.status}`);
@@ -460,15 +463,26 @@ export async function fetchYahooCandles(symbol: string, interval: string = '1h',
       };
     }).filter(c => c.close > 0 && !isNaN(c.close));
 
-    memoryCache[cacheKey] = {
-      timestamp: now,
-      data: candles
-    };
-
-    return candles;
+    if (candles.length > 0) {
+      memoryCache[cacheKey] = {
+        timestamp: now,
+        data: candles
+      };
+      return candles;
+    }
   } catch {
-    return [];
+    // If request fails or times out, fallback to previously cached data if available
+    if (memoryCache[cacheKey]?.data && memoryCache[cacheKey].data.length > 0) {
+      return memoryCache[cacheKey].data;
+    }
   }
+
+  // Fallback to previously cached candles even if expired
+  if (memoryCache[cacheKey]?.data && memoryCache[cacheKey].data.length > 0) {
+    return memoryCache[cacheKey].data;
+  }
+
+  return [];
 }
 
 // Batch fetch all markets across providers

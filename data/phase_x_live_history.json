@@ -1,0 +1,25 @@
+[
+  {
+    "setupId": "xau-usd_SELL_Structure_1790157600000_1790158500000",
+    "assetId": "xau-usd",
+    "symbol": "XAU/USD",
+    "direction": "SELL",
+    "preferredEntry": 4353,
+    "stopLoss": 4357.71,
+    "takeProfit1": 4343.58,
+    "takeProfit2": 4338.87,
+    "riskRewardRatio": "1:2 / 1:3",
+    "tradeConfidence": 79,
+    "signalTimestamp": 1790159260745,
+    "activationTimestamp": null,
+    "exitTimestamp": null,
+    "phase4FinalStatus": "READY",
+    "tp1Reached": false,
+    "tp2Reached": false,
+    "slReached": false,
+    "finalR": null,
+    "dataQualityStatus": "VERIFIED",
+    "displayStatusLabel": "SIGNAL READY",
+    "isLive": true
+  }
+]

@@ -1,4 +1,5 @@
-import { fetchYahooCandles, ASSET_CONFIGS, fetchAllMarketData } from './marketDataRouter';
+import { fetchYahooCandles, fetchYahooQuote, fetchBiquoteQuote, ASSET_CONFIGS, fetchAllMarketData } from './marketDataRouter';
+import { getLatestLivePrices } from './websocketServer';
 import { getLiveEconomicEvents, EconomicEvent } from './newsRouter';
 import {
   dispatchPhaseXApprovedTelegramSignal,
@@ -8,6 +9,19 @@ import {
   recordNewApprovedLiveSignal,
   updateLiveSignalLifecycle
 } from './phaseXLiveHistoryService';
+import {
+  detectSmcLiquiditySetup,
+  detectTrendPullbackSetup,
+  arbitrateStrategyConfluence,
+  PhaseXStrategyTelemetry,
+  SmcEngineTelemetry,
+  TrendPullbackTelemetry,
+  WyckoffStrategyTelemetry,
+  StrategyConfluenceTelemetry,
+  runMultiStrategyDeterministicValidationSuite
+} from './phaseXMultiStrategy';
+
+export { runMultiStrategyDeterministicValidationSuite };
 
 // Phase 4 Lifecycle States (Section 2)
 export type PhaseXLifecycleState =
@@ -28,6 +42,7 @@ export interface ActiveSetupRecord {
   assetId: string;
   symbol: string;
   direction: PhaseXFinalDirection;
+  setupType?: string;
   event: string;
   confirmation30mTs: number;
   trigger15mTs: number;
@@ -82,6 +97,7 @@ export interface PhaseXTradeHistoryRecord {
   assetId: string;
   symbol: string;
   direction: PhaseXFinalDirection;
+  setupType?: string;
   entry: number;
   sl: number;
   tp1: number;
@@ -130,6 +146,7 @@ function recordCompletedTrade(record: ActiveSetupRecord, dataQualityStatus: 'VER
     assetId: record.assetId,
     symbol: record.symbol,
     direction: record.direction,
+    setupType: record.setupType || 'WYCKOFF STRUCTURE',
     entry: record.preferredEntry,
     sl: record.stopLoss,
     tp1: record.takeProfit1,
@@ -501,6 +518,8 @@ export interface PhaseXEngineDetails {
     macroRangeHigh: number;
     macroRangeLow: number;
   };
+  setupType?: string;
+  strategyTelemetry?: PhaseXStrategyTelemetry;
   // Phase 4 Live Trade Management & Capital Protection Telemetry (Section 17)
   liveTradeDetails: PhaseXLiveTradeDetails;
   dataProvenance?: PhaseXDataProvenance;
@@ -610,6 +629,7 @@ export interface PhaseXLiveTradeDetails {
   lifecycleState: PhaseXLifecycleState;
   displayStatusLabel: string;
   userFacingDirectionLabel: string;
+  setupType?: string;
   lockedEntry: number | null;
   lockedSL: number | null;
   lockedTP1: number | null;
@@ -652,6 +672,7 @@ export interface PhaseXAnalysisResponse {
   userOutputState: UserPhaseState;
   // Phase 2 Primary Output:
   finalDirection: PhaseXFinalDirection;
+  setupType?: string;
   executionStatus: PhaseXExecutionStatus;
   tradeConfidence: number;
   preferredEntry: number | null;
@@ -685,6 +706,7 @@ export interface PhaseXAnalysisResponse {
   dataProvenance?: PhaseXDataProvenance;
   phase5QualityGate?: Phase5QualityGateResult;
   engineDetails: PhaseXEngineDetails;
+  strategyTelemetry?: PhaseXStrategyTelemetry;
 }
 
 /**
@@ -1102,7 +1124,73 @@ export async function analyzePhaseX(
       liveTradeDetails: emptyLiveTradeDetails,
       dataProvenance: emptyDetails.dataProvenance,
       phase5QualityGate: emptyDetails.phase5QualityGate,
-      engineDetails: emptyDetails
+      engineDetails: emptyDetails,
+      strategyTelemetry: {
+        activeStrategyType: 'WYCKOFF STRUCTURE',
+        setupTypeLabel: 'WYCKOFF STRUCTURE',
+        smc: {
+          asianHigh: 0,
+          asianLow: 0,
+          prevDayHigh: 0,
+          prevDayLow: 0,
+          keySwingHigh15M: 0,
+          keySwingLow15M: 0,
+          liquiditySwept: 'NONE',
+          sweptLevelPrice: null,
+          sweptLevelDescription: 'No sweep detected',
+          sweepCandleTime: null,
+          sweepConfirmed: false,
+          chochDetected: false,
+          chochLevel: null,
+          chochTime: null,
+          displacementSpread: 0,
+          displacementAtrRatio: 0,
+          displacementConfirmed: false,
+          fvgZoneHigh: null,
+          fvgZoneLow: null,
+          fvgCandleTime: null,
+          fvgStatus: 'NONE',
+          fvgRetestConfirmed: false,
+          currentSession: 'INTERBANK_CLOSE',
+          setupQualified: false,
+          direction: 'WAIT',
+          triggerDescription: 'Scanning for liquidity sweep'
+        },
+        trend: {
+          tf4HDirection: 'RANGING',
+          tf1HDirection: 'RANGING',
+          tf30MDirection: 'RANGING',
+          ema20_15M: 0,
+          ema50_15M: 0,
+          pullbackTarget: 'NONE',
+          pullbackDistanceAtr: 0,
+          isPullbackWithinZone: false,
+          micro5MRejectionWickPct: 0,
+          micro5MReclaimConfirmed: false,
+          micro5MStructureConfirmed: false,
+          setupQualified: false,
+          direction: 'WAIT',
+          triggerDescription: 'Insufficient candle depth'
+        },
+        wyckoff: {
+          detectedPhase: 'UNCONFIRMED',
+          activeEvent: 'NO CONFIRMED EVENT',
+          eventStatus: 'SCANNING',
+          springStatus: 'NONE',
+          upthrustStatus: 'NONE',
+          setupQualified: false,
+          direction: 'WAIT',
+          triggerDescription: 'Insufficient verified closed candles'
+        },
+        confluence: {
+          detectedStrategies: [],
+          confluenceCount: 0,
+          agreementStatus: 'NONE',
+          conflictDetails: null,
+          selectedSetupType: 'WYCKOFF STRUCTURE',
+          mergedSetupId: `${assetId}_WAIT_INSUFFICIENT_DATA_${Date.now()}`
+        }
+      }
     };
   }
 
@@ -1237,16 +1325,22 @@ export async function analyzePhaseX(
     const prevBar = primaryCandles[primaryCandles.length - 2];
     const barSpread = Math.abs(lastBar.close - lastBar.open);
 
-    if (lastBar.close > lastBar.open && barSpread > (1.2 * atr) && lastBar.close > rangeMidpoint && lastBar.close > prevBar.high) {
+    if (
+      (lastBar.close > lastBar.open && barSpread > (0.6 * atr) && lastBar.close > rangeMidpoint) ||
+      (lastBar.close > rangeHigh && lastBar.close > prevBar.high)
+    ) {
       activeEvent = 'Sign of Strength';
       activeEventStatus = 'CONFIRMED';
-    } else if (lastBar.close < lastBar.open && barSpread > (1.2 * atr) && lastBar.close < rangeMidpoint && lastBar.close < prevBar.low) {
+    } else if (
+      (lastBar.close < lastBar.open && barSpread > (0.6 * atr) && lastBar.close < rangeMidpoint) ||
+      (lastBar.close < rangeLow && lastBar.close < prevBar.low)
+    ) {
       activeEvent = 'Sign of Weakness';
       activeEventStatus = 'CONFIRMED';
-    } else if (prevBar.close < prevBar.open && (prevBar.high - prevBar.low) > (1.8 * atr) && lastBar.close > prevBar.close) {
+    } else if (prevBar.close < prevBar.open && (prevBar.high - prevBar.low) > (1.5 * atr) && lastBar.close > prevBar.close) {
       activeEvent = 'Selling Climax';
       activeEventStatus = 'POTENTIAL';
-    } else if (prevBar.close > prevBar.open && (prevBar.high - prevBar.low) > (1.8 * atr) && lastBar.close < prevBar.close) {
+    } else if (prevBar.close > prevBar.open && (prevBar.high - prevBar.low) > (1.5 * atr) && lastBar.close < prevBar.close) {
       activeEvent = 'Buying Climax';
       activeEventStatus = 'POTENTIAL';
     }
@@ -1312,19 +1406,22 @@ export async function analyzePhaseX(
   const last15MHigh = swings15M.swingHighs.length > 0 ? swings15M.swingHighs[swings15M.swingHighs.length - 1].price : rangeHigh;
   const last15MLow = swings15M.swingLows.length > 0 ? swings15M.swingLows[swings15M.swingLows.length - 1].price : rangeLow;
 
+  const recentHighs15M = closed15M.slice(-6).map(c => c.high);
+  const recentLows15M = closed15M.slice(-6).map(c => c.low);
+  const local15MHigh = Math.max(...recentHighs15M);
+  const local15MLow = Math.min(...recentLows15M);
+
   // Calculate tight invalidation anchor from 15M structure (NOT from 1H/4H distances!)
   let tightInvalidationAnchor = currentPrice;
   let invalidationBasis = '15M Micro Structural Pivot';
   if (tf1H.bias === 'BULLISH' || activeEvent === 'Spring' || springStatus !== 'NONE') {
-    // Tight invalidation below 15M micro swing low + small buffer
-    tightInvalidationAnchor = +(last15MLow - (0.25 * atr15M)).toFixed(assetConfig.decimals);
+    tightInvalidationAnchor = +(local15MLow - (0.25 * atr15M)).toFixed(assetConfig.decimals);
     invalidationBasis = '15M Micro Low Anchor (-0.25 ATR)';
-  } else if (tf1H.bias === 'BEARISH' || activeEvent === 'Upthrust' || upthrustStatus !== 'NONE') {
-    // Tight invalidation above 15M micro swing high + small buffer
-    tightInvalidationAnchor = +(last15MHigh + (0.25 * atr15M)).toFixed(assetConfig.decimals);
+  } else if (tf1H.bias === 'BEARISH' || activeEvent === 'Upthrust' || upthrustStatus !== 'NONE' || activeEvent === 'Sign of Weakness') {
+    tightInvalidationAnchor = +(local15MHigh + (0.25 * atr15M)).toFixed(assetConfig.decimals);
     invalidationBasis = '15M Micro High Anchor (+0.25 ATR)';
   } else {
-    tightInvalidationAnchor = +(last15MLow).toFixed(assetConfig.decimals);
+    tightInvalidationAnchor = +(local15MLow).toFixed(assetConfig.decimals);
   }
 
   // Timeframe Alignment calculation
@@ -1344,13 +1441,13 @@ export async function analyzePhaseX(
 
   // 7. 1H Wyckoff Phase Classification
   let detectedPhase: WyckoffPhase = 'UNCONFIRMED';
-  if (marketStructure === 'HIGHER_HIGHS_HIGHER_LOWS' && currentPrice > rangeMidpoint && tf1H.bias === 'BULLISH') {
+  if ((marketStructure === 'HIGHER_HIGHS_HIGHER_LOWS' || (tf1H.bias === 'BULLISH' && currentPrice > rangeMidpoint)) && tf1H.bias === 'BULLISH') {
     detectedPhase = 'MARKUP';
-  } else if (marketStructure === 'LOWER_HIGHS_LOWER_LOWS' && currentPrice < rangeMidpoint && tf1H.bias === 'BEARISH') {
+  } else if ((marketStructure === 'LOWER_HIGHS_LOWER_LOWS' || (tf1H.bias === 'BEARISH' && currentPrice < rangeMidpoint)) && tf1H.bias === 'BEARISH') {
     detectedPhase = 'MARKDOWN';
-  } else if (springStatus === 'CONFIRMED' || springStatus === 'POTENTIAL' || (marketStructure === 'CONSOLIDATION_RANGING' && currentPrice <= rangeMidpoint && (tf4H.bias !== 'BEARISH' || activeEvent === 'Selling Climax'))) {
+  } else if (springStatus === 'CONFIRMED' || springStatus === 'POTENTIAL' || (currentPrice <= rangeMidpoint && (tf4H.bias !== 'BEARISH' || activeEvent === 'Selling Climax' || activeEvent === 'Sign of Strength'))) {
     detectedPhase = 'ACCUMULATION';
-  } else if (upthrustStatus === 'CONFIRMED' || upthrustStatus === 'POTENTIAL' || (marketStructure === 'CONSOLIDATION_RANGING' && currentPrice >= rangeMidpoint && (tf4H.bias !== 'BULLISH' || activeEvent === 'Buying Climax'))) {
+  } else if (upthrustStatus === 'CONFIRMED' || upthrustStatus === 'POTENTIAL' || (currentPrice >= rangeMidpoint && (tf4H.bias !== 'BULLISH' || activeEvent === 'Buying Climax' || activeEvent === 'Sign of Weakness'))) {
     detectedPhase = 'DISTRIBUTION';
   } else if (marketStructure === 'CONSOLIDATION_RANGING' || marketStructure === 'EXPANDING_RANGE') {
     detectedPhase = 'TRANSITION';
@@ -1426,18 +1523,51 @@ export async function analyzePhaseX(
   const lastClosed15M = closed15M[closed15M.length - 1];
   const signalConfirmationPrice = lastClosed15M.close;
 
+  // Authoritative verified real-time tick resolution
+  const liveTicks = getLatestLivePrices();
+  const liveTick = liveTicks[assetId] || (assetId === 'xau-usd' ? liveTicks['xau-usd'] : undefined);
   let currentLivePrice = signalConfirmationPrice;
-  if (typeof clientLivePrice === 'number' && clientLivePrice > 0 && !isNaN(clientLivePrice)) {
+  let livePriceTimestamp = Date.now();
+  let livePriceSource = assetConfig.name ? `${assetConfig.name} Feed` : 'BIQUOTE Gold Spot Feed';
+  let isLiveTickFresh = false;
+
+  if (liveTick && liveTick.price > 0 && (Date.now() - liveTick.timestamp) <= 60000) {
+    currentLivePrice = liveTick.price;
+    livePriceTimestamp = liveTick.timestamp;
+    livePriceSource = liveTick.source || livePriceSource;
+    isLiveTickFresh = true;
+  } else if (typeof clientLivePrice === 'number' && clientLivePrice > 0 && !isNaN(clientLivePrice)) {
     currentLivePrice = clientLivePrice;
+    livePriceTimestamp = Date.now();
+    isLiveTickFresh = true;
   } else {
     try {
-      const allQuotes = await fetchAllMarketData();
-      const quote = allQuotes?.data?.[assetId];
-      if (quote?.price && quote.price > 0) {
-        currentLivePrice = quote.price;
+      const bQuote = await fetchBiquoteQuote(assetConfig.providerSymbol);
+      if (bQuote?.price && bQuote.price > 0) {
+        currentLivePrice = bQuote.price;
+        livePriceTimestamp = bQuote.timestamp || Date.now();
+        livePriceSource = 'BIQUOTE Live API';
+        isLiveTickFresh = (Date.now() - livePriceTimestamp) <= 60000;
+      } else {
+        const yQuote = await fetchYahooQuote(yahooSymbol);
+        if (yQuote?.price && yQuote.price > 0) {
+          currentLivePrice = yQuote.price;
+          livePriceTimestamp = yQuote.timestamp || Date.now();
+          livePriceSource = 'Yahoo Finance API (GC=F)';
+          isLiveTickFresh = (Date.now() - livePriceTimestamp) <= 60000;
+        } else {
+          const allQuotes = await fetchAllMarketData();
+          const quote = allQuotes?.data?.[assetId];
+          if (quote?.price && quote.price > 0) {
+            currentLivePrice = quote.price;
+            livePriceTimestamp = quote.timestamp || Date.now();
+            livePriceSource = quote.provider || 'Market Data Oracle';
+            isLiveTickFresh = (Date.now() - livePriceTimestamp) <= 60000;
+          }
+        }
       }
     } catch {
-      // Fallback remains signalConfirmationPrice
+      // Fallback remains signalConfirmationPrice with stale flag
     }
   }
 
@@ -1479,7 +1609,97 @@ export async function analyzePhaseX(
   const bullish30MValid = setup30MConfirmed || tf30M.bias === 'BULLISH' || setup30MShift === 'HIGHER_LOW_FORMED';
   const bearish30MValid = setup30MConfirmed || tf30M.bias === 'BEARISH' || setup30MShift === 'LOWER_HIGH_FORMED';
 
-  // 4. Evaluate Structural / Data Hard WAIT Conditions (Section 5)
+  // =========================================================================
+  // 4. MULTI-STRATEGY SELECTION & CONFLUENCE ARBITRATION LAYER
+  // =========================================================================
+  // Strategies:
+  // A) WYCKOFF STRUCTURE ENGINE
+  // B) SMC / ICT LIQUIDITY ENGINE
+  // C) TREND PULLBACK ENGINE
+
+  const confirmation30mTimestamp = closed30M[closed30M.length - 1]?.time || Date.now();
+  const trigger15mTimestamp = lastClosed15M.time;
+
+  // 4.1. Wyckoff Strategy Evaluation
+  let wyckoffDirection: 'BUY' | 'SELL' | 'WAIT' = 'WAIT';
+  let wyckoffTriggerDesc = 'No confirmed Wyckoff trigger on 15M closed candle.';
+  let wyckoffQualified = false;
+
+  if (bullishContextValid && hasBullishWyckoff && bullish30MValid && bullish15MTrigger && alignment !== 'CONFLICTING') {
+    wyckoffDirection = 'BUY';
+    wyckoffQualified = true;
+    if (is15MBullishRetest) wyckoffTriggerDesc = `15M Retest of Micro Breakout High (${last15MHigh.toFixed(assetConfig.decimals)})`;
+    else if (is15MHigherLow) wyckoffTriggerDesc = `15M Higher Low Structure Formed (${last15MLow.toFixed(assetConfig.decimals)})`;
+    else if (is15MBreakout) wyckoffTriggerDesc = `15M Closed Candle Micro High Breakout (${last15MHigh.toFixed(assetConfig.decimals)})`;
+    else if (is15MSpringReclaim) wyckoffTriggerDesc = `15M Reclaim of Range Low (${rangeLow.toFixed(assetConfig.decimals)})`;
+    else if (is15MBullishRejection) wyckoffTriggerDesc = `15M Bullish Wick Rejection (${(lowerWickRatio15M * 100).toFixed(0)}% lower wick)`;
+    else wyckoffTriggerDesc = `15M Bullish Structural Shift above 20 EMA`;
+  } else if (bearishContextValid && hasBearishWyckoff && bearish30MValid && bearish15MTrigger && alignment !== 'CONFLICTING') {
+    wyckoffDirection = 'SELL';
+    wyckoffQualified = true;
+    if (is15MBearishRetest) wyckoffTriggerDesc = `15M Retest of Micro Breakdown Low (${last15MLow.toFixed(assetConfig.decimals)})`;
+    else if (is15MLowerHigh) wyckoffTriggerDesc = `15M Lower High Structure Formed (${last15MHigh.toFixed(assetConfig.decimals)})`;
+    else if (is15MBreakdown) wyckoffTriggerDesc = `15M Closed Candle Micro Low Breakdown (${last15MLow.toFixed(assetConfig.decimals)})`;
+    else if (is15MUpthrustRejection) wyckoffTriggerDesc = `15M Rejection of Range High (${rangeHigh.toFixed(assetConfig.decimals)})`;
+    else if (is15MBearishRejection) wyckoffTriggerDesc = `15M Bearish Wick Rejection (${(upperWickRatio15M * 100).toFixed(0)}% upper wick)`;
+    else wyckoffTriggerDesc = `15M Bearish Structural Shift below 20 EMA`;
+  }
+
+  const wyckoffTelemetry: WyckoffStrategyTelemetry = {
+    detectedPhase,
+    activeEvent,
+    eventStatus: activeEvent !== 'NO CONFIRMED EVENT' ? 'CONFIRMED' : 'SCANNING',
+    springStatus,
+    upthrustStatus,
+    setupQualified: wyckoffQualified,
+    direction: wyckoffDirection,
+    triggerDescription: wyckoffTriggerDesc
+  };
+
+  // 4.2. SMC / ICT Liquidity Engine Evaluation
+  const smcTelemetry = detectSmcLiquiditySetup({
+    closed15M,
+    closed1H,
+    atr15M,
+    currentPrice: signalConfirmationPrice,
+    last15MHigh,
+    last15MLow
+  });
+
+  // 4.3. Trend Pullback Engine Evaluation
+  const trendTelemetry = detectTrendPullbackSetup({
+    tf4H,
+    tf1H,
+    tf30M,
+    closed15M,
+    closed5M,
+    atr15M,
+    currentPrice: signalConfirmationPrice,
+    last15MHigh,
+    last15MLow
+  });
+
+  // 4.4. Strategy Arbitration & Confluence Resolution
+  const confluenceResult = arbitrateStrategyConfluence({
+    assetId,
+    wyckoffResult: wyckoffTelemetry,
+    smcResult: smcTelemetry,
+    trendResult: trendTelemetry,
+    confirmation30mTs: confirmation30mTimestamp,
+    trigger15mTs: trigger15mTimestamp
+  });
+
+  const setupType = confluenceResult.setupTypeLabel;
+  const strategyTelemetry: PhaseXStrategyTelemetry = {
+    activeStrategyType: setupType,
+    setupTypeLabel: setupType,
+    smc: smcTelemetry,
+    trend: trendTelemetry,
+    wyckoff: wyckoffTelemetry,
+    confluence: confluenceResult.confluenceTelemetry
+  };
+
+  // 4.5. Evaluate Structural / Data Hard WAIT Conditions (Section 5)
   let candidateDirection: PhaseXFinalDirection = 'WAIT';
   let waitReasonCode: PhaseXWaitReasonCode = 'NONE';
   let executionTriggerDescription = 'No confirmed trigger on 15M closed candle.';
@@ -1495,22 +1715,13 @@ export async function analyzePhaseX(
     candidateDirection = 'WAIT';
     waitReasonCode = 'EXTREME_VOLATILITY';
     executionTriggerDescription = 'Market volatility is abnormally elevated (> 4.5% ATR / price).';
-  } else if (bullishContextValid && hasBullishWyckoff && bullish30MValid && bullish15MTrigger && alignment !== 'CONFLICTING') {
-    candidateDirection = 'BUY';
-    if (is15MBullishRetest) executionTriggerDescription = `15M Retest of Micro Breakout High (${last15MHigh.toFixed(assetConfig.decimals)})`;
-    else if (is15MHigherLow) executionTriggerDescription = `15M Higher Low Structure Formed (${last15MLow.toFixed(assetConfig.decimals)})`;
-    else if (is15MBreakout) executionTriggerDescription = `15M Closed Candle Micro High Breakout (${last15MHigh.toFixed(assetConfig.decimals)})`;
-    else if (is15MSpringReclaim) executionTriggerDescription = `15M Reclaim of Range Low (${rangeLow.toFixed(assetConfig.decimals)})`;
-    else if (is15MBullishRejection) executionTriggerDescription = `15M Bullish Wick Rejection (${(lowerWickRatio15M * 100).toFixed(0)}% lower wick)`;
-    else executionTriggerDescription = `15M Bullish Structural Shift above 20 EMA`;
-  } else if (bearishContextValid && hasBearishWyckoff && bearish30MValid && bearish15MTrigger && alignment !== 'CONFLICTING') {
-    candidateDirection = 'SELL';
-    if (is15MBearishRetest) executionTriggerDescription = `15M Retest of Micro Breakdown Low (${last15MLow.toFixed(assetConfig.decimals)})`;
-    else if (is15MLowerHigh) executionTriggerDescription = `15M Lower High Structure Formed (${last15MHigh.toFixed(assetConfig.decimals)})`;
-    else if (is15MBreakdown) executionTriggerDescription = `15M Closed Candle Micro Low Breakdown (${last15MLow.toFixed(assetConfig.decimals)})`;
-    else if (is15MUpthrustRejection) executionTriggerDescription = `15M Rejection of Range High (${rangeHigh.toFixed(assetConfig.decimals)})`;
-    else if (is15MBearishRejection) executionTriggerDescription = `15M Bearish Wick Rejection (${(upperWickRatio15M * 100).toFixed(0)}% upper wick)`;
-    else executionTriggerDescription = `15M Bearish Structural Shift below 20 EMA`;
+  } else if (confluenceResult.agreementStatus === 'CONFLICTING') {
+    candidateDirection = 'WAIT';
+    waitReasonCode = 'LOW_CONFIDENCE';
+    executionTriggerDescription = confluenceResult.combinedTriggerDescription;
+  } else if (confluenceResult.finalDirection !== 'WAIT') {
+    candidateDirection = confluenceResult.finalDirection;
+    executionTriggerDescription = confluenceResult.combinedTriggerDescription;
   } else {
     candidateDirection = 'WAIT';
     // Determine precise structural reason:
@@ -1523,15 +1734,15 @@ export async function analyzePhaseX(
     } else if ((detectedPhase === 'ACCUMULATION' && tf30M.bias === 'BEARISH') || (detectedPhase === 'DISTRIBUTION' && tf30M.bias === 'BULLISH')) {
       waitReasonCode = 'SETUP_PHASE_CONFLICT';
       executionTriggerDescription = '30M intermediate setup conflicts materially with 1H primary phase.';
-    } else if (!hasBullishWyckoff && !hasBearishWyckoff) {
+    } else if (!hasBullishWyckoff && !hasBearishWyckoff && !smcTelemetry.setupQualified && !trendTelemetry.setupQualified) {
       waitReasonCode = 'NO_WYCKOFF_EVENT';
-      executionTriggerDescription = 'PHASE X is scanning for a high-confidence entry.';
-    } else if (!bullish15MTrigger && !bearish15MTrigger) {
+      executionTriggerDescription = 'PHASE X multi-strategy scanner is actively searching for high-probability setups.';
+    } else if (!bullish15MTrigger && !bearish15MTrigger && !smcTelemetry.setupQualified && !trendTelemetry.setupQualified) {
       waitReasonCode = 'EXECUTION_STRUCTURE_UNCONFIRMED';
       executionTriggerDescription = '15M closed candle micro structure has not confirmed an executable trigger.';
     } else {
       waitReasonCode = 'NO_WYCKOFF_EVENT';
-      executionTriggerDescription = 'Multi-timeframe confluence threshold not satisfied.';
+      executionTriggerDescription = 'Multi-strategy confluence threshold not satisfied.';
     }
   }
 
@@ -1636,29 +1847,25 @@ export async function analyzePhaseX(
   let entryZoneHigh: number | null = null;
 
   if (candidateDirection === 'BUY') {
-    if (is15MHigherLow) {
-      preferredEntry = +(last15MLow + (0.15 * atr15M)).toFixed(assetConfig.decimals);
-    } else if (is15MBreakout || is15MBullishRetest) {
-      preferredEntry = +last15MHigh.toFixed(assetConfig.decimals);
+    if (is15MBreakout || is15MBullishRetest || is15MHigherLow) {
+      preferredEntry = +signalConfirmationPrice.toFixed(assetConfig.decimals);
     } else if (is15MSpringReclaim) {
       preferredEntry = +rangeLow.toFixed(assetConfig.decimals);
     } else {
       preferredEntry = +signalConfirmationPrice.toFixed(assetConfig.decimals);
     }
-    entryZoneLow = +(preferredEntry - (0.25 * atr15M)).toFixed(assetConfig.decimals);
-    entryZoneHigh = +(preferredEntry + (0.25 * atr15M)).toFixed(assetConfig.decimals);
+    entryZoneLow = +(preferredEntry - (0.35 * atr15M)).toFixed(assetConfig.decimals);
+    entryZoneHigh = +(preferredEntry + (0.35 * atr15M)).toFixed(assetConfig.decimals);
   } else if (candidateDirection === 'SELL') {
-    if (is15MLowerHigh) {
-      preferredEntry = +(last15MHigh - (0.15 * atr15M)).toFixed(assetConfig.decimals);
-    } else if (is15MBreakdown || is15MBearishRetest) {
-      preferredEntry = +last15MLow.toFixed(assetConfig.decimals);
+    if (is15MBreakdown || is15MBearishRetest || is15MLowerHigh) {
+      preferredEntry = +signalConfirmationPrice.toFixed(assetConfig.decimals);
     } else if (is15MUpthrustRejection) {
       preferredEntry = +rangeHigh.toFixed(assetConfig.decimals);
     } else {
       preferredEntry = +signalConfirmationPrice.toFixed(assetConfig.decimals);
     }
-    entryZoneLow = +(preferredEntry - (0.25 * atr15M)).toFixed(assetConfig.decimals);
-    entryZoneHigh = +(preferredEntry + (0.25 * atr15M)).toFixed(assetConfig.decimals);
+    entryZoneLow = +(preferredEntry - (0.35 * atr15M)).toFixed(assetConfig.decimals);
+    entryZoneHigh = +(preferredEntry + (0.35 * atr15M)).toFixed(assetConfig.decimals);
   }
 
   // 8. Live Price Execution Check & Anti-Chase Protection (Section 8, 9, 10)
@@ -1672,12 +1879,12 @@ export async function analyzePhaseX(
     distanceFromEntry = +(currentLivePrice - preferredEntry).toFixed(assetConfig.decimals);
     distanceFromEntryAtr = atr15M > 0 ? +(Math.abs(distanceFromEntry) / atr15M).toFixed(2) : 0;
 
-    const entryToleranceBuffer = 0.35 * atr15M;
-    const antiChaseDistance = 1.35 * atr15M;
+    const entryToleranceBuffer = 0.50 * atr15M;
+    const antiChaseDistance = 1.75 * atr15M;
 
     if (candidateDirection === 'BUY') {
       // BUY Live Price Evaluation:
-      if (currentLivePrice < tightInvalidationAnchor || currentLivePrice < (entryZoneLow - (0.5 * atr15M))) {
+      if (currentLivePrice < tightInvalidationAnchor || currentLivePrice < (entryZoneLow - (0.75 * atr15M))) {
         executionStatus = 'SETUP_INVALIDATED';
         finalDirection = 'WAIT';
         waitReasonCode = 'STRUCTURE_INVALIDATED';
@@ -1686,7 +1893,7 @@ export async function analyzePhaseX(
         executionStatus = 'MISSED_ENTRY';
         finalDirection = 'WAIT';
         waitReasonCode = 'ENTRY_EXTENDED';
-      } else if (currentLivePrice >= (entryZoneLow - (0.15 * atr15M)) && currentLivePrice <= (entryZoneHigh + entryToleranceBuffer)) {
+      } else if (currentLivePrice >= (entryZoneLow - (0.25 * atr15M)) && currentLivePrice <= (entryZoneHigh + entryToleranceBuffer)) {
         // Price is inside acceptable executable zone
         executionStatus = 'READY';
         finalDirection = 'BUY';
@@ -1703,7 +1910,7 @@ export async function analyzePhaseX(
       }
     } else if (candidateDirection === 'SELL') {
       // SELL Live Price Evaluation:
-      if (currentLivePrice > tightInvalidationAnchor || currentLivePrice > (entryZoneHigh + (0.5 * atr15M))) {
+      if (currentLivePrice > tightInvalidationAnchor || currentLivePrice > (entryZoneHigh + (0.75 * atr15M))) {
         executionStatus = 'SETUP_INVALIDATED';
         finalDirection = 'WAIT';
         waitReasonCode = 'STRUCTURE_INVALIDATED';
@@ -1712,7 +1919,7 @@ export async function analyzePhaseX(
         executionStatus = 'MISSED_ENTRY';
         finalDirection = 'WAIT';
         waitReasonCode = 'ENTRY_EXTENDED';
-      } else if (currentLivePrice <= (entryZoneHigh + (0.15 * atr15M)) && currentLivePrice >= (entryZoneLow - entryToleranceBuffer)) {
+      } else if (currentLivePrice <= (entryZoneHigh + (0.25 * atr15M)) && currentLivePrice >= (entryZoneLow - entryToleranceBuffer)) {
         // Price is inside acceptable executable zone
         executionStatus = 'READY';
         finalDirection = 'SELL';
@@ -1901,7 +2108,8 @@ export async function analyzePhaseX(
     takeProfit2 = +(preferredEntry + (3.0 * targetRiskDistance)).toFixed(assetConfig.decimals);
 
     // Section 12: TP1 Feasibility Gate against opposing 1H / 4H structure
-    if (rangeHigh > preferredEntry && rangeHigh < takeProfit1 && (rangeHigh - preferredEntry) < (1.7 * targetRiskDistance)) {
+    const isTrendingOrBreakout = detectedPhase === 'MARKUP' || detectedPhase === 'MARKDOWN' || activeEvent === 'Sign of Strength' || activeEvent === 'Sign of Weakness';
+    if (!isTrendingOrBreakout && rangeHigh > preferredEntry && rangeHigh < takeProfit1 && (rangeHigh - preferredEntry) < (1.2 * targetRiskDistance)) {
       tp1Feasibility = 'OBSTACLE_DETECTED';
       candidateDirection = 'WAIT';
       finalDirection = 'WAIT';
@@ -1922,7 +2130,8 @@ export async function analyzePhaseX(
     takeProfit2 = +(preferredEntry - (3.0 * targetRiskDistance)).toFixed(assetConfig.decimals);
 
     // Section 12: TP1 Feasibility Gate against opposing 1H / 4H structure
-    if (rangeLow < preferredEntry && rangeLow > takeProfit1 && (preferredEntry - rangeLow) < (1.7 * targetRiskDistance)) {
+    const isTrendingOrBreakdown = detectedPhase === 'MARKUP' || detectedPhase === 'MARKDOWN' || activeEvent === 'Sign of Strength' || activeEvent === 'Sign of Weakness';
+    if (!isTrendingOrBreakdown && rangeLow < preferredEntry && rangeLow > takeProfit1 && (preferredEntry - rangeLow) < (1.2 * targetRiskDistance)) {
       tp1Feasibility = 'OBSTACLE_DETECTED';
       candidateDirection = 'WAIT';
       finalDirection = 'WAIT';
@@ -1949,10 +2158,8 @@ export async function analyzePhaseX(
   }
 
   // 10. Duplicate Signal Protection, Setup Lock & Expiration Tracking (Section 13, 14, 20)
-  const confirmation30mTimestamp = closed30M[closed30M.length - 1]?.time || Date.now();
-  const trigger15mTimestamp = lastClosed15M.time;
   const eventCleanTag = (activeEvent !== 'NO CONFIRMED EVENT' ? activeEvent : springStatus !== 'NONE' ? 'Spring' : upthrustStatus !== 'NONE' ? 'Upthrust' : 'Structure').replace(/[^a-zA-Z0-9]/g, '_');
-  const setupId = `${assetId}_${candidateDirection}_${eventCleanTag}_${confirmation30mTimestamp}_${trigger15mTimestamp}`;
+  const setupId = confluenceResult.setupId || `${assetId}_${candidateDirection}_${eventCleanTag}_${confirmation30mTimestamp}_${trigger15mTimestamp}`;
 
   // =========================================================================
   // 11. PHASE 4: LIVE TRADE MANAGEMENT & CAPITAL PROTECTION ENGINE
@@ -2215,6 +2422,7 @@ export async function analyzePhaseX(
         assetId,
         symbol: assetConfig.symbol,
         direction: candidateDirection,
+        setupType,
         event: eventCleanTag,
         confirmation30mTs: confirmation30mTimestamp,
         trigger15mTs: trigger15mTimestamp,
@@ -2312,6 +2520,7 @@ export async function analyzePhaseX(
     lifecycleState: activeLifecycleState,
     displayStatusLabel,
     userFacingDirectionLabel,
+    setupType: managedRecord?.setupType || setupType,
     lockedEntry: managedRecord?.preferredEntry ?? preferredEntry,
     lockedSL: managedRecord?.stopLoss ?? finalProtectedSL,
     lockedTP1: managedRecord?.takeProfit1 ?? takeProfit1,
@@ -2444,13 +2653,13 @@ export async function analyzePhaseX(
     // Phase 4 Live Management
     liveTradeDetails,
     dataProvenance: {
-      liveDataProvider: assetConfig.primaryProvider || 'YAHOO_FINANCE',
+      liveDataProvider: livePriceSource,
       instrumentSymbol: assetConfig.providerSymbol || yahooSymbol,
       livePrice: currentLivePrice,
       bidAskAvailability: liveTradeDetails?.bidAskAvailability || (assetConfig.primaryProvider === 'BIQUOTE' || assetConfig.primaryProvider === 'BINANCE' ? 'VERIFIED' : 'LIMITED'),
-      lastTickTimestamp: liveTradeDetails?.lastVerifiedPriceTimestamp || lastClosedTimestamp,
-      tickAgeMs: Math.max(0, Date.now() - (liveTradeDetails?.lastVerifiedPriceTimestamp || lastClosedTimestamp)),
-      tickAgeFormatted: `${(Math.max(0, Date.now() - (liveTradeDetails?.lastVerifiedPriceTimestamp || lastClosedTimestamp)) / 1000).toFixed(1)}s`,
+      lastTickTimestamp: liveTradeDetails?.lastVerifiedPriceTimestamp || livePriceTimestamp || lastClosedTimestamp,
+      tickAgeMs: Math.max(0, Date.now() - (liveTradeDetails?.lastVerifiedPriceTimestamp || livePriceTimestamp || lastClosedTimestamp)),
+      tickAgeFormatted: `${(Math.max(0, Date.now() - (liveTradeDetails?.lastVerifiedPriceTimestamp || livePriceTimestamp || lastClosedTimestamp)) / 1000).toFixed(1)}s`,
       candleSource5M: `Yahoo Finance API (${yahooSymbol} - 5M Closed)`,
       candleSource15M: `Yahoo Finance API (${yahooSymbol} - 15M Closed)`,
       candleSource30M: `Yahoo Finance API (${yahooSymbol} - 30M Closed)`,
@@ -2458,13 +2667,15 @@ export async function analyzePhaseX(
       candleSource4H: `Aggregated from 1H Closed Candles (${yahooSymbol})`,
       lastClosedCandleTimestamp: lastClosedTimestamp,
       historicalDataRange: '5 days (5M/15M/30M) / 1 month (1H/4H)',
-      dataFreshnessStatus: Math.max(0, Date.now() - (liveTradeDetails?.lastVerifiedPriceTimestamp || lastClosedTimestamp)) < 30000 ? 'FRESH' : (Math.max(0, Date.now() - (liveTradeDetails?.lastVerifiedPriceTimestamp || lastClosedTimestamp)) < 300000 ? 'STALE' : 'OFFLINE'),
+      dataFreshnessStatus: Math.max(0, Date.now() - (liveTradeDetails?.lastVerifiedPriceTimestamp || livePriceTimestamp || lastClosedTimestamp)) <= 60000 ? 'FRESH' : 'STALE',
       dataGapsDetected: false,
       dataGapsDetails: 'NO DATA GAPS DETECTED',
       fallbackProviderUsed: yahooSymbol !== assetConfig.providerSymbol,
       fallbackProviderName: yahooSymbol !== assetConfig.providerSymbol ? `Yahoo Finance API (${yahooSymbol})` : 'NONE',
-      realDataStatus: primaryCandles.length >= 15 && closed15M.length >= 10 ? (Math.max(0, Date.now() - (liveTradeDetails?.lastVerifiedPriceTimestamp || lastClosedTimestamp)) < 300000 ? 'VERIFIED' : 'DEGRADED') : 'UNAVAILABLE'
-    }
+      realDataStatus: primaryCandles.length >= 15 && closed15M.length >= 10 ? (Math.max(0, Date.now() - (liveTradeDetails?.lastVerifiedPriceTimestamp || livePriceTimestamp || lastClosedTimestamp)) <= 60000 ? 'VERIFIED' : 'DEGRADED') : 'UNAVAILABLE'
+    },
+    setupType: managedRecord?.setupType || setupType,
+    strategyTelemetry
   };
 
   // ==========================================
@@ -2537,7 +2748,8 @@ export async function analyzePhaseX(
     dataFreshness: engineDetails.dataProvenance?.dataFreshnessStatus || 'FRESH',
     realDataStatus: engineDetails.dataProvenance?.realDataStatus || 'VERIFIED',
     existingActiveSetupCount,
-    isPreEntryInvalidated: managedRecord?.lifecycleState === 'INVALIDATED_BEFORE_ENTRY'
+    isPreEntryInvalidated: managedRecord?.lifecycleState === 'INVALIDATED_BEFORE_ENTRY',
+    isStrategyConflict: confluenceResult.agreementStatus === 'CONFLICTING'
   });
 
   engineDetails.phase5QualityGate = phase5QualityGate;
@@ -2548,14 +2760,14 @@ export async function analyzePhaseX(
   let finalExecutionStatusOutput: PhaseXExecutionStatus = executionStatus;
   let finalDirectionOutput: PhaseXFinalDirection = finalDirection;
 
-  if (activeLifecycleState === 'ACTIVE' || activeLifecycleState === 'TP1_HIT') {
-    // Keep Phase 4 active management outputs untouched
-  } else if (phase5QualityGate.finalGateStatus === 'APPROVED') {
-    finalExecutionStatusOutput = 'READY';
-    finalDisplayStatusLabel = 'READY';
-    finalUserOutputState = finalDirectionOutput === 'BUY' ? '🟢 BUY — READY' : '🔴 SELL — READY';
+  if (phase5QualityGate.finalGateStatus === 'APPROVED' || phase5QualityGate.finalGateStatus === 'ACTIVE') {
+    if (phase5QualityGate.finalGateStatus === 'APPROVED') {
+      finalExecutionStatusOutput = 'READY';
+      finalDisplayStatusLabel = 'READY';
+      finalUserOutputState = finalDirectionOutput === 'BUY' ? '🟢 BUY — READY' : '🔴 SELL — READY';
+    }
 
-    // Persistent Signal History Recording (XAU/USD ONLY, Phase 5 APPROVED ONLY)
+    // Persistent Signal History Recording (XAU/USD ONLY, Phase 5 APPROVED/ACTIVE ONLY)
     if (
       assetId === 'xau-usd' &&
       (finalDirectionOutput === 'BUY' || finalDirectionOutput === 'SELL') &&
@@ -2568,6 +2780,7 @@ export async function analyzePhaseX(
         setupId: currentSetupId,
         assetId: 'xau-usd',
         direction: finalDirectionOutput,
+        setupType: managedRecord?.setupType || setupType,
         preferredEntry,
         stopLoss: finalProtectedSL,
         takeProfit1,
@@ -2579,12 +2792,13 @@ export async function analyzePhaseX(
         isLive: true
       });
 
-      // Asynchronous Telegram Initial Signal Notification (XAU/USD ONLY, Phase 5 APPROVED ONLY)
+      // Asynchronous Telegram Initial Signal Notification (XAU/USD ONLY, Phase 5 APPROVED/ACTIVE ONLY)
       dispatchPhaseXApprovedTelegramSignal(
         {
           setupId: currentSetupId,
           assetId: 'xau-usd',
           direction: finalDirectionOutput,
+          setupType: managedRecord?.setupType || setupType,
           preferredEntry,
           stopLoss: finalProtectedSL,
           takeProfit1,
@@ -2618,6 +2832,7 @@ export async function analyzePhaseX(
     detectedEventLabel,
     userOutputState: finalUserOutputState,
     finalDirection: finalDirectionOutput,
+    setupType: managedRecord?.setupType || setupType,
     executionStatus: finalExecutionStatusOutput,
     tradeConfidence,
     preferredEntry,
@@ -2648,7 +2863,8 @@ export async function analyzePhaseX(
     liveTradeDetails,
     dataProvenance: engineDetails.dataProvenance,
     phase5QualityGate,
-    engineDetails
+    engineDetails,
+    strategyTelemetry
   };
 }
 
@@ -2957,6 +3173,7 @@ export interface Phase5EvaluationInput {
   realDataStatus: 'VERIFIED' | 'DEGRADED' | 'UNAVAILABLE';
   existingActiveSetupCount: number;
   isPreEntryInvalidated?: boolean;
+  isStrategyConflict?: boolean;
 }
 
 interface FailureRecord {
@@ -3031,7 +3248,7 @@ export function evaluatePhase5QualityGate(input: Phase5EvaluationInput): Phase5Q
   // Check 1: Live Market Data Integrity (Priority 1)
   // ==========================================
   let liveDataStatus: 'VERIFIED' | 'STALE' | 'INSUFFICIENT' | 'DISRUPTED' = 'VERIFIED';
-  if (input.currentLivePrice <= 0 || input.dataFreshness === 'OFFLINE' || tickAgeMs > 300000) {
+  if (input.currentLivePrice <= 0 || input.dataFreshness === 'OFFLINE' || input.dataFreshness === 'STALE' || tickAgeMs > 60000) {
     liveDataStatus = 'STALE';
     failures.push({
       priority: 1,
@@ -3044,6 +3261,15 @@ export function evaluatePhase5QualityGate(input: Phase5EvaluationInput): Phase5Q
       priority: 1,
       reason: 'Insufficient verified closed candle history across 5M/15M/1H timeframes.',
       waitState: 'WAIT — MARKET DATA'
+    });
+  }
+
+  // Strategy Conflict Veto Gate
+  if (input.isStrategyConflict) {
+    failures.push({
+      priority: 2,
+      reason: 'Material strategy conflict between active engines (e.g. SMC vs Trend Pullback). Capital protected.',
+      waitState: 'WAIT — CONFIRMATION WEAK'
     });
   }
 

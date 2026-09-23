@@ -209,6 +209,9 @@ export const PhaseXLiveDiagnosticsPanel: React.FC = () => {
               {diagnostics?.currentSetupStatus || 'SCANNING...'}
             </div>
             <div className="text-[11px] font-mono text-slate-400 mt-1">
+              {diagnostics?.setupType && (
+                <span className="text-amber-300 font-semibold mr-1">[{diagnostics.setupType}]</span>
+              )}
               Confidence: {diagnostics?.tradeConfidence || 0}% • Direction: {diagnostics?.direction || 'WAIT'}
             </div>
           </div>

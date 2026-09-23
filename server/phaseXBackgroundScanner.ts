@@ -29,6 +29,7 @@ export interface PhaseXEngineDiagnostics {
   totalScanCount: number;
   tradeConfidence: number;
   cleanWaitState: string | null;
+  setupType: string | null;
 }
 
 let diagnosticsState: PhaseXEngineDiagnostics = {
@@ -52,7 +53,8 @@ let diagnosticsState: PhaseXEngineDiagnostics = {
   distanceFromEntryAtr: null,
   totalScanCount: 0,
   tradeConfidence: 0,
-  cleanWaitState: null
+  cleanWaitState: null,
+  setupType: null
 };
 
 let scanIntervalHandle: NodeJS.Timeout | null = null;
@@ -74,6 +76,7 @@ export async function executePhaseXLiveScanCycle(): Promise<PhaseXEngineDiagnost
     diagnosticsState.direction = analysis.finalDirection;
     diagnosticsState.preferredEntry = analysis.preferredEntry;
     diagnosticsState.setupId = analysis.setupId;
+    diagnosticsState.setupType = analysis.setupType || (analysis as any).engineDetails?.strategyTelemetry?.setupTypeLabel || null;
     diagnosticsState.tradeConfidence = analysis.tradeConfidence;
     diagnosticsState.distanceFromEntry = analysis.distanceFromEntry;
     diagnosticsState.distanceFromEntryAtr = analysis.distanceFromEntryAtr;

@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'http';
-import { analyzePhaseX, cancelPhaseXSetup, getPhaseXTradeHistory, runPhase4VerificationSuite, runPhase5VerificationSuite } from './phaseXEngine';
+import { analyzePhaseX, cancelPhaseXSetup, getPhaseXTradeHistory, runPhase4VerificationSuite, runPhase5VerificationSuite, runMultiStrategyDeterministicValidationSuite } from './phaseXEngine';
 import { ASSET_CONFIGS } from './marketDataRouter';
 import { getTelegramServiceStatus, runTelegramVerificationSuite, sendTelegramConnectionTest, sendPhaseXApprovedSignalPreviewTest } from './phaseXTelegramService';
 import {
@@ -13,6 +13,7 @@ import {
   startPhaseXBackgroundScanner,
   stopPhaseXBackgroundScanner
 } from './phaseXBackgroundScanner';
+import { getVerifiedXauPrice } from './websocketServer';
 
 interface AttemptTracker {
   count: number;
@@ -66,6 +67,7 @@ function sanitizePhaseXPublicResponse(analysis: any) {
     tradeConfidence: analysis.tradeConfidence,
     userOutputState: analysis.userOutputState,
     finalDirection: analysis.finalDirection,
+    setupType: analysis.setupType,
     executionStatus: analysis.executionStatus,
     preferredEntry: analysis.preferredEntry,
     entryZoneLow: analysis.entryZoneLow,
@@ -92,7 +94,11 @@ function sanitizePhaseXPublicResponse(analysis: any) {
     liveProgressR: analysis.liveProgressR,
     displayStatusLabel: analysis.displayStatusLabel,
     isDataInterrupted: analysis.isDataInterrupted,
-    liveTradeDetails: analysis.liveTradeDetails
+    liveTradeDetails: analysis.liveTradeDetails,
+    dataProvenance: analysis.dataProvenance,
+    phase5QualityGate: analysis.phase5QualityGate,
+    engineDetails: analysis.engineDetails,
+    strategyTelemetry: analysis.strategyTelemetry
   };
 }
 
@@ -264,6 +270,13 @@ export async function handlePhaseXRequest(req: IncomingMessage, res: ServerRespo
       return true;
     }
 
+    if (pathname === '/api/phase-x/multi-strategy-suite') {
+      const report = runMultiStrategyDeterministicValidationSuite();
+      res.statusCode = 200;
+      res.end(JSON.stringify(report));
+      return true;
+    }
+
     if (pathname === '/api/phase-x/diagnostics') {
       const diag = getPhaseXDiagnostics();
       res.statusCode = 200;
@@ -399,20 +412,54 @@ export async function handlePhaseXRequest(req: IncomingMessage, res: ServerRespo
       return true;
     }
 
-    if (pathname === '/api/phase-x/analyze' && req.method === 'POST') {
-      let body = (req as any).body;
-      if (!body || typeof body !== 'object' || Object.keys(body).length === 0) {
-        let bodyStr = '';
-        req.on('data', chunk => { bodyStr += chunk; });
-        await new Promise(r => {
-          req.on('end', r);
-          setTimeout(r, 500); // 500ms safety timeout
-        });
-        if (bodyStr) {
-          try { body = JSON.parse(bodyStr); } catch {}
-        }
+    if (pathname === '/api/phase-x/live-price' && req.method === 'GET') {
+      const verified = getVerifiedXauPrice();
+      if (!verified || verified.price <= 0) {
+        res.statusCode = 200;
+        res.end(JSON.stringify({
+          assetId: 'xau-usd',
+          symbol: 'XAU/USD',
+          price: 0,
+          status: 'UNAVAILABLE',
+          isFresh: false,
+          ageSeconds: 999,
+          waitState: 'WAIT — MARKET DATA',
+          message: 'Waiting for verified market data feed'
+        }));
+        return true;
       }
-      body = body || {};
+
+      res.statusCode = 200;
+      res.end(JSON.stringify({
+        assetId: verified.assetId,
+        symbol: verified.symbol,
+        providerSymbol: verified.providerSymbol,
+        price: verified.price,
+        bid: verified.bid,
+        ask: verified.ask,
+        timestamp: verified.timestamp,
+        ageMs: verified.ageMs,
+        ageSeconds: verified.ageSeconds,
+        isFresh: verified.isFresh,
+        status: verified.isFresh ? 'LIVE' : 'STALE',
+        waitState: verified.isFresh ? 'OK' : 'WAIT — MARKET DATA',
+        source: verified.source
+      }));
+      return true;
+    }
+
+    if (pathname === '/api/phase-x/analyze' && (req.method === 'POST' || req.method === 'GET')) {
+      let body = (req as any).body;
+      if (req.method === 'GET') {
+        const qAssetId = parsedUrl.searchParams.get('assetId');
+        const qPrice = parseFloat(parsedUrl.searchParams.get('clientLivePrice') || '');
+        body = {
+          assetId: qAssetId || 'xau-usd',
+          clientLivePrice: !isNaN(qPrice) ? qPrice : undefined
+        };
+      } else if (!body || typeof body !== 'object') {
+        body = {};
+      }
       const { assetId, clientLivePrice } = body;
       const targetAssetId = assetId || 'xau-usd';
 

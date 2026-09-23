@@ -56,6 +56,7 @@ export interface PhaseXLiveTradeDetails {
   lifecycleState: PhaseXLifecycleState;
   displayStatusLabel: string;
   userFacingDirectionLabel: string;
+  setupType?: string;
   lockedEntry: number | null;
   lockedSL: number | null;
   lockedTP1: number | null;
@@ -281,9 +282,83 @@ export interface PhaseXEngineDetails {
     macroRangeHigh: number;
     macroRangeLow: number;
   };
+  setupType?: string;
+  strategyTelemetry?: PhaseXStrategyTelemetry;
   liveTradeDetails?: PhaseXLiveTradeDetails;
   dataProvenance?: PhaseXDataProvenance;
   phase5QualityGate?: Phase5QualityGateResult;
+}
+
+export interface SmcEngineTelemetry {
+  asianHigh: number;
+  asianLow: number;
+  prevDayHigh: number;
+  prevDayLow: number;
+  keySwingHigh15M: number;
+  keySwingLow15M: number;
+  liquiditySwept: 'BUY_SIDE' | 'SELL_SIDE' | 'NONE';
+  sweptLevelPrice: number | null;
+  sweptLevelDescription: string;
+  sweepCandleTime: number | null;
+  sweepConfirmed: boolean;
+  chochDetected: boolean;
+  chochLevel: number | null;
+  chochTime: number | null;
+  displacementSpread: number;
+  displacementAtrRatio: number;
+  displacementConfirmed: boolean;
+  fvgZoneHigh: number | null;
+  fvgZoneLow: number | null;
+  fvgCandleTime: number | null;
+  fvgStatus: 'VALID' | 'RETESTED' | 'INVALIDATED' | 'NONE';
+  fvgRetestConfirmed: boolean;
+  currentSession: 'ASIAN' | 'LONDON' | 'NEW_YORK' | 'INTERBANK_CLOSE';
+  setupQualified: boolean;
+  direction: 'BUY' | 'SELL' | 'WAIT';
+}
+
+export interface TrendPullbackTelemetry {
+  tf4HDirection: 'BULLISH' | 'BEARISH' | 'RANGING';
+  tf1HDirection: 'BULLISH' | 'BEARISH' | 'RANGING';
+  tf30MDirection: 'BULLISH' | 'BEARISH' | 'RANGING';
+  ema20_15M: number;
+  ema50_15M: number;
+  pullbackTarget: '20_EMA' | '50_EMA' | 'BREAKOUT_LEVEL' | 'NONE';
+  pullbackDistanceAtr: number;
+  isPullbackWithinZone: boolean;
+  micro5MRejectionWickPct: number;
+  micro5MReclaimConfirmed: boolean;
+  micro5MStructureConfirmed: boolean;
+  setupQualified: boolean;
+  direction: 'BUY' | 'SELL' | 'WAIT';
+}
+
+export interface WyckoffStrategyTelemetry {
+  detectedPhase: string;
+  activeEvent: string;
+  eventStatus: string;
+  springStatus: string;
+  upthrustStatus: string;
+  setupQualified: boolean;
+  direction: 'BUY' | 'SELL' | 'WAIT';
+}
+
+export interface StrategyConfluenceTelemetry {
+  detectedStrategies: string[];
+  confluenceCount: number;
+  agreementStatus: 'UNANIMOUS' | 'CONFLUENT' | 'SINGLE_STRATEGY' | 'CONFLICTING' | 'NONE';
+  conflictDetails: string | null;
+  selectedSetupType: string;
+  mergedSetupId: string;
+}
+
+export interface PhaseXStrategyTelemetry {
+  activeStrategyType: string;
+  setupTypeLabel: string;
+  smc: SmcEngineTelemetry;
+  trend: TrendPullbackTelemetry;
+  wyckoff: WyckoffStrategyTelemetry;
+  confluence: StrategyConfluenceTelemetry;
 }
 
 export interface PhaseXResult {
@@ -295,6 +370,7 @@ export interface PhaseXResult {
   detectedEventLabel?: string;
   userOutputState: string;
   finalDirection: PhaseXFinalDirection;
+  setupType?: string;
   executionStatus: PhaseXExecutionStatus;
   tradeConfidence: number;
   preferredEntry: number | null;
@@ -529,6 +605,49 @@ export interface PhaseXEngineDiagnostics {
   totalScanCount: number;
   tradeConfidence: number;
   cleanWaitState: string | null;
+  setupType?: string | null;
+}
+
+export interface PhaseXDeterministicBacktestMetrics {
+  strategyName: string;
+  detectedSetups: number;
+  passedPhase5: number;
+  rejectedPhase5: number;
+  completedTrades: number;
+  tp1Hits: number;
+  tp2Hits: number;
+  slHits: number;
+  realizedR: number;
+  averageR: number;
+  maxDrawdownR: number;
+  sampleSize: number;
+}
+
+export interface PhaseXMultiStrategyValidationReport {
+  timestamp: number;
+  system: string;
+  overallStatus: 'PASS' | 'FAIL';
+  isHistoricalBacktest: true;
+  checklist: Array<{
+    id: string;
+    title: string;
+    status: 'PASS' | 'FAIL' | 'LIMITED';
+    details: string;
+  }>;
+  scenarios: Array<{
+    scenarioId: string;
+    scenarioName: string;
+    strategyType: string;
+    description: string;
+    expectedDirection: string;
+    actualDirection: string;
+    expectedGateStatus: string;
+    actualGateStatus: string;
+    expectedConfluenceStatus: string;
+    actualConfluenceStatus: string;
+    passed: boolean;
+  }>;
+  backtestMetrics: PhaseXDeterministicBacktestMetrics[];
 }
 
 

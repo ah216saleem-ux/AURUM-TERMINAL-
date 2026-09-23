@@ -20,6 +20,20 @@ export interface LivePriceData {
   tickCount: number;
 }
 
+export interface VerifiedTickInfo {
+  assetId: string;
+  symbol: string;
+  providerSymbol: string;
+  price: number;
+  bid: number;
+  ask: number;
+  timestamp: number;
+  ageMs: number;
+  ageSeconds: number;
+  isFresh: boolean;
+  source: string;
+}
+
 const latestPrices: Record<string, LivePriceData> = {
   'xau-usd': {
     assetId: 'xau-usd',
@@ -514,3 +528,36 @@ function startLiveTickStream() {
 export function getLatestLivePrices(): Record<string, LivePriceData> {
   return latestPrices;
 }
+
+/**
+ * Returns the single authoritative verified XAU/USD real-time price and freshness status.
+ * Never invents, interpolates, or fabricates price movement.
+ */
+export function getVerifiedXauPrice(): VerifiedTickInfo | null {
+  const tick = latestPrices['xau-usd'];
+  if (!tick || !tick.price || tick.price <= 0) {
+    return null;
+  }
+  const now = Date.now();
+  const ageMs = Math.max(0, now - tick.timestamp);
+  const ageSeconds = Math.floor(ageMs / 1000);
+  const isFresh = ageSeconds <= 60 && tick.isRealTick;
+
+  return {
+    assetId: 'xau-usd',
+    symbol: 'XAU/USD',
+    providerSymbol: tick.providerSymbol || 'XAUUSD',
+    price: tick.price,
+    bid: tick.bid,
+    ask: tick.ask,
+    timestamp: tick.timestamp,
+    ageMs,
+    ageSeconds,
+    isFresh,
+    source: tick.source || 'BIQUOTE Spot Feed'
+  };
+}
+
+// Initial bootstrap tick poll
+pollBiquoteTicks().catch(() => {});
+

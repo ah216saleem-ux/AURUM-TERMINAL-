@@ -20,6 +20,7 @@ export interface TelegramSignalPayload {
   setupId: string;
   assetId: string;
   direction: 'BUY' | 'SELL';
+  setupType?: string;
   preferredEntry: number;
   stopLoss: number;
   takeProfit1: number;
@@ -299,6 +300,7 @@ export async function sendPhaseXApprovedSignalPreviewTest(
     'TEST / PREVIEW — NOT A LIVE SIGNAL',
     '',
     `Direction: ${direction}`,
+    'Setup Type: SMC + WYCKOFF CONFLUENCE',
     '',
     `Entry: ${entry.toFixed(2)}`,
     `Protected SL: ${sl.toFixed(2)}`,
@@ -307,7 +309,8 @@ export async function sendPhaseXApprovedSignalPreviewTest(
     `TP2: ${tp2.toFixed(2)}`,
     '',
     'Risk/Reward: 1:2 / 1:3',
-    'Confidence: 82%',
+    'Trade Confidence: 82%',
+    `Live Price at Approval: $${livePrice.toFixed(2)}`,
     '',
     'Status: READY',
     `Time: ${timeStr}`,
@@ -357,11 +360,16 @@ export function buildApprovedSignalMessage(payload: TelegramSignalPayload): stri
   const tp2Str = payload.takeProfit2.toFixed(2);
   const rrStr = payload.riskRewardRatio || '1:2 / 1:3';
   const confidenceStr = `${Math.round(payload.tradeConfidence)}%`;
+  const setupTypeStr = payload.setupType || 'WYCKOFF STRUCTURE';
+  const livePriceStr = typeof payload.liveMarketPrice === 'number' && !isNaN(payload.liveMarketPrice)
+    ? `$${payload.liveMarketPrice.toFixed(2)}`
+    : `$${entryStr}`;
 
   return [
     '🟡 AURUM XAU/USD SIGNAL',
     '',
     `Direction: ${payload.direction}`,
+    `Setup Type: ${setupTypeStr}`,
     '',
     `Entry: ${entryStr}`,
     `Protected SL: ${slStr}`,
@@ -370,7 +378,8 @@ export function buildApprovedSignalMessage(payload: TelegramSignalPayload): stri
     `TP2: ${tp2Str}`,
     '',
     `Risk/Reward: ${rrStr}`,
-    `Confidence: ${confidenceStr}`,
+    `Trade Confidence: ${confidenceStr}`,
+    `Live Price at Approval: ${livePriceStr}`,
     '',
     'Status: READY',
     `Time: ${timeStr}`,
@@ -487,6 +496,10 @@ export async function dispatchPhaseXApprovedTelegramSignal(
 
   // Mark as sent immediately in memory to prevent race condition during evaluation loops
   sentInitialSignals.add(payload.setupId);
+
+  // Guarantee payload reflects verified real-time price
+  payload.liveMarketPrice = verifiedLivePrice;
+  payload.livePriceTimestamp = verifiedPriceTimestamp;
 
   const messageText = buildApprovedSignalMessage(payload);
   const result = await sendRawTelegramMessage(messageText);

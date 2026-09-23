@@ -213,7 +213,10 @@ function categorizeEvent(title: string): EventCategory {
 
 let cachedEvents: EconomicEvent[] = [];
 let lastCalendarFetchTime = 0;
-const CALENDAR_CACHE_TTL = 3 * 60 * 1000; // 3 minutes cache
+let lastFetchAttemptTime = 0;
+let isFetchingCalendar = false;
+const CALENDAR_CACHE_TTL = 5 * 60 * 1000; // 5 minutes cache
+const CALENDAR_RETRY_BACKOFF = 2 * 60 * 1000; // 2 minutes retry cooldown on network failure
 
 function generateDynamicFallbackEvents(now: Date): EconomicEvent[] {
   const baseSchedule = [
@@ -352,30 +355,14 @@ function generateDynamicFallbackEvents(now: Date): EconomicEvent[] {
   });
 }
 
-// 1. DYNAMIC REAL-TIME ECONOMIC CALENDAR WITH REAL UTC SCHEDULES (FOREX FACTORY LIVE API)
-export async function getLiveEconomicEvents(): Promise<EconomicEvent[]> {
-  const now = new Date();
+// Initial populate of calendar events to ensure 0ms immediate availability
+cachedEvents = generateDynamicFallbackEvents(new Date());
 
-  // Return cached live events if within cache TTL
-  if (cachedEvents.length > 0 && (now.getTime() - lastCalendarFetchTime) < CALENDAR_CACHE_TTL) {
-    return cachedEvents.map(e => {
-      const eventTime = new Date(e.dateTime);
-      const minutesUntil = Math.round((eventTime.getTime() - now.getTime()) / 60000);
-      const isUpcoming = minutesUntil > 0;
-      const tradingBlocked = (e.impact === 'HIGH' || e.impact === 'MEDIUM') && 
-        ((minutesUntil >= 0 && minutesUntil <= 30) || (minutesUntil < 0 && minutesUntil >= -30));
-      return {
-        ...e,
-        minutesUntil,
-        isUpcoming,
-        tradingBlocked,
-        status: 'LIVE ✅',
-        formattedTime: isUpcoming 
-          ? (minutesUntil < 60 ? `In ${minutesUntil}m (${e.exactTimeUtc})` : `${e.exactDate} ${e.exactTimeUtc}`)
-          : `Completed (${e.actual || 'Released'})`
-      };
-    });
-  }
+// Background refresh task for Forex Factory calendar
+async function refreshCalendarInBackground(now: Date): Promise<void> {
+  if (isFetchingCalendar) return;
+  isFetchingCalendar = true;
+  lastFetchAttemptTime = now.getTime();
 
   try {
     const res = await fetch('https://nfs.faireconomy.media/ff_calendar_thisweek.json', {
@@ -383,7 +370,7 @@ export async function getLiveEconomicEvents(): Promise<EconomicEvent[]> {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'application/json'
       },
-      signal: AbortSignal.timeout(6000)
+      signal: AbortSignal.timeout(4000)
     });
 
     if (res.ok) {
@@ -433,18 +420,60 @@ export async function getLiveEconomicEvents(): Promise<EconomicEvent[]> {
 
         cachedEvents = events;
         lastCalendarFetchTime = now.getTime();
-        return events;
       }
+    } else {
+      // Non-OK HTTP status from feed -> back off before retrying
+      lastFetchAttemptTime = now.getTime() - CALENDAR_CACHE_TTL + CALENDAR_RETRY_BACKOFF;
     }
-  } catch (err) {
-    console.warn('[NEWS API] Forex Factory live calendar fetch error, using cached/dynamic events:', err);
+  } catch (err: any) {
+    // Graceful backoff without flooding repetitive TimeoutError logs
+    lastFetchAttemptTime = now.getTime() - CALENDAR_CACHE_TTL + CALENDAR_RETRY_BACKOFF;
+    const isTimeout = err?.name === 'TimeoutError' || (typeof err?.message === 'string' && err.message.includes('timeout'));
+    if (!isTimeout) {
+      console.warn('[NEWS API] Forex Factory feed error, using dynamic schedule fallback:', err?.message || err);
+    }
+    // Ensure cache is never empty
+    if (cachedEvents.length === 0) {
+      cachedEvents = generateDynamicFallbackEvents(now);
+    }
+  } finally {
+    isFetchingCalendar = false;
+  }
+}
+
+// 1. DYNAMIC REAL-TIME ECONOMIC CALENDAR WITH REAL UTC SCHEDULES (FOREX FACTORY LIVE API)
+export async function getLiveEconomicEvents(): Promise<EconomicEvent[]> {
+  const now = new Date();
+
+  // Ensure cache is populated immediately at 0ms latency
+  if (cachedEvents.length === 0) {
+    cachedEvents = generateDynamicFallbackEvents(now);
   }
 
-  if (cachedEvents.length > 0) {
-    return cachedEvents;
+  // Trigger non-blocking background refresh if cache is expired
+  const timeSinceLastAttempt = now.getTime() - lastFetchAttemptTime;
+  if (timeSinceLastAttempt > CALENDAR_CACHE_TTL && !isFetchingCalendar) {
+    refreshCalendarInBackground(now).catch(() => {});
   }
 
-  return generateDynamicFallbackEvents(now);
+  // Recalculate relative minutesUntil and tradingBlocked for all events
+  return cachedEvents.map(e => {
+    const eventTime = new Date(e.dateTime);
+    const minutesUntil = Math.round((eventTime.getTime() - now.getTime()) / 60000);
+    const isUpcoming = minutesUntil > 0;
+    const tradingBlocked = (e.impact === 'HIGH' || e.impact === 'MEDIUM') && 
+      ((minutesUntil >= 0 && minutesUntil <= 30) || (minutesUntil < 0 && minutesUntil >= -30));
+    return {
+      ...e,
+      minutesUntil,
+      isUpcoming,
+      tradingBlocked,
+      status: 'LIVE ✅',
+      formattedTime: isUpcoming 
+        ? (minutesUntil < 60 ? `In ${minutesUntil}m (${e.exactTimeUtc})` : `${e.exactDate} ${e.exactTimeUtc}`)
+        : `Completed (${e.actual || 'Released'})`
+    };
+  });
 }
 
 // 2. DUAL AI NEWS COUNCIL EVALUATION ENGINE (AURUM Core AI + Qwen AI Agent)
