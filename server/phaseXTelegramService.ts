@@ -108,6 +108,23 @@ function recordDeliveryLog(log: TelegramDeliveryLog) {
   }
 }
 
+// Dynamic In-Memory Telegram Configuration (allows frontend sync)
+let dynamicBotToken = '';
+let dynamicChatId = '';
+
+export function setDynamicTelegramConfig(token?: string, chatId?: string) {
+  if (token) dynamicBotToken = token.trim().replace(/\s+/g, '');
+  if (chatId) dynamicChatId = chatId.trim().replace(/\s+/g, '');
+}
+
+export function getTelegramCredentials(overrideToken?: string, overrideChatId?: string) {
+  const rawBotToken = overrideToken || dynamicBotToken || process.env.TELEGRAM_BOT_TOKEN || process.env.AURUM_TELEGRAM_BOT_TOKEN || '';
+  const rawChatId = overrideChatId || dynamicChatId || process.env.TELEGRAM_CHAT_ID || process.env.TELEGRAM_CHANNEL_ID || process.env.AURUM_TELEGRAM_CHAT_ID || '';
+  const botToken = rawBotToken.trim().replace(/\s+/g, '');
+  let chatId = rawChatId.trim().replace(/\s+/g, '');
+  return { botToken, chatId };
+}
+
 /**
  * Low-level Telegram Bot API Dispatcher.
  * Safely handles missing credentials, sanitizes tokens/chat IDs, and logs detailed API status without throwing.
@@ -118,27 +135,24 @@ export async function sendRawTelegramMessage(
   overrideChatId?: string,
   replyToMessageId?: number
 ): Promise<{ success: boolean; status: 'SENT' | 'FAILED' | 'CONFIG_MISSING'; error?: string; messageId?: number; httpStatus?: number; apiResponse?: any }> {
-  const rawBotToken = overrideToken || process.env.TELEGRAM_BOT_TOKEN || process.env.AURUM_TELEGRAM_BOT_TOKEN || '';
-  const rawChatId = overrideChatId || process.env.TELEGRAM_CHAT_ID || process.env.TELEGRAM_CHANNEL_ID || process.env.AURUM_TELEGRAM_CHAT_ID || '';
-
-  // Sanitize whitespace/newlines from credentials
-  const botToken = rawBotToken.trim().replace(/\s+/g, '');
-  let chatId = rawChatId.trim().replace(/\s+/g, '');
+  const { botToken, chatId: initialChatId } = getTelegramCredentials(overrideToken, overrideChatId);
+  let chatId = initialChatId;
 
   // Safety check: Bot cannot message its own username (e.g. @Aurumterminal_bot)
   if (chatId.toLowerCase() === '@aurumterminal_bot' || chatId.toLowerCase() === 'aurumterminal_bot') {
     console.warn('[PhaseXTelegram] Detected bot username in TELEGRAM_CHAT_ID. Resolving active user/channel chat ID from updates...');
+    let resolved = false;
     try {
       const updatesRes = await fetch(`https://api.telegram.org/bot${botToken}/getUpdates`);
       if (updatesRes.ok) {
         const updatesData = await updatesRes.json();
         const results = updatesData.result || [];
-        // Find latest user chat ID or channel post
         for (let i = results.length - 1; i >= 0; i--) {
           const item = results[i];
           const foundId = item?.message?.chat?.id || item?.channel_post?.chat?.id || item?.my_chat_member?.chat?.id;
           if (foundId) {
             chatId = String(foundId);
+            resolved = true;
             console.log(`[PhaseXTelegram] Auto-resolved target chat ID to: ${chatId}`);
             break;
           }
@@ -146,6 +160,16 @@ export async function sendRawTelegramMessage(
       }
     } catch (err) {
       console.error('[PhaseXTelegram] Failed to auto-resolve chat ID:', err);
+    }
+
+    if (!resolved && (chatId.toLowerCase() === '@aurumterminal_bot' || chatId.toLowerCase() === 'aurumterminal_bot')) {
+      const errMsg = "TELEGRAM_CHAT_ID is set to the bot's own username (@Aurumterminal_bot). Telegram forbids bots from messaging themselves. Please configure a channel (e.g. @your_channel) or user Chat ID.";
+      console.warn(`[PhaseXTelegram] ${errMsg}`);
+      return {
+        success: false,
+        status: 'FAILED',
+        error: errMsg
+      };
     }
   }
 
@@ -627,13 +651,17 @@ export async function dispatchPhaseXLifecycleTelegramUpdate(
  * NEVER exposes the actual bot token or private chat IDs to unauthorized or client callers.
  */
 export function getTelegramServiceStatus() {
-  const hasToken = !!(process.env.TELEGRAM_BOT_TOKEN || process.env.AURUM_TELEGRAM_BOT_TOKEN);
-  const hasChatId = !!(process.env.TELEGRAM_CHAT_ID || process.env.TELEGRAM_CHANNEL_ID || process.env.AURUM_TELEGRAM_CHAT_ID);
+  const { botToken, chatId } = getTelegramCredentials();
+  const hasToken = !!botToken;
+  const hasChatId = !!chatId;
+  const isChatIdBotItself = chatId.toLowerCase() === '@aurumterminal_bot' || chatId.toLowerCase() === 'aurumterminal_bot';
 
   return {
-    configured: hasToken && hasChatId,
+    configured: hasToken && hasChatId && !isChatIdBotItself,
     hasBotToken: hasToken,
     hasChatId: hasChatId,
+    isChatIdBotItself,
+    chatIdWarning: isChatIdBotItself ? "TELEGRAM_CHAT_ID is set to the bot username (@Aurumterminal_bot). Telegram forbids bots from messaging themselves. Set to a channel or user ID." : null,
     assetTarget: 'XAU/USD ONLY',
     sentInitialSignalsCount: sentInitialSignals.size,
     sentTP1Count: sentTP1Updates.size,

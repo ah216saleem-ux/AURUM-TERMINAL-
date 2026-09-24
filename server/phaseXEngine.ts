@@ -1538,9 +1538,10 @@ export async function analyzePhaseX(
     livePriceSource = verifiedXau.source || livePriceSource;
     isLiveTickFresh = verifiedXau.isSignalFresh;
   } else if (liveTick && liveTick.price > 0) {
-    const tickAgeMs = Math.max(0, Date.now() - liveTick.timestamp);
+    const normalizedTs = (typeof liveTick.timestamp === 'number' && liveTick.timestamp < 10000000000) ? liveTick.timestamp * 1000 : (liveTick.timestamp || Date.now());
+    const tickAgeMs = Math.max(0, Date.now() - normalizedTs);
     currentLivePrice = liveTick.price;
-    livePriceTimestamp = liveTick.timestamp;
+    livePriceTimestamp = normalizedTs;
     livePriceSource = liveTick.source || livePriceSource;
     isLiveTickFresh = tickAgeMs <= 5000 && liveTick.isRealTick;
   } else if (typeof clientLivePrice === 'number' && clientLivePrice > 0 && !isNaN(clientLivePrice)) {
@@ -3193,7 +3194,11 @@ interface FailureRecord {
  * Deterministic Phase 5 Evaluation Gate
  */
 export function evaluatePhase5QualityGate(input: Phase5EvaluationInput): Phase5QualityGateResult {
-  const tickAgeMs = Math.max(0, Date.now() - input.lastTickTimestamp);
+  const rawTs = input.lastTickTimestamp;
+  const normalizedLastTickTimestamp = (typeof rawTs === 'number' && rawTs > 0 && rawTs < 10000000000) 
+    ? rawTs * 1000 
+    : (typeof rawTs === 'number' && rawTs > 0 ? rawTs : Date.now());
+  const tickAgeMs = Math.max(0, Date.now() - normalizedLastTickTimestamp);
   const tickAgeFormatted = `${(tickAgeMs / 1000).toFixed(1)}s`;
   const setupAgeFormatted = `${input.setupAgeCandles} candles (${input.setupAgeCandles * 15}m)`;
   const isExpired = input.setupAgeCandles > 16;

@@ -13,6 +13,7 @@ import {
   TrendingDown,
   AlertCircle
 } from 'lucide-react';
+import { useMarket } from '../../context/MarketContext';
 import { PhaseXLiveDiagnosticsPanel } from './PhaseXLiveDiagnosticsPanel';
 import { PhaseXLivePerformanceAndHistory } from './PhaseXLivePerformanceAndHistory';
 import { PhaseXHistoryAndVerification } from './PhaseXHistoryAndVerification';
@@ -51,6 +52,14 @@ interface LiveStateData {
 }
 
 export const PhaseXView: React.FC = () => {
+  const { 
+    markets, 
+    getTickDebug, 
+    streamStatus, 
+    dataConnectedStatus,
+    telegramSettings 
+  } = useMarket();
+
   const [liveData, setLiveData] = useState<LiveStateData>({
     livePrice: 0,
     tickAgeSeconds: 0,
@@ -62,6 +71,48 @@ export const PhaseXView: React.FC = () => {
   });
 
   const [telegramConnected, setTelegramConnected] = useState<boolean>(true);
+
+  // Sync client Telegram settings to server if available
+  useEffect(() => {
+    if (telegramSettings?.botToken && telegramSettings?.chatId) {
+      fetch('/api/phase-x/telegram-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          botToken: telegramSettings.botToken,
+          chatId: telegramSettings.chatId
+        })
+      }).catch(() => {});
+    }
+  }, [telegramSettings?.botToken, telegramSettings?.chatId]);
+
+  // Unified Live Price Feed: Phase X and Home LIVE panel read the exact same feed
+  const xauMarket = markets.find(m => m.id === 'xau-usd');
+  const tickDebug = getTickDebug('xau-usd');
+
+  const resolvedLivePrice = (xauMarket?.price && xauMarket.price > 0)
+    ? xauMarket.price
+    : (liveData.livePrice > 0 ? liveData.livePrice : 0);
+
+  const hasRealTicks = (tickDebug.totalTicksReceived > 0 || tickDebug.messageReceived === 'YES') && resolvedLivePrice > 0;
+  const resolvedTickAge = hasRealTicks 
+    ? tickDebug.ageSeconds 
+    : (liveData.tickAgeSeconds > 0 && liveData.tickAgeSeconds < 900 && resolvedLivePrice > 0 ? liveData.tickAgeSeconds : null);
+
+  const isFeedLive = resolvedLivePrice > 0 && 
+                     (streamStatus === 'LIVE' || dataConnectedStatus === 'LIVE' || liveData.tickStatus === 'LIVE') && 
+                     (resolvedTickAge != null && resolvedTickAge <= 6);
+
+  const isFeedAmber = resolvedLivePrice > 0 && !isFeedLive && 
+                      ((resolvedTickAge != null && resolvedTickAge <= 15) || liveData.tickStatus === 'LIVE_AMBER');
+
+  const resolvedTickStatus: 'LIVE' | 'LIVE_AMBER' | 'STALE' = isFeedLive 
+    ? 'LIVE' 
+    : (isFeedAmber ? 'LIVE_AMBER' : 'STALE');
+
+  const isTelegramConnected = telegramConnected || 
+    (telegramSettings?.isConnected && !!telegramSettings?.botToken && !!telegramSettings?.chatId) ||
+    (!!telegramSettings?.botToken && !!telegramSettings?.chatId);
 
   // Admin Access Control
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
@@ -190,7 +241,7 @@ export const PhaseXView: React.FC = () => {
                 <button
                   onClick={() => setShowAdminModal(true)}
                   className="p-1 rounded-lg text-zinc-500 hover:text-[#D4AF37] hover:bg-[#1E252E] transition-colors"
-                  title={isAdminAuthenticated ? "Admin Panel Unlocked" : "Unlock Admin Panel"}
+                  title={isAdminAuthenticated ? "Admin Panel Unlocked" : "Admin Diagnostics & Controls (Restricted)"}
                 >
                   {isAdminAuthenticated ? (
                     <LockOpen className="w-4 h-4 text-emerald-400" />
@@ -203,7 +254,7 @@ export const PhaseXView: React.FC = () => {
                 <span>Real MT5 Feed</span>
                 <span>•</span>
                 <span className="text-zinc-300 font-medium">
-                  Tick Age: {liveData.tickAgeSeconds <= 0 ? '< 1s' : `${liveData.tickAgeSeconds}s`} ago
+                  Tick Age: {hasRealTicks && resolvedTickAge != null && resolvedLivePrice > 0 ? (resolvedTickAge <= 0 ? '< 1s ago' : `${resolvedTickAge}s ago`) : '—'}
                 </span>
               </div>
             </div>
@@ -213,7 +264,7 @@ export const PhaseXView: React.FC = () => {
           <div className="flex items-center justify-between sm:justify-end gap-4 border-t sm:border-t-0 border-[#1E252E] pt-3 sm:pt-0">
             <div className="text-right font-mono">
               <div className="text-2xl sm:text-3xl font-black text-white tracking-wider tabular-nums">
-                {liveData.livePrice > 0 ? `$${liveData.livePrice.toFixed(2)}` : '—'}
+                {resolvedLivePrice > 0 ? `$${resolvedLivePrice.toFixed(2)}` : '—'}
               </div>
               <div className="text-[11px] text-zinc-400 uppercase tracking-wider">
                 XAU/USD Live Spot
@@ -222,19 +273,19 @@ export const PhaseXView: React.FC = () => {
 
             {/* Live Status Badge */}
             <div>
-              {liveData.tickStatus === 'LIVE' && (
+              {resolvedTickStatus === 'LIVE' && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
                   LIVE
                 </span>
               )}
-              {liveData.tickStatus === 'LIVE_AMBER' && (
+              {resolvedTickStatus === 'LIVE_AMBER' && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
                   <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" />
                   LIVE
                 </span>
               )}
-              {(liveData.tickStatus === 'STALE' || liveData.tickStatus === 'OFFLINE') && (
+              {resolvedTickStatus === 'STALE' && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">
                   <span className="w-2 h-2 rounded-full bg-rose-400 shrink-0" />
                   STALE
@@ -502,7 +553,7 @@ export const PhaseXView: React.FC = () => {
 
         <div className="flex items-center gap-2">
           <span>Telegram:</span>
-          {telegramConnected ? (
+          {isTelegramConnected ? (
             <strong className="text-emerald-400">CONNECTED</strong>
           ) : (
             <strong className="text-amber-400">DISCONNECTED</strong>

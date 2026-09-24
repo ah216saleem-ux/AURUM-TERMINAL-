@@ -537,6 +537,20 @@ function startLiveTickStream() {
   }, 1500);
 }
 
+export function normalizeTimestampMs(ts: any): number {
+  if (typeof ts === 'string') {
+    const parsed = Date.parse(ts);
+    if (!isNaN(parsed) && parsed > 0) return parsed;
+    const num = Number(ts);
+    if (!isNaN(num) && num > 0) return normalizeTimestampMs(num);
+  }
+  if (typeof ts === 'number' && !isNaN(ts) && ts > 0) {
+    // If timestamp is in seconds (e.g. Unix epoch < 10 billion), convert to milliseconds
+    return ts < 10000000000 ? ts * 1000 : ts;
+  }
+  return Date.now();
+}
+
 export function getLatestLivePrices(): Record<string, LivePriceData> {
   return latestPrices;
 }
@@ -551,7 +565,8 @@ export function getVerifiedXauPrice(maxSignalAgeMs: number = 5000): VerifiedTick
     return null;
   }
   const now = Date.now();
-  const ageMs = Math.max(0, now - tick.timestamp);
+  const normalizedTimestamp = normalizeTimestampMs(tick.timestamp);
+  const ageMs = Math.max(0, now - normalizedTimestamp);
   const ageSeconds = Math.floor(ageMs / 1000);
   const isFresh = ageSeconds <= 60 && tick.isRealTick;
   const isSignalFresh = ageMs <= maxSignalAgeMs && tick.isRealTick;
@@ -563,7 +578,7 @@ export function getVerifiedXauPrice(maxSignalAgeMs: number = 5000): VerifiedTick
     price: tick.price,
     bid: tick.bid,
     ask: tick.ask,
-    timestamp: tick.timestamp,
+    timestamp: normalizedTimestamp,
     ageMs,
     ageSeconds,
     isFresh,

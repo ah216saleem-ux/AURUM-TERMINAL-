@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import { analyzePhaseX, cancelPhaseXSetup, getPhaseXTradeHistory, runPhase4VerificationSuite, runPhase5VerificationSuite, runMultiStrategyDeterministicValidationSuite } from './phaseXEngine';
 import { ASSET_CONFIGS } from './marketDataRouter';
-import { getTelegramServiceStatus, runTelegramVerificationSuite, sendTelegramConnectionTest, sendPhaseXApprovedSignalPreviewTest } from './phaseXTelegramService';
+import { getTelegramServiceStatus, runTelegramVerificationSuite, sendTelegramConnectionTest, sendPhaseXApprovedSignalPreviewTest, setDynamicTelegramConfig } from './phaseXTelegramService';
 import {
   getPersistentPhaseXLiveHistory,
   calculatePhaseXPerformanceMetrics,
@@ -12,7 +12,8 @@ import {
   getPhaseXDiagnostics,
   getPhaseXLiveState,
   startPhaseXBackgroundScanner,
-  stopPhaseXBackgroundScanner
+  stopPhaseXBackgroundScanner,
+  getPhaseXPipelineLogs
 } from './phaseXBackgroundScanner';
 import { getVerifiedXauPrice } from './websocketServer';
 
@@ -305,6 +306,30 @@ export async function handlePhaseXRequest(req: IncomingMessage, res: ServerRespo
       const diag = getPhaseXDiagnostics();
       res.statusCode = 200;
       res.end(JSON.stringify({ success: true, message: 'Continuous live scanning stopped', diagnostics: diag }));
+      return true;
+    }
+
+    if (pathname === '/api/phase-x/pipeline-logs') {
+      const logs = getPhaseXPipelineLogs();
+      res.statusCode = 200;
+      res.end(JSON.stringify({ success: true, count: logs.length, logs }));
+      return true;
+    }
+
+    if (pathname === '/api/phase-x/telegram-config' && req.method === 'POST') {
+      let body = (req as any).body;
+      if (!body || typeof body !== 'object' || Object.keys(body).length === 0) {
+        let bodyStr = '';
+        req.on('data', chunk => { bodyStr += chunk; });
+        await new Promise(r => { req.on('end', r); setTimeout(r, 300); });
+        if (bodyStr) { try { body = JSON.parse(bodyStr); } catch {} }
+      }
+      body = body || {};
+      const { botToken, chatId } = body;
+      setDynamicTelegramConfig(botToken, chatId);
+      const status = getTelegramServiceStatus();
+      res.statusCode = 200;
+      res.end(JSON.stringify({ success: true, message: 'Telegram configuration updated', status }));
       return true;
     }
 
