@@ -9,7 +9,8 @@ import {
 import {
   recordNewApprovedLiveSignal,
   updateLiveSignalLifecycle,
-  getPersistentPhaseXLiveHistory
+  getPersistentPhaseXLiveHistory,
+  calculatePhaseXPerformanceMetrics
 } from './phaseXLiveHistoryService';
 import { getVerifiedXauPrice, getLatestLivePrices } from './websocketServer';
 
@@ -44,6 +45,7 @@ export interface PhaseXLiveStateResponse {
   activeSignal: {
     setupId: string;
     direction: 'BUY' | 'SELL';
+    setupType?: string;
     preferredEntry: number;
     stopLoss: number;
     takeProfit1: number;
@@ -61,11 +63,31 @@ export interface PhaseXLiveStateResponse {
   history: Array<{
     setupId: string;
     timeFormatted: string;
+    dateFormatted?: string;
     timestamp: number;
     direction: 'BUY' | 'SELL';
+    setupType?: string;
+    preferredEntry?: number;
+    stopLoss?: number;
+    takeProfit1?: number;
+    takeProfit2?: number;
+    riskRewardRatio?: string;
+    tradeConfidence?: number;
     result: 'TP1 HIT' | 'TP2 HIT' | 'SL HIT' | 'EXPIRED';
     rMultiple: string;
   }>;
+  metrics?: any;
+  quote?: {
+    bid: number;
+    ask: number;
+    spread: number;
+    high24h: number;
+    low24h: number;
+    change24h: number;
+    changePercent24h: number;
+    source: string;
+  };
+  serverTime?: number;
   pipelineLogs?: PipelineStageLog[];
 }
 
@@ -567,12 +589,13 @@ export function getPhaseXLiveState(): PhaseXLiveStateResponse {
     };
   }
 
-  // Format History (No strategy names)
+  // Format History
   const historyRecords = getPersistentPhaseXLiveHistory();
-  const historyFormatted = historyRecords.slice(0, 15).map(r => {
+  const historyFormatted = historyRecords.slice(0, 20).map(r => {
     const d = new Date(r.signalTimestamp);
     const pad = (n: number) => (n < 10 ? '0' + n : '' + n);
     const timeFormatted = `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} UTC`;
+    const dateFormatted = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
     let resultLabel: 'TP1 HIT' | 'TP2 HIT' | 'SL HIT' | 'EXPIRED' = 'EXPIRED';
     let rMultiple = '—';
@@ -594,12 +617,24 @@ export function getPhaseXLiveState(): PhaseXLiveStateResponse {
     return {
       setupId: r.setupId,
       timeFormatted,
+      dateFormatted,
       timestamp: r.signalTimestamp,
       direction: r.direction,
+      setupType: r.setupType || (r.direction === 'BUY' ? 'WYCKOFF ACCUMULATION' : 'WYCKOFF DISTRIBUTION'),
+      preferredEntry: r.preferredEntry,
+      stopLoss: r.stopLoss,
+      takeProfit1: r.takeProfit1,
+      takeProfit2: r.takeProfit2,
+      riskRewardRatio: r.riskRewardRatio || '1:2 / 1:3',
+      tradeConfidence: r.tradeConfidence,
       result: resultLabel,
       rMultiple
     };
   });
+
+  const quoteBid = verified?.bid || fallbackTick?.bid || (livePrice > 0 ? +(livePrice - 0.10).toFixed(2) : 0);
+  const quoteAsk = verified?.ask || fallbackTick?.ask || (livePrice > 0 ? +(livePrice + 0.10).toFixed(2) : 0);
+  const quoteSpread = +(Math.abs(quoteAsk - quoteBid) || 0.18).toFixed(2);
 
   return {
     livePrice,
@@ -609,6 +644,18 @@ export function getPhaseXLiveState(): PhaseXLiveStateResponse {
     cooldownRemainingSeconds,
     activeSignal: activeSignalPayload,
     history: historyFormatted,
+    metrics: calculatePhaseXPerformanceMetrics(),
+    quote: {
+      bid: quoteBid,
+      ask: quoteAsk,
+      spread: quoteSpread,
+      high24h: fallbackTick?.high24h || livePrice,
+      low24h: fallbackTick?.low24h || livePrice,
+      change24h: fallbackTick?.change || 0,
+      changePercent24h: fallbackTick?.changePercent || 0,
+      source: verified?.source || fallbackTick?.source || 'BIQUOTE (MetaTrader 5)'
+    },
+    serverTime: now,
     pipelineLogs: getPhaseXPipelineLogs().slice(0, 15)
   };
 }

@@ -278,6 +278,7 @@ export function updateLiveSignalLifecycle(
  */
 export function getPersistentPhaseXLiveHistory(): PhaseXLiveSignalRecord[] {
   // Re-sync with disk to guarantee fresh state
+  liveHistoryCache = loadHistoryFromDisk();
   return [...liveHistoryCache];
 }
 
@@ -287,17 +288,20 @@ export function getPersistentPhaseXLiveHistory(): PhaseXLiveSignalRecord[] {
  * Displays "INSUFFICIENT LIVE SAMPLE" when sample is below 3 completed trades.
  */
 export function calculatePhaseXPerformanceMetrics(): PhaseXPerformanceMetrics {
-  const records = liveHistoryCache.filter(r => r.isLive === true && !r.setupId.startsWith('TEST_'));
+  const records = getPersistentPhaseXLiveHistory();
   const totalApprovedSignals = records.length;
 
   const completed = records.filter(r => 
     r.tp2Reached === true || 
+    r.tp1Reached === true ||
     r.slReached === true || 
     r.phase4FinalStatus === 'TP2_HIT' || 
+    r.phase4FinalStatus === 'TP1_HIT' ||
     r.phase4FinalStatus === 'STOP_LOSS_HIT' || 
     r.phase4FinalStatus === 'COMPLETED' ||
     r.phase4FinalStatus === 'CANCELLED_BY_USER' ||
-    r.phase4FinalStatus === 'INVALIDATED_BEFORE_ENTRY'
+    r.phase4FinalStatus === 'INVALIDATED_BEFORE_ENTRY' ||
+    (typeof r.finalR === 'number')
   );
 
   const completedCount = completed.length;

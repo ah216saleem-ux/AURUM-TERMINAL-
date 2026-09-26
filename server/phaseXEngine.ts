@@ -25,8 +25,8 @@ import {
 
 export { runMultiStrategyDeterministicValidationSuite };
 
-// Production Shadow Mode (Log only, zero live Telegram / UI dispatches until explicitly enabled)
-let isShadowMode = true;
+// Production Shadow Mode (false by default so verified signals execute live and dispatch to Telegram)
+let isShadowMode = process.env.PHASE_X_SHADOW_MODE === 'true';
 export function isShadowModeActive(): boolean { return isShadowMode; }
 export function setShadowMode(active: boolean): void { isShadowMode = active; }
 
@@ -896,10 +896,44 @@ export async function analyzePhaseX(
     }));
   };
 
-  const closed5M = filterClosed(candles5mRaw);
-  const closed15M = filterClosed(candles15mRaw);
-  const closed30M = filterClosed(candles30mRaw);
-  const closed1H = filterClosed(candles1hRaw);
+  let closed5M = filterClosed(candles5mRaw);
+  let closed15M = filterClosed(candles15mRaw);
+  let closed30M = filterClosed(candles30mRaw);
+  let closed1H = filterClosed(candles1hRaw);
+
+  // Synchronize candle basis to verified real-time spot price (e.g. MetaTrader 5 / BIQUOTE spot vs GC=F futures)
+  if (assetId === 'xau-usd' && closed15M.length > 0) {
+    const verifiedXauInit = getVerifiedXauPrice(10000);
+    const liveTicksInit = getLatestLivePrices();
+    const liveTickInit = liveTicksInit['xau-usd'];
+    const targetLivePrice = (verifiedXauInit?.price && verifiedXauInit.price > 0)
+      ? verifiedXauInit.price
+      : (liveTickInit?.price && liveTickInit.price > 0
+          ? liveTickInit.price
+          : (typeof clientLivePrice === 'number' && clientLivePrice > 0 ? clientLivePrice : 0));
+
+    if (targetLivePrice > 0) {
+      const rawLastClose = closed15M[closed15M.length - 1].close;
+      const basisOffset = Math.abs(targetLivePrice - rawLastClose) > 4.0
+        ? +(targetLivePrice - rawLastClose).toFixed(2)
+        : 0;
+
+      if (basisOffset !== 0) {
+        const adjustSeries = (arr: ClosedCandle[]) => arr.map(c => ({
+          ...c,
+          open: +(c.open + basisOffset).toFixed(2),
+          high: +(c.high + basisOffset).toFixed(2),
+          low: +(c.low + basisOffset).toFixed(2),
+          close: +(c.close + basisOffset).toFixed(2)
+        }));
+        closed5M = adjustSeries(closed5M);
+        closed15M = adjustSeries(closed15M);
+        closed30M = adjustSeries(closed30M);
+        closed1H = adjustSeries(closed1H);
+      }
+    }
+  }
+
   const closed4H = aggregateTo4HCandles(closed1H);
 
   // Primary Wyckoff analysis is governed by 1H closed candles
@@ -1439,14 +1473,14 @@ export async function analyzePhaseX(
   // Calculate tight invalidation anchor from 15M structure (NOT from 1H/4H distances!)
   let tightInvalidationAnchor = currentPrice;
   let invalidationBasis = '15M Micro Structural Pivot';
-  if (tf1H.bias === 'BULLISH' || activeEvent === 'Spring' || springStatus !== 'NONE') {
+  if (tf1H.bias === 'BULLISH' || activeEvent === 'Spring' || springStatus !== 'NONE' || (tf15M.bias === 'BULLISH' && currentPrice <= rangeMidpoint)) {
     tightInvalidationAnchor = +(local15MLow - (0.25 * atr15M)).toFixed(assetConfig.decimals);
     invalidationBasis = '15M Micro Low Anchor (-0.25 ATR)';
-  } else if (tf1H.bias === 'BEARISH' || activeEvent === 'Upthrust' || upthrustStatus !== 'NONE' || activeEvent === 'Sign of Weakness') {
+  } else if (tf1H.bias === 'BEARISH' || activeEvent === 'Upthrust' || upthrustStatus !== 'NONE' || activeEvent === 'Sign of Weakness' || currentPrice >= rangeMidpoint) {
     tightInvalidationAnchor = +(local15MHigh + (0.25 * atr15M)).toFixed(assetConfig.decimals);
     invalidationBasis = '15M Micro High Anchor (+0.25 ATR)';
   } else {
-    tightInvalidationAnchor = +(local15MLow).toFixed(assetConfig.decimals);
+    tightInvalidationAnchor = +(local15MHigh + (0.25 * atr15M)).toFixed(assetConfig.decimals);
   }
 
   // Timeframe Alignment calculation
@@ -1973,6 +2007,13 @@ export async function analyzePhaseX(
     const entryToleranceBuffer = 0.50 * atr15M;
     const antiChaseDistance = 1.75 * atr15M;
 
+    // Directional sanity check for structural invalidation anchor
+    if (candidateDirection === 'SELL' && tightInvalidationAnchor <= preferredEntry) {
+      tightInvalidationAnchor = +(local15MHigh + (0.25 * atr15M)).toFixed(assetConfig.decimals);
+    } else if (candidateDirection === 'BUY' && tightInvalidationAnchor >= preferredEntry) {
+      tightInvalidationAnchor = +(local15MLow - (0.25 * atr15M)).toFixed(assetConfig.decimals);
+    }
+
     if (candidateDirection === 'BUY') {
       // BUY Live Price Evaluation:
       if (currentLivePrice < tightInvalidationAnchor || currentLivePrice < (entryZoneLow - (0.75 * atr15M))) {
@@ -2154,7 +2195,7 @@ export async function analyzePhaseX(
     finalProtectedSL = initialSL;
     slDistance = slDist;
     targetRiskDistance = slDist;
-    slDistanceAtr = +(slDist / (fallbackTriggered ? atr15M : atr5M)).toFixed(2);
+    slDistanceAtr = +(slDist / (atr15M > 0 ? atr15M : atr5M)).toFixed(2);
   } else if (candidateDirection === 'SELL' && preferredEntry != null && slStructuralAnchor != null && !fallbackRejectedDueToExcessiveDistance) {
     const effectiveBuffer = fallbackTriggered ? Math.max(protectiveBuffer, 0.45 * atr15M) : protectiveBuffer;
     let initialSL = +(slStructuralAnchor + effectiveBuffer).toFixed(assetConfig.decimals);
@@ -2169,11 +2210,15 @@ export async function analyzePhaseX(
     finalProtectedSL = initialSL;
     slDistance = slDist;
     targetRiskDistance = slDist;
-    slDistanceAtr = +(slDist / (fallbackTriggered ? atr15M : atr5M)).toFixed(2);
+    slDistanceAtr = +(slDist / (atr15M > 0 ? atr15M : atr5M)).toFixed(2);
   }
 
   // 9.5. Maximum SL Protection Check (Section 10)
-  const maxAcceptableRisk = fallbackTriggered ? 2.5 * atr15M : 3.0 * atr5M;
+  const maxAcceptableRisk = Math.max(
+    fallbackTriggered ? 2.5 * atr15M : 3.5 * atr5M,
+    2.5 * atr15M,
+    (assetId === 'xau-usd' ? 12.0 : 0)
+  );
   if (
     fallbackRejectedDueToExcessiveDistance || 
     (targetRiskDistance != null && (targetRiskDistance > maxAcceptableRisk || (preferredEntry != null && (targetRiskDistance / preferredEntry) > 0.045)))
@@ -2199,7 +2244,7 @@ export async function analyzePhaseX(
     takeProfit2 = +(preferredEntry + (3.0 * targetRiskDistance)).toFixed(assetConfig.decimals);
 
     // Section 12: TP1 Feasibility Gate against opposing 1H / 4H structure
-    const isTrendingOrBreakout = detectedPhase === 'MARKUP' || detectedPhase === 'MARKDOWN' || activeEvent === 'Sign of Strength' || activeEvent === 'Sign of Weakness';
+    const isTrendingOrBreakout = detectedPhase === 'MARKUP' || detectedPhase === 'MARKDOWN' || detectedPhase === 'ACCUMULATION' || activeEvent === 'Sign of Strength' || activeEvent === 'Sign of Weakness' || smcTelemetry.setupQualified || springStatus === 'CONFIRMED';
     if (!isTrendingOrBreakout && rangeHigh > preferredEntry && rangeHigh < takeProfit1 && (rangeHigh - preferredEntry) < (1.2 * targetRiskDistance)) {
       tp1Feasibility = 'OBSTACLE_DETECTED';
       candidateDirection = 'WAIT';
@@ -2221,7 +2266,7 @@ export async function analyzePhaseX(
     takeProfit2 = +(preferredEntry - (3.0 * targetRiskDistance)).toFixed(assetConfig.decimals);
 
     // Section 12: TP1 Feasibility Gate against opposing 1H / 4H structure
-    const isTrendingOrBreakdown = detectedPhase === 'MARKUP' || detectedPhase === 'MARKDOWN' || activeEvent === 'Sign of Strength' || activeEvent === 'Sign of Weakness';
+    const isTrendingOrBreakdown = detectedPhase === 'MARKUP' || detectedPhase === 'MARKDOWN' || detectedPhase === 'DISTRIBUTION' || activeEvent === 'Sign of Strength' || activeEvent === 'Sign of Weakness' || smcTelemetry.setupQualified || upthrustStatus === 'CONFIRMED';
     if (!isTrendingOrBreakdown && rangeLow < preferredEntry && rangeLow > takeProfit1 && (preferredEntry - rangeLow) < (1.2 * targetRiskDistance)) {
       tp1Feasibility = 'OBSTACLE_DETECTED';
       candidateDirection = 'WAIT';
@@ -2820,7 +2865,7 @@ export async function analyzePhaseX(
     entryZoneHigh,
     finalProtectedSL,
     slDistanceAtr,
-    noiseValidationPass: is15MSafetyValidated && !fallbackTriggered,
+    noiseValidationPass: is15MSafetyValidated && !fallbackRejectedDueToExcessiveDistance,
     takeProfit1,
     tp1RMultiple,
     takeProfit2,
