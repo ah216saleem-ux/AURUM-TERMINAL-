@@ -1902,9 +1902,38 @@ ${statusLabel}`;
       } catch (e) {
         console.warn('Error saving telegram settings to localStorage:', e);
       }
+      // Instantly sync credentials to backend Phase X autonomous delivery engine
+      const tokenToSync = updated.botToken?.trim();
+      const chatToSync = updated.chatId?.trim() || updated.channelTag?.trim();
+      if (tokenToSync || chatToSync) {
+        fetch('/api/phase-x/telegram-config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            botToken: tokenToSync || '',
+            chatId: chatToSync || ''
+          })
+        }).catch(err => console.warn('[MarketContext] Error syncing telegram settings to backend:', err));
+      }
       return updated;
     });
   };
+
+  // Sync telegram config to server on boot
+  useEffect(() => {
+    const token = telegramSettings.botToken?.trim();
+    const chat = telegramSettings.chatId?.trim() || telegramSettings.channelTag?.trim();
+    if (token || chat) {
+      fetch('/api/phase-x/telegram-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          botToken: token || '',
+          chatId: chat || ''
+        })
+      }).catch(() => {});
+    }
+  }, []);
 
   const regenerateAiSignals = () => {
     setIsAiGenerating(true);

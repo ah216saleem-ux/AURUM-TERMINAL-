@@ -502,8 +502,8 @@ export const AiCommandCenterHero: React.FC<AiCommandCenterHeroProps> = ({
           Real-time market intelligence, AI analysis, economic awareness, and advanced risk monitoring in one professional terminal.
         </p>
 
-        {/* Hero CTA Button */}
-        <div className="pt-2 sm:pt-4 flex justify-center">
+        {/* Hero CTA Buttons */}
+        <div className="pt-2 sm:pt-4 flex flex-wrap items-center justify-center gap-3">
           <button
             onClick={onAccessTerminal}
             className="group relative px-7 sm:px-9 py-3.5 sm:py-4 rounded-xl font-bold text-xs sm:text-sm text-black bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 shadow-[0_0_35px_rgba(245,158,11,0.45)] hover:shadow-[0_0_50px_rgba(245,158,11,0.65)] transition-all duration-300 cursor-pointer flex items-center gap-2.5 overflow-hidden active:scale-98"
@@ -511,6 +511,20 @@ export const AiCommandCenterHero: React.FC<AiCommandCenterHeroProps> = ({
             <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/30 to-transparent pointer-events-none" />
             <span className="tracking-wider uppercase font-mono font-black">ACCESS LIVE TERMINAL</span>
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform text-black" />
+          </button>
+
+          <button
+            onClick={() => {
+              try {
+                window.location.hash = 'phase-x';
+                localStorage.setItem('aurum_active_tab', 'PHASE_X');
+              } catch {}
+              onAccessTerminal();
+            }}
+            className="group relative px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl font-bold text-xs sm:text-sm text-amber-300 bg-[#0B0D14] border border-amber-500/50 hover:border-amber-400 shadow-[0_0_25px_rgba(245,158,11,0.2)] hover:bg-[#121622] transition-all duration-300 cursor-pointer flex items-center gap-2 overflow-hidden active:scale-98 font-mono"
+          >
+            <Zap className="w-4 h-4 text-amber-400 animate-pulse" />
+            <span className="tracking-wider uppercase font-black">PHASE X SIGNAL ENGINE</span>
           </button>
         </div>
       </div>

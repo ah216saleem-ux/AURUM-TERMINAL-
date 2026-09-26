@@ -16,7 +16,8 @@ import {
   TrendingUp,
   XCircle,
   AlertTriangle,
-  Power
+  Power,
+  Zap
 } from 'lucide-react';
 import { useMarket } from '../context/MarketContext';
 
@@ -330,6 +331,32 @@ TP1 HIT / SL HIT / CANCELLED`;
               <span className="font-mono-num">Send Test Signal</span>
             </button>
             <button
+              onClick={async () => {
+                setTestSent(true);
+                setTestStatus('Dispatching Phase X Live Signal to Telegram...');
+                try {
+                  const res = await fetch('/api/phase-x/test-approved-signal-dispatch', { method: 'POST' });
+                  const data = await res.json();
+                  if (data.success) {
+                    setTestStatus(`✓ Phase X Live Signal Delivered! (${data.setupId})`);
+                  } else {
+                    setTestStatus(`Error: ${data.error || 'Failed to dispatch Phase X signal'}`);
+                  }
+                } catch {
+                  setTestStatus('Error: Failed to reach backend Phase X telegram engine');
+                } finally {
+                  setTimeout(() => {
+                    setTestSent(false);
+                  }, 4000);
+                }
+              }}
+              disabled={testSent}
+              className="px-2.5 py-2 rounded-lg bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-300 border border-emerald-500/30 text-[11px] font-semibold transition flex flex-col items-center justify-center gap-1 cursor-pointer disabled:opacity-50"
+            >
+              <Zap className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="font-mono-num">Phase X Live Test</span>
+            </button>
+            <button
               onClick={() => handleTriggerAdvancedAlert('TP1_HIT')}
               disabled={testSent}
               className="px-2.5 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-800 text-[11px] font-semibold transition flex flex-col items-center justify-center gap-1 cursor-pointer disabled:opacity-50"
@@ -344,14 +371,6 @@ TP1 HIT / SL HIT / CANCELLED`;
             >
               <XCircle className="w-3.5 h-3.5 text-rose-500" />
               <span className="font-mono-num">Simulate SL Hit</span>
-            </button>
-            <button
-              onClick={() => handleTriggerAdvancedAlert('CANCELLED')}
-              disabled={testSent}
-              className="px-2.5 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-800 text-[11px] font-semibold transition flex flex-col items-center justify-center gap-1 cursor-pointer disabled:opacity-50"
-            >
-              <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
-              <span className="font-mono-num">Simulate Cancel</span>
             </button>
           </div>
 

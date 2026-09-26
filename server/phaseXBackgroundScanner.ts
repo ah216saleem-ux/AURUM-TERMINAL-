@@ -273,6 +273,12 @@ export async function executePhaseXLiveScanCycle(): Promise<void> {
         const tp1 = activeSignalState.takeProfit1;
         const tp2 = activeSignalState.takeProfit2;
 
+        // Safety: If livePrice is aberrantly far from entry (> $35), ignore spurious feed anomaly
+        if (Math.abs(livePrice - entry) > 35) {
+          console.warn(`[PhaseXScanner] Skipping aberrant feed spike: livePrice ${livePrice} vs entry ${entry}`);
+          return;
+        }
+
         // Check TP2
         const isTp2Hit = dir === 'BUY' ? livePrice >= tp2 : livePrice <= tp2;
         // Check SL
@@ -472,6 +478,7 @@ export async function executePhaseXLiveScanCycle(): Promise<void> {
           setupId: newSignal.setupId,
           assetId: 'xau-usd',
           direction: newSignal.direction,
+          setupType: (newSignal as any).setupType || analysis.setupType,
           preferredEntry: newSignal.preferredEntry,
           stopLoss: newSignal.stopLoss,
           takeProfit1: newSignal.takeProfit1,
@@ -479,7 +486,8 @@ export async function executePhaseXLiveScanCycle(): Promise<void> {
           riskRewardRatio: newSignal.riskRewardRatio,
           tradeConfidence: newSignal.tradeConfidence,
           timestamp: now,
-          liveMarketPrice: livePrice > 0 ? livePrice : newSignal.preferredEntry
+          liveMarketPrice: livePrice > 0 ? livePrice : newSignal.preferredEntry,
+          livePriceTimestamp: now
         },
         'APPROVED',
         `🟢 ${newSignal.direction} — READY`
@@ -494,6 +502,7 @@ export async function executePhaseXLiveScanCycle(): Promise<void> {
         setupId: newSignal.setupId,
         assetId: 'xau-usd',
         direction: newSignal.direction,
+        setupType: (newSignal as any).setupType || analysis.setupType,
         preferredEntry: newSignal.preferredEntry,
         stopLoss: newSignal.stopLoss,
         takeProfit1: newSignal.takeProfit1,

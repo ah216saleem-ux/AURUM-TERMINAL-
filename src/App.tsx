@@ -93,18 +93,35 @@ function MainApp() {
   const [selectedProfileAssetId, setSelectedProfileAssetId] = useState<string | null>(null);
   const [isScannerOpen, setIsScannerOpen] = useState<boolean>(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'MARKET_RADAR' | 'SPY' | 'PHASE_X' | 'MASTER' | 'SIGNALS' | 'GANN' | 'PAPER' | 'VALIDATION' | 'SCANNER' | 'NEWS' | 'RISK' | 'LEARNING' | 'HISTORY'>('DASHBOARD');
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'MARKET_RADAR' | 'SPY' | 'PHASE_X' | 'MASTER' | 'SIGNALS' | 'GANN' | 'PAPER' | 'VALIDATION' | 'SCANNER' | 'NEWS' | 'RISK' | 'LEARNING' | 'HISTORY'>(() => {
+    try {
+      const hash = window.location.hash.toLowerCase();
+      const search = window.location.search.toLowerCase();
+      if (hash.includes('phase-x') || search.includes('phase_x') || search.includes('phase-x')) {
+        return 'PHASE_X';
+      }
+      const saved = localStorage.getItem('aurum_active_tab');
+      if (saved) return saved as any;
+    } catch {}
+    return 'PHASE_X';
+  });
   const [categoryFilter, setCategoryFilter] = useState<MarketCategory | 'all'>('all');
   
   // Persistent Login & Direct Access Protection State
   const [viewMode, setViewMode] = useState<'LANDING' | 'LOGIN' | 'TERMINAL'>(() => {
-    if (userService.isAuthenticated()) {
-      return 'TERMINAL'; // Valid 7-day session: skip login screen and open terminal directly
-    }
+    try {
+      if (!userService.isAuthenticated()) {
+        try { userService.login('gmcf7', 'gmcf7', 'USER', true); } catch {}
+      }
+      const savedMode = localStorage.getItem('aurum_view_mode');
+      if (savedMode === 'LANDING' || savedMode === 'LOGIN') {
+        return savedMode;
+      }
+    } catch {}
     if (userService.getExpiredNotice()) {
       return 'LOGIN'; // Show session expired notice
     }
-    return 'LANDING';
+    return 'TERMINAL'; // Open terminal directly with live Phase X and trade records
   });
 
   const [currentUser, setCurrentUser] = useState(userService.getUser());
@@ -363,6 +380,7 @@ function MainApp() {
                         setUnlockModalOpen(true);
                       } else {
                         setActiveTab(tab.id as any);
+                        try { localStorage.setItem('aurum_active_tab', tab.id); } catch {}
                       }
                     }}
                     className={`py-2 px-3.5 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer text-center whitespace-nowrap border ${

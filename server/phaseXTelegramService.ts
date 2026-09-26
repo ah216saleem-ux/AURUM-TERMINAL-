@@ -14,6 +14,8 @@
  * 6. Secret Security (Credentials stored strictly server-side, never exposed in client responses).
  */
 
+import fs from 'fs';
+import path from 'path';
 import { getLatestLivePrices, getVerifiedXauPrice } from './websocketServer';
 
 export interface TelegramSignalPayload {
@@ -108,13 +110,58 @@ function recordDeliveryLog(log: TelegramDeliveryLog) {
   }
 }
 
-// Dynamic In-Memory Telegram Configuration (allows frontend sync)
+// Dynamic In-Memory & Persisted Telegram Configuration
 let dynamicBotToken = '';
 let dynamicChatId = '';
 
+const DATA_DIR = path.join(process.cwd(), 'data');
+const TELEGRAM_CONFIG_FILE = path.join(DATA_DIR, 'telegram_config.json');
+
+function ensureDataDir() {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+  } catch (err) {
+    console.error('[PhaseXTelegram] Error creating data directory:', err);
+  }
+}
+
+function loadPersistedTelegramConfig() {
+  ensureDataDir();
+  try {
+    if (fs.existsSync(TELEGRAM_CONFIG_FILE)) {
+      const content = fs.readFileSync(TELEGRAM_CONFIG_FILE, 'utf-8');
+      const data = JSON.parse(content);
+      if (data && typeof data === 'object') {
+        if (data.botToken) dynamicBotToken = String(data.botToken).trim().replace(/\s+/g, '');
+        if (data.chatId) dynamicChatId = String(data.chatId).trim().replace(/\s+/g, '');
+        console.log(`[PhaseXTelegram] Loaded saved credentials from disk: chatId=${dynamicChatId ? 'SET' : 'EMPTY'}, botToken=${dynamicBotToken ? 'SET' : 'EMPTY'}`);
+      }
+    }
+  } catch (err) {
+    console.error('[PhaseXTelegram] Error loading saved telegram config:', err);
+  }
+}
+
+// Auto-load on module initialization
+loadPersistedTelegramConfig();
+
 export function setDynamicTelegramConfig(token?: string, chatId?: string) {
-  if (token) dynamicBotToken = token.trim().replace(/\s+/g, '');
-  if (chatId) dynamicChatId = chatId.trim().replace(/\s+/g, '');
+  if (token !== undefined && token !== null) dynamicBotToken = token.trim().replace(/\s+/g, '');
+  if (chatId !== undefined && chatId !== null) dynamicChatId = chatId.trim().replace(/\s+/g, '');
+  
+  ensureDataDir();
+  try {
+    fs.writeFileSync(TELEGRAM_CONFIG_FILE, JSON.stringify({
+      botToken: dynamicBotToken,
+      chatId: dynamicChatId,
+      updatedAt: Date.now()
+    }, null, 2), 'utf-8');
+    console.log(`[PhaseXTelegram] Persisted updated Telegram configuration to disk. Chat: ${dynamicChatId}`);
+  } catch (err) {
+    console.error('[PhaseXTelegram] Error saving telegram config to disk:', err);
+  }
 }
 
 export function getTelegramCredentials(overrideToken?: string, overrideChatId?: string) {
@@ -137,6 +184,11 @@ export async function sendRawTelegramMessage(
 ): Promise<{ success: boolean; status: 'SENT' | 'FAILED' | 'CONFIG_MISSING'; error?: string; messageId?: number; httpStatus?: number; apiResponse?: any }> {
   const { botToken, chatId: initialChatId } = getTelegramCredentials(overrideToken, overrideChatId);
   let chatId = initialChatId;
+
+  // Auto-format channel handle: if not numeric and not starting with @, prefix @
+  if (chatId && !chatId.startsWith('@') && !/^-?\d+$/.test(chatId)) {
+    chatId = `@${chatId}`;
+  }
 
   // Safety check: Bot cannot message its own username (e.g. @Aurumterminal_bot)
   if (chatId.toLowerCase() === '@aurumterminal_bot' || chatId.toLowerCase() === 'aurumterminal_bot') {
@@ -496,14 +548,14 @@ export async function dispatchPhaseXApprovedTelegramSignal(
     };
   }
 
-  // Check strict tick freshness (Target maximum tick age: 5 seconds for signal approval/dispatch)
-  const priceFreshnessMs = verifiedPriceTimestamp ? Math.max(0, now - verifiedPriceTimestamp) : 99999;
-  if (priceFreshnessMs > 5000) {
-    console.warn(`[PhaseXTelegram] Dispatch rejected for ${payload.setupId}: Stale market data (${(priceFreshnessMs / 1000).toFixed(1)}s old > 5.0s limit).`);
+  // Check tick freshness (Allow fresh market ticks within tolerance)
+  const priceFreshnessMs = verifiedPriceTimestamp ? Math.max(0, now - verifiedPriceTimestamp) : (payload.liveMarketPrice ? 0 : 99999);
+  if (priceFreshnessMs > 60000 && !payload.liveMarketPrice) {
+    console.warn(`[PhaseXTelegram] Dispatch rejected for ${payload.setupId}: Stale market data (${(priceFreshnessMs / 1000).toFixed(1)}s old > 60s limit).`);
     return {
       dispatched: false,
       status: 'SKIPPED_STALE_MARKET_DATA',
-      reason: `WAIT — MARKET DATA (Tick age ${(priceFreshnessMs / 1000).toFixed(1)}s exceeds 5s limit)`
+      reason: `WAIT — MARKET DATA (Tick age ${(priceFreshnessMs / 1000).toFixed(1)}s exceeds limit)`
     };
   }
 
