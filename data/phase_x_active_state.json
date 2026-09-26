@@ -1,0 +1,17 @@
+{
+  "setupId": "xau-usd_SELL_APEX_DUAL_CONVERGENCE__ALGO_FLOW___LIQUIDITY__1790366400000_1790368200000",
+  "assetId": "xau-usd",
+  "symbol": "XAU/USD",
+  "direction": "SELL",
+  "preferredEntry": 4285.57,
+  "stopLoss": 4295.67,
+  "takeProfit1": 4265.37,
+  "takeProfit2": 4255.27,
+  "riskRewardRatio": "1:2 / 1:3",
+  "tradeConfidence": 86,
+  "startedAt": 1790427493763,
+  "tp1Reached": false,
+  "tp2Reached": false,
+  "slReached": false,
+  "status": "ACTIVE"
+}

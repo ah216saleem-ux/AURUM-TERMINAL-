@@ -570,7 +570,7 @@ export const PhaseXView: React.FC = () => {
                 )}
                 <div>
                   <div className="text-xs font-mono font-bold text-white">
-                    {activeSig.setupType || 'SMC + WYCKOFF CONFLUENCE'}
+                    {activeSig.setupType || 'APEX QUANTUM CONFLUENCE'}
                   </div>
                   <div className="text-[11px] text-zinc-400 font-mono">
                     Timeframe: 15M Precision Structure • MT5 Live Sync
@@ -678,7 +678,7 @@ export const PhaseXView: React.FC = () => {
                     Phase X Multi-Strategy Engine Active
                   </h2>
                   <p className="text-xs text-zinc-400">
-                    Continuously monitoring XAU/USD every 2.5s for institutional Wyckoff & SMC setups.
+                    Continuously monitoring XAU/USD every 2.5s for Institutional Order Flow & Algorithmic Liquidity Displacements.
                   </p>
                 </div>
               </div>
@@ -695,11 +695,11 @@ export const PhaseXView: React.FC = () => {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 font-mono text-xs">
               <div className="p-3 rounded-xl bg-[#0B0D10] border border-[#1E252E]">
                 <span className="text-zinc-500 block text-[10px] uppercase">Market Phase</span>
-                <span className="text-[#D4AF37] font-bold">DISTRIBUTION (86%)</span>
+                <span className="text-[#D4AF37] font-bold">CAPITAL EXHAUSTION (86%)</span>
               </div>
               <div className="p-3 rounded-xl bg-[#0B0D10] border border-[#1E252E]">
                 <span className="text-zinc-500 block text-[10px] uppercase">Engine Confluence</span>
-                <span className="text-emerald-400 font-bold">WYCKOFF + SMC</span>
+                <span className="text-emerald-400 font-bold">APEX DUAL-VECTOR</span>
               </div>
               <div className="p-3 rounded-xl bg-[#0B0D10] border border-[#1E252E]">
                 <span className="text-zinc-500 block text-[10px] uppercase">Telegram Wire</span>
@@ -837,7 +837,7 @@ export const PhaseXView: React.FC = () => {
                         )}
 
                         <span className="font-bold text-white">
-                          {rec.setupType || 'WYCKOFF STRUCTURE'}
+                          {rec.setupType || 'VOLUMETRIC ORDER-FLOW MATRIX'}
                         </span>
 
                         <span className="text-zinc-500 text-[11px]">

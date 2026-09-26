@@ -617,13 +617,13 @@ export function arbitrateStrategyConfluence(params: {
   const activeStrategies: Array<{ name: string; direction: 'BUY' | 'SELL'; desc: string }> = [];
 
   if (wyckoffResult.setupQualified && wyckoffResult.direction !== 'WAIT') {
-    activeStrategies.push({ name: 'WYCKOFF STRUCTURE', direction: wyckoffResult.direction, desc: wyckoffResult.triggerDescription });
+    activeStrategies.push({ name: 'VOLUMETRIC ORDER-FLOW (VOFM)', direction: wyckoffResult.direction, desc: wyckoffResult.triggerDescription });
   }
   if (smcResult.setupQualified && smcResult.direction !== 'WAIT') {
-    activeStrategies.push({ name: 'SMC / ICT LIQUIDITY', direction: smcResult.direction, desc: smcResult.triggerDescription });
+    activeStrategies.push({ name: 'INSTITUTIONAL LIQUIDITY DISPLACEMENT (ILD)', direction: smcResult.direction, desc: smcResult.triggerDescription });
   }
   if (trendResult.setupQualified && trendResult.direction !== 'WAIT') {
-    activeStrategies.push({ name: 'TREND PULLBACK', direction: trendResult.direction, desc: trendResult.triggerDescription });
+    activeStrategies.push({ name: 'DYNAMIC MOMENTUM VECTOR (DMV)', direction: trendResult.direction, desc: trendResult.triggerDescription });
   }
 
   // Check for conflicts
@@ -676,25 +676,29 @@ export function arbitrateStrategyConfluence(params: {
 
   if (activeStrategies.length === 3) {
     agreementStatus = 'UNANIMOUS';
-    setupTypeLabel = 'TRIPLE CONFLUENCE (SMC + TREND + WYCKOFF)';
+    setupTypeLabel = 'APEX TRIPLE-VECTOR CONVERGENCE (FULL SPECTRUM)';
   } else if (activeStrategies.length === 2) {
     agreementStatus = 'CONFLUENT';
     const names = activeStrategies.map(s => s.name);
-    if (names.includes('SMC / ICT LIQUIDITY') && names.includes('WYCKOFF STRUCTURE')) {
-      setupTypeLabel = 'SMC + WYCKOFF CONFLUENCE';
-    } else if (names.includes('TREND PULLBACK') && names.includes('WYCKOFF STRUCTURE')) {
-      setupTypeLabel = 'TREND PULLBACK + WYCKOFF CONFLUENCE';
+    const hasIld = names.some(n => n.includes('ILD') || n.includes('LIQUIDITY'));
+    const hasVofm = names.some(n => n.includes('VOFM') || n.includes('VOLUMETRIC'));
+    const hasDmv = names.some(n => n.includes('DMV') || n.includes('MOMENTUM'));
+    
+    if (hasIld && hasVofm) {
+      setupTypeLabel = 'APEX DUAL CONVERGENCE (ALGO-FLOW + LIQUIDITY)';
+    } else if (hasDmv && hasVofm) {
+      setupTypeLabel = 'MOMENTUM & VOLUMETRIC CONFLUENCE';
     } else {
-      setupTypeLabel = 'SMC + TREND CONFLUENCE';
+      setupTypeLabel = 'LIQUIDITY & MOMENTUM CONFLUENCE';
     }
   } else {
     agreementStatus = 'SINGLE_STRATEGY';
-    if (activeStrategies[0].name === 'SMC / ICT LIQUIDITY') {
-      setupTypeLabel = 'SMC LIQUIDITY SWEEP + FVG';
-    } else if (activeStrategies[0].name === 'TREND PULLBACK') {
-      setupTypeLabel = 'TREND PULLBACK';
+    if (activeStrategies[0].name.includes('ILD') || activeStrategies[0].name.includes('LIQUIDITY')) {
+      setupTypeLabel = 'INSTITUTIONAL LIQUIDITY DISPLACEMENT (ILD)';
+    } else if (activeStrategies[0].name.includes('DMV') || activeStrategies[0].name.includes('MOMENTUM')) {
+      setupTypeLabel = 'DYNAMIC MOMENTUM CONTINUATION (DMC)';
     } else {
-      setupTypeLabel = 'WYCKOFF STRUCTURE';
+      setupTypeLabel = 'VOLUMETRIC ORDER-FLOW MATRIX (VOFM)';
     }
   }
 

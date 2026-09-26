@@ -196,7 +196,7 @@ export function recordNewApprovedLiveSignal(signal: {
     assetId: 'xau-usd',
     symbol: 'XAU/USD',
     direction: signal.direction,
-    setupType: signal.setupType || 'WYCKOFF STRUCTURE',
+    setupType: signal.setupType || 'VOLUMETRIC ORDER-FLOW MATRIX',
     preferredEntry: signal.preferredEntry,
     stopLoss: signal.stopLoss,
     takeProfit1: signal.takeProfit1,

@@ -406,7 +406,7 @@ export async function executePhaseXLiveScanCycle(): Promise<void> {
 
     // STAGE 2: CANDLE FETCH & STAGE 3: ANALYZE PHASE
     currentPipelineState = 'ANALYZING MARKET';
-    recordPipelineLog('ANALYZE_PHASE', 'INFO', 'Fetching closed candles (5M/15M/30M/1H/4H) & executing Wyckoff cycle engine...');
+    recordPipelineLog('ANALYZE_PHASE', 'INFO', 'Fetching closed candles (5M/15M/30M/1H/4H) & executing multi-timeframe quantitative cycle engine...');
 
     const analysis = await analyzePhaseX('xau-usd', livePrice > 0 ? livePrice : undefined);
 
@@ -620,7 +620,7 @@ export function getPhaseXLiveState(): PhaseXLiveStateResponse {
       dateFormatted,
       timestamp: r.signalTimestamp,
       direction: r.direction,
-      setupType: r.setupType || (r.direction === 'BUY' ? 'WYCKOFF ACCUMULATION' : 'WYCKOFF DISTRIBUTION'),
+      setupType: r.setupType || (r.direction === 'BUY' ? 'INSTITUTIONAL ACCUMULATION MATRIX' : 'INSTITUTIONAL DISTRIBUTION MATRIX'),
       preferredEntry: r.preferredEntry,
       stopLoss: r.stopLoss,
       takeProfit1: r.takeProfit1,

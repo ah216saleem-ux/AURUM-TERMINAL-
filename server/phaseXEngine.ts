@@ -1888,11 +1888,11 @@ export async function analyzePhaseX(
   const totalConfidenceCalculated = htfMacroContextScore + wyckoffPhaseQualityScore + wyckoffEventQualityScore + setupConfirmation30MScore + executionTrigger15MScore + structureQualityScore + volumeEvidenceScore + volatilityScore + timeframeAlignmentScore;
   const wyckoffConfidence = Math.min(96, Math.max(38, totalConfidenceCalculated));
 
-  // Option 2: Independent Scoring Rubrics for SMC and Trend Pullback
+  // Option 2: Independent Scoring Rubrics for SMC/ILD and Trend/DMV Pullback
   const detectedStrategies = confluenceResult.confluenceTelemetry?.detectedStrategies || [];
-  const isWyckoffActive = detectedStrategies.includes('WYCKOFF STRUCTURE');
-  const isSmcActive = detectedStrategies.includes('SMC / ICT LIQUIDITY');
-  const isTrendActive = detectedStrategies.includes('TREND PULLBACK');
+  const isWyckoffActive = detectedStrategies.some(s => s.includes('WYCKOFF') || s.includes('VOLUMETRIC') || s.includes('VOFM'));
+  const isSmcActive = detectedStrategies.some(s => s.includes('SMC') || s.includes('LIQUIDITY') || s.includes('ILD'));
+  const isTrendActive = detectedStrategies.some(s => s.includes('TREND') || s.includes('MOMENTUM') || s.includes('DMV'));
 
   const evalDirection = candidateDirection !== 'WAIT' 
     ? (candidateDirection as 'BUY' | 'SELL') 
@@ -3476,8 +3476,8 @@ export function evaluatePhase5QualityGate(input: Phase5EvaluationInput): Phase5Q
 
   let alignment1H: 'ALIGNED' | 'CONFLICTING' = 'ALIGNED';
   let alignment1HDetails = `1H Phase: ${input.tf1HPhase}`;
-  const isWyckoffStrategy = !input.strategyType || input.strategyType.toUpperCase().includes('WYCKOFF');
-  const isSmcOrTrend = input.strategyType && (input.strategyType.toUpperCase().includes('SMC') || input.strategyType.toUpperCase().includes('TREND'));
+  const isWyckoffStrategy = !input.strategyType || input.strategyType.toUpperCase().includes('WYCKOFF') || input.strategyType.toUpperCase().includes('VOLUMETRIC') || input.strategyType.toUpperCase().includes('VOFM');
+  const isSmcOrTrend = input.strategyType && (input.strategyType.toUpperCase().includes('SMC') || input.strategyType.toUpperCase().includes('LIQUIDITY') || input.strategyType.toUpperCase().includes('ILD') || input.strategyType.toUpperCase().includes('TREND') || input.strategyType.toUpperCase().includes('MOMENTUM') || input.strategyType.toUpperCase().includes('DMV'));
 
   if (isWyckoffStrategy) {
     if (input.direction === 'BUY' && (input.tf1HPhase.toUpperCase().includes('DISTRIBUTION') || input.tf1HPhase.toUpperCase().includes('MARKDOWN'))) {
@@ -3545,7 +3545,7 @@ export function evaluatePhase5QualityGate(input: Phase5EvaluationInput): Phase5Q
   if (input.direction === 'WAIT') {
     const triggerDesc = input.tf15MTrigger && input.tf15MTrigger !== 'No confirmed trigger on 15M closed candle.'
       ? input.tf15MTrigger
-      : 'No qualified strategy setup identified (Wyckoff, SMC, or Trend Pullback).';
+      : 'No qualified algorithmic setup identified across Volumetric Matrix, Liquidity Displacement, or Momentum Vectors.';
     
     if (triggerDesc.includes('confidence') || triggerDesc.includes('below the mandatory 75%')) {
       failures.push({

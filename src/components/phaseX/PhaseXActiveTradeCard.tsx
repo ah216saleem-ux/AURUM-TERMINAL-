@@ -39,7 +39,7 @@ export const PhaseXActiveTradeCard: React.FC<PhaseXActiveTradeCardProps> = ({ re
 
   const isBuy = result.finalDirection === 'BUY';
   const isSell = result.finalDirection === 'SELL';
-  const setupType = result.setupType || liveDetails?.setupType || result.engineDetails?.strategyTelemetry?.setupTypeLabel || 'WYCKOFF STRUCTURE';
+  const setupType = result.setupType || liveDetails?.setupType || result.engineDetails?.strategyTelemetry?.setupTypeLabel || 'APEX QUANTUM CONFLUENCE';
 
   // Manual cancellation handler (WAITING_FOR_ENTRY only)
   const handleCancelSetup = async () => {

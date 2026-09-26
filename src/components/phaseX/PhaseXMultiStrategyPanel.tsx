@@ -60,7 +60,7 @@ export const PhaseXMultiStrategyPanel: React.FC<Props> = ({ currentAnalysis }) =
               </span>
             </div>
             <p className="text-xs text-slate-400 font-mono mt-0.5">
-              Wyckoff Structure • SMC / ICT Liquidity • Trend Pullback • Single Merged Setup ID
+              Volumetric Order-Flow • Institutional Liquidity Displacement • Dynamic Momentum • Apex Confluence Engine
             </p>
           </div>
         </div>
@@ -130,9 +130,9 @@ export const PhaseXMultiStrategyPanel: React.FC<Props> = ({ currentAnalysis }) =
                   PHASE 1 CORE
                 </span>
               </div>
-              <h3 className="text-sm font-bold text-slate-200 font-mono">WYCKOFF STRUCTURE</h3>
+              <h3 className="text-sm font-bold text-slate-200 font-mono">VOLUMETRIC ORDER-FLOW MATRIX (VOFM)</h3>
               <p className="text-xs text-slate-400 leading-relaxed font-mono">
-                Institutional supply & demand cycle detection across 1H / 30M / 15M. Identifies Accumulation, Distribution, Phase C Springs, and Upthrusts.
+                Proprietary institutional capital cycle detection across 1H / 30M / 15M. Identifies Capital Accumulation, Re-distribution, and Liquidity Climax Rejections.
               </p>
               <div className="pt-2 border-t border-slate-800/80 space-y-1.5 text-[11px] font-mono text-slate-300">
                 <div className="flex justify-between">
@@ -158,9 +158,9 @@ export const PhaseXMultiStrategyPanel: React.FC<Props> = ({ currentAnalysis }) =
                   NEW UPGRADE
                 </span>
               </div>
-              <h3 className="text-sm font-bold text-slate-200 font-mono">SMC / ICT LIQUIDITY</h3>
+              <h3 className="text-sm font-bold text-slate-200 font-mono">INSTITUTIONAL LIQUIDITY DISPLACEMENT (ILD)</h3>
               <p className="text-xs text-slate-400 leading-relaxed font-mono">
-                Asian Session High/Low, Prev Day High/Low sweeps with institutional displacement, Market Structure Shift (CHoCH), and Fair Value Gap (FVG) retests.
+                Session High/Low algorithmic pool sweeps with institutional displacement, Market Structure Shift, and Imbalance Vector Mitigations.
               </p>
               <div className="pt-2 border-t border-slate-800/80 space-y-1.5 text-[11px] font-mono text-slate-300">
                 <div className="flex justify-between">
@@ -223,7 +223,7 @@ export const PhaseXMultiStrategyPanel: React.FC<Props> = ({ currentAnalysis }) =
               <div className="flex items-start gap-2 bg-slate-900/60 p-2.5 rounded border border-slate-800">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
                 <div>
-                  <strong className="text-emerald-300">Confluence Multiplier:</strong> If 2 or 3 engines identify setups in the same direction, they merge into a single setup with elevated confidence (e.g., SMC + WYCKOFF CONFLUENCE). Exactly ONE Telegram signal is dispatched.
+                  <strong className="text-emerald-300">Confluence Multiplier:</strong> If 2 or 3 engines identify setups in the same direction, they merge into a single setup with elevated confidence (e.g., APEX DUAL CONVERGENCE: ALGO-FLOW + LIQUIDITY). Exactly ONE Telegram signal is dispatched.
                 </div>
               </div>
               <div className="flex items-start gap-2 bg-slate-900/60 p-2.5 rounded border border-slate-800">
@@ -244,7 +244,7 @@ export const PhaseXMultiStrategyPanel: React.FC<Props> = ({ currentAnalysis }) =
             {/* SMC Detailed Telemetry */}
             <div className="bg-slate-950/80 rounded-xl p-4 border border-slate-800 space-y-3">
               <div className="flex items-center justify-between text-sky-400 font-bold border-b border-slate-800 pb-2">
-                <span>SMC / ICT LIQUIDITY ENGINE DATA</span>
+                <span>INSTITUTIONAL LIQUIDITY DISPLACEMENT (ILD) ENGINE DATA</span>
                 <span className="text-[10px] px-2 py-0.5 rounded bg-sky-950 text-sky-300 border border-sky-800/40">
                   SESSION: {strategyTelemetry?.smc?.currentSession || 'ACTIVE'}
                 </span>
@@ -343,7 +343,7 @@ export const PhaseXMultiStrategyPanel: React.FC<Props> = ({ currentAnalysis }) =
                 Deterministic Multi-Strategy Verification Suite
               </div>
               <p className="text-slate-400 text-xs mt-0.5">
-                Executes all 15 deterministic scenarios (A through O) to verify Wyckoff, SMC, Trend, Anti-Chase, Conflict Arbitration, and Phase 5 Gates.
+                Executes all 15 deterministic scenarios (A through O) to verify Volumetric, Liquidity Displacement, Momentum Vectors, Anti-Chase, Conflict Arbitration, and Phase 5 Gates.
               </p>
             </div>
             <button
