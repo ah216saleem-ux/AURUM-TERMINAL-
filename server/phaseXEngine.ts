@@ -2634,7 +2634,7 @@ export async function analyzePhaseX(
     preEntryInvalidationStatus: activeLifecycleState === 'INVALIDATED_BEFORE_ENTRY' ? 'INVALIDATED_BEFORE_ENTRY' : 'VALID',
     gapExecutionUncertainty: managedRecord?.gapDetected || false,
     gapDetails: managedRecord?.gapDetails,
-    lastVerifiedPriceTimestamp: quoteTimestamp,
+    lastVerifiedPriceTimestamp: livePriceTimestamp || quoteTimestamp,
     concurrentActiveTrades,
     maxConcurrentAllowed,
     sessionStatusAtActivation: managedRecord?.sessionStatusAtActivation || sessionInfo.sessionName,
