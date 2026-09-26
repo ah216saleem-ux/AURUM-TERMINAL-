@@ -13,8 +13,8 @@ export const INITIAL_MARKETS: MarketItem[] = [
     low24h: 4341.20,
     volume24h: '$34.2B',
     isOpen: true,
-    marketStatusText: 'LIVE • BIQUOTE SPOT',
-    exchange: 'BIQUOTE / LBMA',
+    marketStatusText: 'LIVE • SPOT LIQUIDITY',
+    exchange: 'LBMA / DIRECT',
     decimals: 2,
     sparkline: [4345.5, 4348.2, 4352.0, 4355.5, 4353.0, 4357.2, 4356.0, 4359.5, 4358.5]
   },
@@ -30,8 +30,8 @@ export const INITIAL_MARKETS: MarketItem[] = [
     low24h: 65.30,
     volume24h: '$12.4B',
     isOpen: true,
-    marketStatusText: 'LIVE • BIQUOTE SPOT',
-    exchange: 'BIQUOTE / COMEX',
+    marketStatusText: 'LIVE • SPOT LIQUIDITY',
+    exchange: 'COMEX / DIRECT',
     decimals: 2,
     sparkline: [65.20, 65.30, 65.45, 65.40, 65.55, 65.50, 65.60, 65.70, 65.65]
   },
@@ -99,7 +99,7 @@ export const INITIAL_MARKETS: MarketItem[] = [
     volume24h: '$118.5B',
     isOpen: true,
     marketStatusText: 'LIVE • SPOT FX',
-    exchange: 'BIQUOTE FX',
+    exchange: 'INTERBANK FX',
     decimals: 4,
     sparkline: [1.1472, 1.1474, 1.1475, 1.1477, 1.1476, 1.1478, 1.1480, 1.1479]
   },
@@ -116,7 +116,7 @@ export const INITIAL_MARKETS: MarketItem[] = [
     volume24h: '$84.2B',
     isOpen: true,
     marketStatusText: 'LIVE • SPOT FX',
-    exchange: 'BIQUOTE FX',
+    exchange: 'INTERBANK FX',
     decimals: 4,
     sparkline: [1.3368, 1.3365, 1.3362, 1.3360, 1.3359, 1.3357, 1.3360, 1.3358]
   },
@@ -133,7 +133,7 @@ export const INITIAL_MARKETS: MarketItem[] = [
     volume24h: '$96.0B',
     isOpen: true,
     marketStatusText: 'LIVE • SPOT FX',
-    exchange: 'BIQUOTE FX',
+    exchange: 'INTERBANK FX',
     decimals: 2,
     sparkline: [156.12, 156.15, 156.18, 156.16, 156.22, 156.19, 156.21, 156.20]
   },
@@ -150,7 +150,7 @@ export const INITIAL_MARKETS: MarketItem[] = [
     volume24h: '$42.1B',
     isOpen: true,
     marketStatusText: 'LIVE • SPOT FX',
-    exchange: 'BIQUOTE FX',
+    exchange: 'INTERBANK FX',
     decimals: 4,
     sparkline: [0.7108, 0.7110, 0.7112, 0.7111, 0.7115, 0.7113, 0.7116, 0.7114]
   },
@@ -167,7 +167,7 @@ export const INITIAL_MARKETS: MarketItem[] = [
     volume24h: '$38.4B',
     isOpen: true,
     marketStatusText: 'LIVE • SPOT FX',
-    exchange: 'BIQUOTE FX',
+    exchange: 'INTERBANK FX',
     decimals: 4,
     sparkline: [1.3988, 1.3990, 1.3992, 1.3990, 1.3994, 1.3992, 1.3993, 1.3991]
   },

@@ -113,7 +113,7 @@ export const NewsIntelligenceView: React.FC = () => {
       volume24h: '$34.2B',
       isOpen: true,
       marketStatusText: 'Active',
-      exchange: 'BIQUOTE Live Feed',
+      exchange: 'Institutional Spot Feed',
       decimals: 2,
       sparkline: [4350, 4355, 4358.50],
       bid: 4358.40,
@@ -453,11 +453,11 @@ export const NewsIntelligenceView: React.FC = () => {
     setPipelineTestLogs([]);
 
     const steps = [
-      { step: 1, name: 'Live Market Data', output: `BIQUOTE WS Tick Verified: ${selectedMarket.symbol} @ $${selectedMarket.price.toFixed(selectedMarket.decimals || 2)} | Bid $${liveBid} / Ask $${liveAsk} | Spread: $${liveSpread}` },
+      { step: 1, name: 'Live Market Data', output: `Spot Tick Stream Verified: ${selectedMarket.symbol} @ $${selectedMarket.price.toFixed(selectedMarket.decimals || 2)} | Bid $${liveBid} / Ask $${liveAsk} | Spread: $${liveSpread}` },
       { step: 2, name: 'News Risk Check', output: `Window Evaluation: ${effectiveIsBlocked ? '30m Pre-News Freeze Active (High Impact Event)' : 'Clear Zone / Post-Release Window'} • Status: ${effectiveStatusText}` },
-      { step: 3, name: 'AURUM Analysis', output: `AURUM Core AI SMC: ${currentEventAnalysis.aurumDir} (${currentEventAnalysis.aurumConf}% Conf) • Institutional Liquidity Sweep Analysis` },
-      { step: 4, name: 'Qwen Confirmation', output: `Qwen AI Agent: ${currentEventAnalysis.qwenDir} (${currentEventAnalysis.qwenConf}% Conf) • Macro Yield & Surprise Oracle Check` },
-      { step: 5, name: 'Consensus Decision', output: `Dual AI Consensus: ${currentEventAnalysis.isUnanimous ? '2/2 Unanimous Consensus' : 'Split Opinion'} (${currentEventAnalysis.consensusDir})` },
+      { step: 3, name: 'Primary Analysis', output: `Primary Engine SMC: ${currentEventAnalysis.aurumDir} (${currentEventAnalysis.aurumConf}% Conf) • Institutional Liquidity Sweep Analysis` },
+      { step: 4, name: 'Secondary Validator', output: `Consensus Validator: ${currentEventAnalysis.qwenDir} (${currentEventAnalysis.qwenConf}% Conf) • Macro Yield & Surprise Metric Check` },
+      { step: 5, name: 'Consensus Decision', output: `Dual Engine Consensus: ${currentEventAnalysis.isUnanimous ? '2/2 Unanimous Consensus' : 'Split Stance'} (${currentEventAnalysis.consensusDir})` },
       { step: 6, name: 'Risk Validation', output: effectiveIsBlocked ? 'Protection Triggered: Capital protected, setup blocked by Pre-News Freeze' : 'Risk Bounds Validated: Risk-Reward 1:3.2, ATR within parameters' },
       { step: 7, name: 'BUY / SELL / WAIT Signal', output: effectiveIsBlocked ? 'Action: WAIT (Entry Freeze Active - No Capital at Risk)' : `Action: ${currentEventAnalysis.aurumDir === 'BULLISH' ? 'BUY' : 'SELL'} Signal Generated` },
       { step: 8, name: 'Asset Lock', output: `Hardware Asset Lock ENGAGED on ${selectedMarket.symbol} (prevents duplicate orders & race conditions)` },
@@ -570,7 +570,7 @@ export const NewsIntelligenceView: React.FC = () => {
             </h3>
             <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 text-[10px] font-mono-num font-bold flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-              BIQUOTE WS: LIVE ✅
+              SPOT FEED: LIVE ✅
             </span>
           </div>
 
@@ -678,10 +678,10 @@ export const NewsIntelligenceView: React.FC = () => {
             <span className="text-[9.5px] text-zinc-400 block">ATR Index</span>
           </div>
 
-          {/* 7. Source: BIQUOTE */}
+          {/* 7. Source: Direct Liquidity */}
           <div className="p-3 rounded-xl bg-neutral-950 border border-zinc-800 space-y-0.5">
             <span className="text-[10px] text-zinc-500 uppercase block font-medium">Source</span>
-            <span className="text-xs font-bold text-emerald-400 block">BIQUOTE</span>
+            <span className="text-xs font-bold text-emerald-400 block">SPOT FEED</span>
             <span className="text-[9.5px] text-zinc-400 block">Live WebSocket</span>
           </div>
 
@@ -791,8 +791,8 @@ export const NewsIntelligenceView: React.FC = () => {
             {[
               { id: 1, title: '1. Live Market Data' },
               { id: 2, title: '2. News Risk Check' },
-              { id: 3, title: '3. AURUM Analysis' },
-              { id: 4, title: '4. Qwen Confirmation' },
+              { id: 3, title: '3. Primary Analysis' },
+              { id: 4, title: '4. Consensus Validator' },
               { id: 5, title: '5. Consensus Decision' },
               { id: 6, title: '6. Risk Validation' },
               { id: 7, title: '7. BUY / SELL / WAIT' },
@@ -886,7 +886,7 @@ export const NewsIntelligenceView: React.FC = () => {
         {/* 6 Core Monitored System Health Badges */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-1 border-t border-zinc-900 text-[10.5px]">
           <div className="p-2 rounded-xl bg-neutral-950/80 border border-zinc-800/90 flex items-center justify-between">
-            <span className="text-zinc-400">BIQUOTE:</span>
+            <span className="text-zinc-400">Spot Feed:</span>
             <span className="text-emerald-400 font-bold">CONNECTED ✅</span>
           </div>
           <div className="p-2 rounded-xl bg-neutral-950/80 border border-zinc-800/90 flex items-center justify-between">
@@ -894,11 +894,11 @@ export const NewsIntelligenceView: React.FC = () => {
             <span className="text-emerald-400 font-bold">CONNECTED ✅</span>
           </div>
           <div className="p-2 rounded-xl bg-neutral-950/80 border border-zinc-800/90 flex items-center justify-between">
-            <span className="text-zinc-400">AURUM AI:</span>
+            <span className="text-zinc-400">Core Engine:</span>
             <span className="text-emerald-400 font-bold">READY ✅</span>
           </div>
           <div className="p-2 rounded-xl bg-neutral-950/80 border border-zinc-800/90 flex items-center justify-between">
-            <span className="text-zinc-400">Qwen AI:</span>
+            <span className="text-zinc-400">Validator:</span>
             <span className="text-emerald-400 font-bold">READY ✅</span>
           </div>
           <div className="p-2 rounded-xl bg-neutral-950/80 border border-zinc-800/90 flex items-center justify-between">
@@ -1154,15 +1154,15 @@ export const NewsIntelligenceView: React.FC = () => {
                   </div>
                 </div>
 
-                {/* 3. QWEN ANALYSIS */}
+                {/* 3. CONSENSUS VALIDATOR */}
                 <div className="p-4 rounded-xl bg-neutral-950 border border-blue-500/40 space-y-2.5">
                   <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
                     <div className="flex items-center gap-1.5">
                       <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-                      <span className="text-xs font-bold text-blue-300 uppercase">Qwen Analysis:</span>
+                      <span className="text-xs font-bold text-blue-300 uppercase">Validator Analysis:</span>
                     </div>
                     <span className="px-2 py-0.5 rounded bg-blue-500/15 text-blue-400 border border-blue-500/30 text-[10px] font-bold">
-                      Qwen AI Agent
+                      Consensus Engine
                     </span>
                   </div>
 
@@ -1629,9 +1629,9 @@ export const NewsIntelligenceView: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* Qwen Analysis */}
+                        {/* Secondary Validator Analysis */}
                         <div className="p-2.5 rounded-lg bg-neutral-900 border border-blue-500/30 space-y-1">
-                          <span className="text-[9.5px] text-blue-400 block font-bold uppercase">Qwen Analysis:</span>
+                          <span className="text-[9.5px] text-blue-400 block font-bold uppercase">Validator Analysis:</span>
                           <div className="flex items-center justify-between">
                             <span className="text-zinc-400">Direction:</span>
                             <span className="text-emerald-400 font-bold">{qwenDir}</span>
@@ -1723,7 +1723,7 @@ export const NewsIntelligenceView: React.FC = () => {
               </div>
 
               <div className="p-3.5 rounded-xl bg-neutral-950 border border-zinc-800">
-                <span className="text-[10px] text-zinc-500 uppercase block">Qwen Accuracy</span>
+                <span className="text-[10px] text-zinc-500 uppercase block">Validator Accuracy</span>
                 <span className="text-2xl font-bold text-purple-400 block mt-1">
                   {accuracyData.qwenAccuracyPercent || 85.0}%
                 </span>
@@ -1813,7 +1813,7 @@ export const NewsIntelligenceView: React.FC = () => {
                           </span>
                         </div>
                         <div>
-                          <span className="text-[9.5px] text-zinc-500 block">Qwen Prediction:</span>
+                          <span className="text-[9.5px] text-zinc-500 block">Validator Prediction:</span>
                           <span className={`font-bold ${
                             item.qwenPrediction === 'Bullish' ? 'text-purple-400' : item.qwenPrediction === 'Bearish' ? 'text-rose-400' : 'text-zinc-300'
                           }`}>
@@ -1896,7 +1896,7 @@ export const NewsIntelligenceView: React.FC = () => {
                   </span>
                 </div>
                 <span className="text-[10px] font-mono-num text-zinc-400">
-                  AURUM Core AI + Qwen AI Economic Council
+                  Quantitative Core + Consensus Council
                 </span>
               </div>
 

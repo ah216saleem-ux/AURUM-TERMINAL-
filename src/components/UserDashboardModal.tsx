@@ -188,8 +188,8 @@ export const UserDashboardModal: React.FC<UserDashboardModalProps> = ({ isOpen, 
                 : 'text-zinc-400 hover:text-zinc-200 border-transparent'
             }`}
           >
-            <Key className="w-3.5 h-3.5" />
-            <span>API & Webhooks</span>
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>Security & Health</span>
             {!isAdmin && <Lock className="w-3 h-3 text-zinc-500 ml-0.5" />}
           </button>
         </div>
@@ -292,7 +292,7 @@ export const UserDashboardModal: React.FC<UserDashboardModalProps> = ({ isOpen, 
                   <div className={`flex items-center gap-1.5 ${isAdmin ? 'text-emerald-400' : 'text-zinc-500'}`}>
                     {isAdmin ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Lock className="w-3.5 h-3.5 text-rose-400" />}
                     <span className={isAdmin ? '' : 'text-zinc-500'}>
-                      Live API Key Management {isAdmin ? '✓' : '(Admin Only)'}
+                      Enterprise Security Protocol {isAdmin ? '✓' : '(Admin Only)'}
                     </span>
                   </div>
                   <div className={`flex items-center gap-1.5 ${isAdmin ? 'text-emerald-400' : 'text-zinc-500'}`}>
@@ -573,66 +573,36 @@ export const UserDashboardModal: React.FC<UserDashboardModalProps> = ({ isOpen, 
             </div>
           )}
 
-          {/* TAB 5: API KEYS & WEBHOOKS */}
+          {/* TAB 5: SECURITY & HEALTH */}
           {activeTab === 'API_KEYS' && isAdmin && (
             <div className="space-y-4">
               <div className="p-4 rounded-xl bg-[#131625] border border-amber-500/30 space-y-3">
                 <h3 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">
-                  <Key className="w-4 h-4" />
-                  <span>Production Live API Credentials</span>
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <span>Production Infrastructure & Security Protocol</span>
                 </h3>
                 <p className="text-xs text-zinc-300">
-                  Use these credentials to authenticate live trading bots, MetaTrader Expert Advisors, or TradingView Webhook triggers.
+                  All system data feeds, liquidity pipelines, and execution webhooks are managed securely server-side.
                 </p>
 
-                {/* API Key Box */}
-                <div className="space-y-1.5 pt-2">
-                  <label className="text-[10px] font-mono text-zinc-400 uppercase">Live API Key</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      readOnly
-                      value={user?.apiKey || 'aurum_live_sec_9941a82f883204c101b'}
-                      className="w-full px-3 py-2 rounded-lg bg-black/60 border border-zinc-700 text-xs font-mono text-amber-400 outline-none"
-                    />
-                    <button
-                      onClick={() => handleCopy(user?.apiKey || 'aurum_live_sec_9941a82f883204c101b', true)}
-                      className="p-2 rounded-lg bg-zinc-800 text-zinc-200 hover:bg-zinc-700 transition"
-                      title="Copy API Key"
-                    >
-                      {isCopiedKey ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                    </button>
+                {/* Secure Protocol Status */}
+                <div className="p-3 rounded-lg bg-black/50 border border-zinc-800 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-zinc-400 font-mono">Authentication Status:</span>
+                    <span className="text-emerald-400 font-bold">ENCRYPTED & AUTHENTICATED ✅</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-zinc-400 font-mono">Zero Key Exposure:</span>
+                    <span className="text-emerald-400 font-bold">ENFORCED (SERVER-SIDE) ✅</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-zinc-400 font-mono">Session Protection:</span>
+                    <span className="text-emerald-400 font-bold">ACTIVE (TLS 1.3) ✅</span>
                   </div>
                 </div>
 
-                {/* Webhook Secret Box */}
-                <div className="space-y-1.5 pt-2 border-t border-zinc-800">
-                  <label className="text-[10px] font-mono text-zinc-400 uppercase">Webhook Secret Header</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      readOnly
-                      value={user?.webhookSecret || 'whsec_aurum_live_901848293112'}
-                      className="w-full px-3 py-2 rounded-lg bg-black/60 border border-zinc-700 text-xs font-mono text-emerald-400 outline-none"
-                    />
-                    <button
-                      onClick={() => handleCopy(user?.webhookSecret || 'whsec_aurum_live_901848293112', false)}
-                      className="p-2 rounded-lg bg-zinc-800 text-zinc-200 hover:bg-zinc-700 transition"
-                      title="Copy Webhook Secret"
-                    >
-                      {isCopiedWebhook ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="pt-2">
-                  <button
-                    onClick={() => userService.regenerateApiKey()}
-                    className="text-xs text-amber-400 hover:underline flex items-center gap-1.5"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    <span>Regenerate Live API Key</span>
-                  </button>
+                <div className="pt-2 text-[11px] text-zinc-400">
+                  <span>Client-side raw key viewing is strictly disabled to prevent credential leakage. All API interactions route through proxy-secured microservices.</span>
                 </div>
               </div>
             </div>

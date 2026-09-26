@@ -63,6 +63,7 @@ import {
 import { GannIntradayEnginePanel } from './components/GannIntradayEnginePanel';
 import { MasterIntelligenceView } from './components/MasterIntelligenceView';
 import { PhaseXView } from './components/phaseX/PhaseXView';
+import { MarketRadarView } from './components/marketRadar/MarketRadarView';
 import { InstitutionalLandingPage } from './components/InstitutionalLandingPage';
 import { SecureLoginPage } from './components/SecureLoginPage';
 import { AdminManagementPanel } from './components/AdminManagementPanel';
@@ -92,7 +93,7 @@ function MainApp() {
   const [selectedProfileAssetId, setSelectedProfileAssetId] = useState<string | null>(null);
   const [isScannerOpen, setIsScannerOpen] = useState<boolean>(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'SPY' | 'PHASE_X' | 'MASTER' | 'SIGNALS' | 'GANN' | 'PAPER' | 'VALIDATION' | 'SCANNER' | 'NEWS' | 'RISK' | 'LEARNING' | 'HISTORY'>('DASHBOARD');
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'MARKET_RADAR' | 'SPY' | 'PHASE_X' | 'MASTER' | 'SIGNALS' | 'GANN' | 'PAPER' | 'VALIDATION' | 'SCANNER' | 'NEWS' | 'RISK' | 'LEARNING' | 'HISTORY'>('DASHBOARD');
   const [categoryFilter, setCategoryFilter] = useState<MarketCategory | 'all'>('all');
   
   // Persistent Login & Direct Access Protection State
@@ -332,6 +333,7 @@ function MainApp() {
             <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-none text-[10.5px] font-mono-num font-bold">
               {[
                 { id: 'DASHBOARD', label: 'Dashboard', icon: Zap, adminOnly: false },
+                { id: 'MARKET_RADAR', label: 'MARKET RADAR', icon: Radar, adminOnly: false },
                 { id: 'SPY', label: 'SPY OPTIONS', icon: Target, adminOnly: false },
                 { id: 'PHASE_X', label: 'PHASE X', icon: Orbit, adminOnly: false },
                 { id: 'MASTER', label: 'Master Intelligence', icon: Cpu, adminOnly: true },
@@ -467,6 +469,9 @@ function MainApp() {
                 }}
                 onSendTelegram={sendSignalToTelegram}
               />
+            ) : activeTab === 'MARKET_RADAR' ? (
+              /* MARKET RADAR: REAL-TIME XAU/USD MARKET INTELLIGENCE */
+              <MarketRadarView />
             ) : activeTab === 'SPY' ? (
               /* SPY 0DTE OPTIONS SNIPER VIEW */
               <SpyOptionsSniperView />

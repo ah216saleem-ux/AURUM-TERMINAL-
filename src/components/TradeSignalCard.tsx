@@ -237,23 +237,23 @@ ${selectedSignal.marketReason}`;
         </div>
       )}
 
-      {/* Qwen Synchronization In-Progress Overlay/State Banner */}
+      {/* Consensus Synchronization In-Progress Overlay/State Banner */}
       {isQwenAnalyzing && (
         <div className="p-4 rounded-xl bg-sky-950/40 border border-sky-500/50 space-y-2.5 animate-pulse">
           <div className="flex items-center justify-between">
             <span className="text-xs font-black text-sky-300 uppercase tracking-wider flex items-center gap-2">
               <Loader2 className="w-4 h-4 animate-spin text-sky-400" />
-              SYNCHRONIZING DUAL AI CONSENSUS
+              SYNCHRONIZING DUAL CONSENSUS
             </span>
             <span className="text-[10px] font-mono font-bold text-sky-400">STAGE 2/4</span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs font-mono font-bold">
             <div className="p-2 rounded-lg bg-zinc-900/80 border border-emerald-500/40 text-emerald-300 flex items-center gap-1.5">
-              <span>AURUM COMPLETE</span>
+              <span>PRIMARY COMPLETE</span>
               <span>✅</span>
             </div>
             <div className="p-2 rounded-lg bg-zinc-900/80 border border-sky-500/60 text-sky-300 flex items-center gap-1.5">
-              <span>QWEN ANALYZING</span>
+              <span>VALIDATOR AUDITING</span>
               <span className="animate-spin">⏳</span>
             </div>
             <div className="p-2 rounded-lg bg-zinc-900/80 border border-zinc-700 text-zinc-400 flex items-center gap-1.5">
@@ -417,12 +417,12 @@ ${selectedSignal.marketReason}`;
           </div>
         </div>
 
-        {/* Dual AI Agreement */}
+        {/* Dual Agreement */}
         <div className="flex flex-col justify-center space-y-1 sm:border-l sm:border-zinc-800 sm:pl-3">
           <div className="flex items-center justify-between">
             <span className="text-zinc-400 text-[10.5px] uppercase font-bold flex items-center gap-1">
               <BrainCircuit className="w-3.5 h-3.5 text-amber-400" />
-              <span>AURUM + Qwen Agreement:</span>
+              <span>Consensus Engine Agreement:</span>
             </span>
             <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
               isExpired 
@@ -437,15 +437,15 @@ ${selectedSignal.marketReason}`;
               <span className="text-zinc-500">Awaiting structure breakout</span>
             ) : isQwenAnalyzing ? (
               <div className="flex items-center gap-2 text-[11px]">
-                <span className="text-emerald-400">AURUM COMPLETE ✅</span>
+                <span className="text-emerald-400">PRIMARY COMPLETE ✅</span>
                 <span className="text-zinc-600">•</span>
-                <span className="text-sky-300 animate-pulse">QWEN ANALYZING ⏳</span>
+                <span className="text-sky-300 animate-pulse">VALIDATOR AUDITING ⏳</span>
               </div>
             ) : (
               <>
-                <span>AURUM: <strong className="text-emerald-400">{selectedSignal.type} ✅</strong></span>
+                <span>Primary: <strong className="text-emerald-400">{selectedSignal.type} ✅</strong></span>
                 <span className="text-zinc-600">•</span>
-                <span>Qwen: <strong className="text-emerald-400">{selectedSignal.type} ✅</strong></span>
+                <span>Validator: <strong className="text-emerald-400">{selectedSignal.type} ✅</strong></span>
               </>
             )}
           </div>
@@ -670,11 +670,11 @@ ${selectedSignal.marketReason}`;
               </p>
             </div>
 
-            {/* Qwen Analysis */}
+            {/* Secondary Validator Analysis */}
             <div className="p-3 rounded-xl bg-zinc-900/40 border border-sky-500/20 space-y-1.5">
               <div className="flex items-center justify-between font-mono-num text-[10.5px]">
                 <span className="text-sky-400 font-bold uppercase flex items-center gap-1.5">
-                  <Zap className="w-3.5 h-3.5" /> Qwen 3.8 Max Second Opinion
+                  <Zap className="w-3.5 h-3.5" /> Secondary Quantitative Validator
                 </span>
                 <span className="text-zinc-400 font-medium">Agreement: <strong className="text-emerald-400">Confirmed (2/2)</strong></span>
               </div>
@@ -697,10 +697,10 @@ ${selectedSignal.marketReason}`;
             onClick={handleRunPipeline}
             disabled={pipelineStatus.isSynchronizing}
             className="px-3.5 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-amber-300 hover:text-amber-200 text-xs font-semibold border border-amber-500/30 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
-            title="Re-run AURUM Core and Qwen Consensus Pipeline"
+            title="Re-run Consensus Pipeline"
           >
             <RefreshCw className={`w-3.5 h-3.5 text-amber-400 ${pipelineStatus.isSynchronizing ? 'animate-spin' : ''}`} />
-            <span>{pipelineStatus.isSynchronizing ? 'Analyzing...' : 'AI Council Re-Analyze'}</span>
+            <span>{pipelineStatus.isSynchronizing ? 'Analyzing...' : 'Consensus Re-Analyze'}</span>
           </button>
 
           {/* Lock / Unlock Toggle Button */}

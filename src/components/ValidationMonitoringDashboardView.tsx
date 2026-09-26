@@ -129,7 +129,7 @@ export const ValidationMonitoringDashboardView: React.FC = () => {
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-xs">
           <div className="p-2.5 rounded-xl bg-neutral-950 border border-zinc-800 flex items-center justify-between">
-            <span className="text-zinc-400 font-medium">BIQUOTE:</span>
+            <span className="text-zinc-400 font-medium">Spot Feed:</span>
             <span className="text-emerald-400 font-bold">CONNECTED ✅</span>
           </div>
           <div className="p-2.5 rounded-xl bg-neutral-950 border border-zinc-800 flex items-center justify-between">
@@ -137,11 +137,11 @@ export const ValidationMonitoringDashboardView: React.FC = () => {
             <span className="text-emerald-400 font-bold">CONNECTED ✅</span>
           </div>
           <div className="p-2.5 rounded-xl bg-neutral-950 border border-zinc-800 flex items-center justify-between">
-            <span className="text-zinc-400 font-medium">AURUM AI:</span>
+            <span className="text-zinc-400 font-medium">Core Engine:</span>
             <span className="text-emerald-400 font-bold">READY ✅</span>
           </div>
           <div className="p-2.5 rounded-xl bg-neutral-950 border border-zinc-800 flex items-center justify-between">
-            <span className="text-zinc-400 font-medium">Qwen AI:</span>
+            <span className="text-zinc-400 font-medium">Validator:</span>
             <span className="text-emerald-400 font-bold">READY ✅</span>
           </div>
           <div className="p-2.5 rounded-xl bg-neutral-950 border border-zinc-800 flex items-center justify-between">
@@ -239,7 +239,7 @@ export const ValidationMonitoringDashboardView: React.FC = () => {
           </p>
         </div>
 
-        {/* 3. Qwen Response Status */}
+        {/* 3. Secondary Validator Response Status */}
         <div className="p-4 rounded-2xl bg-neutral-950/90 border border-sky-500/30 space-y-2.5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -247,8 +247,8 @@ export const ValidationMonitoringDashboardView: React.FC = () => {
                 <Zap className="w-3.5 h-3.5" />
               </div>
               <div>
-                <h4 className="text-xs font-black text-white uppercase">3. Qwen Response Status</h4>
-                <span className="text-[10px] text-zinc-500 font-sans">Dual-AI Agent Oracle</span>
+                <h4 className="text-xs font-black text-white uppercase">3. Quantitative Validator Status</h4>
+                <span className="text-[10px] text-zinc-500 font-sans">Institutional Consensus Engine</span>
               </div>
             </div>
             <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-500/15 text-sky-300 border border-sky-500/30">
@@ -273,7 +273,7 @@ export const ValidationMonitoringDashboardView: React.FC = () => {
               </div>
               <div>
                 <h4 className="text-xs font-black text-white uppercase">4. WebSocket Connection</h4>
-                <span className="text-[10px] text-zinc-500 font-sans">BIQUOTE Stream Feed</span>
+                <span className="text-[10px] text-zinc-500 font-sans">Institutional Direct Feed</span>
               </div>
             </div>
             <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30">
@@ -367,7 +367,7 @@ export const ValidationMonitoringDashboardView: React.FC = () => {
               <span className="text-emerald-400 text-[10px]">PASS ✅</span>
             </div>
             <span className="font-bold text-white block text-[11px]">1. Live Market Data</span>
-            <span className="text-[10px] text-zinc-400 block font-sans">BIQUOTE feed stream ingestion</span>
+            <span className="text-[10px] text-zinc-400 block font-sans">Institutional tick feed ingestion</span>
           </div>
 
           <div className="p-3 rounded-xl bg-neutral-950 border border-amber-500/30 space-y-1">
@@ -384,7 +384,7 @@ export const ValidationMonitoringDashboardView: React.FC = () => {
               <span className="text-[9.5px] text-zinc-500 uppercase font-bold">STAGE 3</span>
               <span className="text-emerald-400 text-[10px]">PASS ✅</span>
             </div>
-            <span className="font-bold text-white block text-[11px]">3. AURUM AI Analysis</span>
+            <span className="font-bold text-white block text-[11px]">3. Primary Analysis</span>
             <span className="text-[10px] text-zinc-400 block font-sans">SMC, Order Blocks, Liquidity sweeps</span>
           </div>
 
@@ -393,8 +393,8 @@ export const ValidationMonitoringDashboardView: React.FC = () => {
               <span className="text-[9.5px] text-zinc-500 uppercase font-bold">STAGE 4</span>
               <span className="text-emerald-400 text-[10px]">PASS ✅</span>
             </div>
-            <span className="font-bold text-sky-300 block text-[11px]">4. Qwen AI Opinion</span>
-            <span className="text-[10px] text-zinc-400 block font-sans">Independent second opinion validation</span>
+            <span className="font-bold text-sky-300 block text-[11px]">4. Consensus Validator</span>
+            <span className="text-[10px] text-zinc-400 block font-sans">Independent quantitative validation</span>
           </div>
 
           <div className="p-3 rounded-xl bg-neutral-950 border border-purple-500/30 space-y-1">
@@ -403,7 +403,7 @@ export const ValidationMonitoringDashboardView: React.FC = () => {
               <span className="text-emerald-400 text-[10px]">PASS ✅</span>
             </div>
             <span className="font-bold text-purple-300 block text-[11px]">5. Consensus Decision</span>
-            <span className="text-[10px] text-zinc-400 block font-sans">Dual AI confirmation check</span>
+            <span className="text-[10px] text-zinc-400 block font-sans">Dual engine confirmation check</span>
           </div>
 
           <div className="p-3 rounded-xl bg-neutral-950 border border-zinc-800 space-y-1">

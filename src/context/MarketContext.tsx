@@ -1469,7 +1469,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     await new Promise(r => setTimeout(r, 200));
     setScanProgress(20);
-    setScanStepText('Retrieving live market feeds from BIQUOTE public API...');
+    setScanStepText('Retrieving real-time market feeds from institutional spot pipeline...');
 
     await new Promise(r => setTimeout(r, 300));
     setScanProgress(45);

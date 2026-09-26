@@ -16,7 +16,8 @@ import {
   Zap, 
   RefreshCw,
   ExternalLink,
-  ChevronRight
+  ChevronRight,
+  Radar
 } from 'lucide-react';
 import { MarketItem, AiTradeSignal } from '../../types';
 import { getPaperTradeRecords, computePaperTradeAnalytics } from '../../data/paperTradingTracker';
@@ -194,6 +195,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+            <div 
+              onClick={() => onNavigateTab && onNavigateTab('MARKET_RADAR')}
+              className="p-3 rounded-xl bg-gradient-to-r from-zinc-900/90 to-amber-950/20 border border-amber-500/40 flex items-center justify-between cursor-pointer hover:border-amber-400 transition"
+            >
+              <div className="flex items-center gap-2.5">
+                <Radar className="w-4 h-4 text-amber-400" />
+                <div>
+                  <div className="font-bold text-amber-300 font-mono flex items-center gap-1.5">
+                    <span>XAU/USD Market Radar 3D</span>
+                    <span className="px-1.5 py-0.2 rounded text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30">PHASE 1</span>
+                  </div>
+                  <div className="text-[10px] text-zinc-400">Continuous 3D Spherical Sweep & Dynamic Zone Matrix</div>
+                </div>
+              </div>
+              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                LIVE
+              </span>
+            </div>
+
             <div className="p-3 rounded-xl bg-zinc-900/60 border border-zinc-800/60 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <Compass className="w-4 h-4 text-amber-400" />
@@ -224,8 +244,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <div className="flex items-center gap-2.5">
                 <BrainCircuit className="w-4 h-4 text-purple-400" />
                 <div>
-                  <div className="font-bold text-white font-mono">Dual-Agent AI Consensus Model</div>
-                  <div className="text-[10px] text-zinc-400">AURUM Core Decision + Qwen Institutional Gatekeeper</div>
+                  <div className="font-bold text-white font-mono">Dual Consensus Model</div>
+                  <div className="text-[10px] text-zinc-400">Primary Decision Core + Secondary Institutional Gatekeeper</div>
                 </div>
               </div>
               <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
@@ -385,7 +405,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="flex items-center gap-2">
               <BrainCircuit className="w-4 h-4 text-purple-400" />
               <h3 className="text-xs sm:text-sm font-bold tracking-wider uppercase text-zinc-200 font-mono">
-                5. Dual-AI Model Consensus Performance
+                5. Dual-Engine Consensus Performance
               </h3>
             </div>
             <span className="text-[11px] font-mono text-purple-400 font-bold">
@@ -410,7 +430,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 {analytics.qwenImpact.tradesSavedByQwen} Positions
               </div>
               <span className="text-[10px] text-zinc-400 block mt-0.5">
-                Saved By Qwen Disagreement
+                Saved By Validator Gatekeeper
               </span>
             </div>
 

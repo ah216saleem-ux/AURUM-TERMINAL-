@@ -30,6 +30,7 @@ export interface SmcEngineTelemetry {
   sweptLevelDescription: string;
   sweepCandleTime: number | null;
   sweepConfirmed: boolean;
+  sweepDepthAtr: number;
   chochDetected: boolean;
   chochLevel: number | null;
   chochTime: number | null;
@@ -41,6 +42,8 @@ export interface SmcEngineTelemetry {
   fvgCandleTime: number | null;
   fvgStatus: 'VALID' | 'RETESTED' | 'INVALIDATED' | 'NONE';
   fvgRetestConfirmed: boolean;
+  obRejectionWickPct: number;
+  obReactionConfirmed: boolean;
   currentSession: 'ASIAN' | 'LONDON' | 'NEW_YORK' | 'INTERBANK_CLOSE';
   setupQualified: boolean;
   direction: 'BUY' | 'SELL' | 'WAIT';
@@ -53,6 +56,8 @@ export interface TrendPullbackTelemetry {
   tf30MDirection: 'BULLISH' | 'BEARISH' | 'RANGING';
   ema20_15M: number;
   ema50_15M: number;
+  emaSlope15M: number;
+  emaSlopeConfirmed: boolean;
   pullbackTarget: '20_EMA' | '50_EMA' | 'BREAKOUT_LEVEL' | 'NONE';
   pullbackDistanceAtr: number;
   isPullbackWithinZone: boolean;
@@ -198,6 +203,8 @@ export function detectSmcLiquiditySetup(params: {
   let sweepCandleTime: number | null = null;
   let sweepConfirmed = false;
 
+  let sweepDepthAtr = 0;
+
   const inspectionWindow = closed15M.slice(-12);
 
   // Check Sell-Side Liquidity Sweep (Bullish Setup Trigger: sweeps low, closes above)
@@ -212,6 +219,7 @@ export function detectSmcLiquiditySetup(params: {
       sweptLevelDescription = `Asian Session Low Swept ($${asianLow.toFixed(2)})`;
       sweepCandleTime = candle.time;
       sweepConfirmed = true;
+      sweepDepthAtr = +(Math.max(0, asianLow - candle.low) / Math.max(0.1, atr15M)).toFixed(2);
       break;
     }
     // Check Previous Day Low sweep
@@ -221,6 +229,7 @@ export function detectSmcLiquiditySetup(params: {
       sweptLevelDescription = `Previous Day Low Swept ($${prevDayLow.toFixed(2)})`;
       sweepCandleTime = candle.time;
       sweepConfirmed = true;
+      sweepDepthAtr = +(Math.max(0, prevDayLow - candle.low) / Math.max(0.1, atr15M)).toFixed(2);
       break;
     }
     // Check Key 15M Swing Low sweep
@@ -230,6 +239,7 @@ export function detectSmcLiquiditySetup(params: {
       sweptLevelDescription = `15M Key Swing Low Swept ($${last15MLow.toFixed(2)})`;
       sweepCandleTime = candle.time;
       sweepConfirmed = true;
+      sweepDepthAtr = +(Math.max(0, last15MLow - candle.low) / Math.max(0.1, atr15M)).toFixed(2);
       break;
     }
 
@@ -240,6 +250,7 @@ export function detectSmcLiquiditySetup(params: {
       sweptLevelDescription = `Asian Session High Swept ($${asianHigh.toFixed(2)})`;
       sweepCandleTime = candle.time;
       sweepConfirmed = true;
+      sweepDepthAtr = +(Math.max(0, candle.high - asianHigh) / Math.max(0.1, atr15M)).toFixed(2);
       break;
     }
     if (candle.high > prevDayHigh && (candle.close <= prevDayHigh || prevCandle.high > prevDayHigh)) {
@@ -248,6 +259,7 @@ export function detectSmcLiquiditySetup(params: {
       sweptLevelDescription = `Previous Day High Swept ($${prevDayHigh.toFixed(2)})`;
       sweepCandleTime = candle.time;
       sweepConfirmed = true;
+      sweepDepthAtr = +(Math.max(0, candle.high - prevDayHigh) / Math.max(0.1, atr15M)).toFixed(2);
       break;
     }
     if (candle.high > last15MHigh && candle.close <= last15MHigh) {
@@ -256,6 +268,7 @@ export function detectSmcLiquiditySetup(params: {
       sweptLevelDescription = `15M Key Swing High Swept ($${last15MHigh.toFixed(2)})`;
       sweepCandleTime = candle.time;
       sweepConfirmed = true;
+      sweepDepthAtr = +(Math.max(0, candle.high - last15MHigh) / Math.max(0.1, atr15M)).toFixed(2);
       break;
     }
   }
@@ -353,6 +366,31 @@ export function detectSmcLiquiditySetup(params: {
     }
   }
 
+  // 5.1. Order Block / Institutional Mitigation Reaction
+  let obRejectionWickPct = 0;
+  let obReactionConfirmed = false;
+  const recentCandles = closed15M.slice(-3);
+  if (recentCandles.length > 0) {
+    for (const c of recentCandles) {
+      const range = Math.max(0.01, c.high - c.low);
+      if (liquiditySwept === 'SELL_SIDE') {
+        const lowerWick = Math.min(c.open, c.close) - c.low;
+        const wickPct = +(lowerWick / range).toFixed(2);
+        if (wickPct > obRejectionWickPct) obRejectionWickPct = wickPct;
+        if (wickPct >= 0.25 || (c.close > c.open && c.close >= (sweptLevelPrice ?? c.open))) {
+          obReactionConfirmed = true;
+        }
+      } else if (liquiditySwept === 'BUY_SIDE') {
+        const upperWick = c.high - Math.max(c.open, c.close);
+        const wickPct = +(upperWick / range).toFixed(2);
+        if (wickPct > obRejectionWickPct) obRejectionWickPct = wickPct;
+        if (wickPct >= 0.25 || (c.close < c.open && c.close <= (sweptLevelPrice ?? c.open))) {
+          obReactionConfirmed = true;
+        }
+      }
+    }
+  }
+
   // 6. Setup Qualification
   let setupQualified = false;
   let direction: 'BUY' | 'SELL' | 'WAIT' = 'WAIT';
@@ -380,6 +418,7 @@ export function detectSmcLiquiditySetup(params: {
     sweptLevelDescription,
     sweepCandleTime,
     sweepConfirmed,
+    sweepDepthAtr,
     chochDetected,
     chochLevel: chochLevel != null ? +chochLevel.toFixed(2) : null,
     chochTime,
@@ -391,6 +430,8 @@ export function detectSmcLiquiditySetup(params: {
     fvgCandleTime,
     fvgStatus,
     fvgRetestConfirmed,
+    obRejectionWickPct,
+    obReactionConfirmed,
     currentSession,
     setupQualified,
     direction,
@@ -430,8 +471,22 @@ export function detectTrendPullbackSetup(params: {
   const ema20_15M = calculateSeriesEMA(closed15M, 20);
   const ema50_15M = calculateSeriesEMA(closed15M, 50);
 
+  // EMA Slope calculation (current EMA20 vs EMA20 3 bars ago)
+  let emaSlope15M = 0;
+  let emaSlopeConfirmed = false;
+  if (closed15M.length >= 24) {
+    const ema20Prior = calculateSeriesEMA(closed15M.slice(0, -3), 20);
+    emaSlope15M = +(ema20_15M - ema20Prior).toFixed(2);
+  }
+
   const isBullishTrendAligned = tf4HDirection === 'BULLISH' && tf1HDirection === 'BULLISH' && tf30MDirection !== 'BEARISH';
   const isBearishTrendAligned = tf4HDirection === 'BEARISH' && tf1HDirection === 'BEARISH' && tf30MDirection !== 'BULLISH';
+
+  if (isBullishTrendAligned) {
+    emaSlopeConfirmed = emaSlope15M >= 0 && ema20_15M > ema50_15M;
+  } else if (isBearishTrendAligned) {
+    emaSlopeConfirmed = emaSlope15M <= 0 && ema20_15M < ema50_15M;
+  }
 
   // Pullback measurement on 15M
   let pullbackTarget: '20_EMA' | '50_EMA' | 'BREAKOUT_LEVEL' | 'NONE' = 'NONE';
@@ -518,6 +573,8 @@ export function detectTrendPullbackSetup(params: {
     tf30MDirection,
     ema20_15M,
     ema50_15M,
+    emaSlope15M,
+    emaSlopeConfirmed,
     pullbackTarget,
     pullbackDistanceAtr,
     isPullbackWithinZone,
@@ -660,6 +717,264 @@ export function arbitrateStrategyConfluence(params: {
     setupId: mergedSetupId,
     conflictDetails: null,
     combinedTriggerDescription: combinedDesc
+  };
+}
+
+/**
+ * SMC / ICT Independent Scoring Rubric (Option 2)
+ * Strictly evaluates SMC criteria: Sweep Depth, FVG Size & Quality, CHoCH/BOS Confirmation, OB Reaction, HTF Macro & Structure.
+ * Independent of Wyckoff events. Reaches >= 75% only for genuinely strong institutional setups.
+ */
+export function scoreSmcSetup(params: {
+  smc: SmcEngineTelemetry;
+  direction: 'BUY' | 'SELL';
+  tf4HBias: string;
+  tf1HBias: string;
+  atr15M: number;
+  marketStructure: string;
+  volatilityPct: number;
+}): {
+  totalScore: number;
+  breakdown: {
+    htfMacroScore: number;
+    sweepDepthScore: number;
+    fvgQualityScore: number;
+    chochDisplacementScore: number;
+    obReactionScore: number;
+    structureVolatilityScore: number;
+    totalScore: number;
+  };
+} {
+  const { smc, direction, tf4HBias, tf1HBias, atr15M, marketStructure, volatilityPct } = params;
+
+  // 1. Sweep Depth & Sweep Confirmation (20 points max)
+  let sweepDepthScore = 0;
+  if (smc.sweepConfirmed) {
+    if (smc.sweepDepthAtr >= 0.15 && smc.sweepDepthAtr <= 0.85) {
+      sweepDepthScore = 20; // Optimal institutional liquidity purge
+    } else if ((smc.sweepDepthAtr >= 0.08 && smc.sweepDepthAtr < 0.15) || (smc.sweepDepthAtr > 0.85 && smc.sweepDepthAtr <= 1.25)) {
+      sweepDepthScore = 15; // Clean, acceptable sweep
+    } else if (smc.sweepDepthAtr > 0) {
+      sweepDepthScore = 10; // Marginal / shallow or wide sweep
+    } else {
+      sweepDepthScore = 6;
+    }
+  }
+
+  // 2. FVG Size & Retest Quality (20 points max)
+  let fvgQualityScore = 0;
+  const gapSize = (smc.fvgZoneHigh != null && smc.fvgZoneLow != null) ? Math.abs(smc.fvgZoneHigh - smc.fvgZoneLow) : 0;
+  const gapAtr = gapSize / Math.max(0.1, atr15M);
+  if (smc.fvgRetestConfirmed || smc.fvgStatus === 'RETESTED') {
+    fvgQualityScore = gapAtr >= 0.25 ? 20 : 16;
+  } else if (smc.fvgStatus === 'VALID') {
+    fvgQualityScore = gapAtr >= 0.25 ? 12 : 8;
+  } else {
+    fvgQualityScore = 4;
+  }
+
+  // 3. CHoCH / BOS & Displacement Confirmation (20 points max)
+  let chochDisplacementScore = 0;
+  if (smc.chochDetected && smc.displacementConfirmed && smc.displacementAtrRatio >= 0.75) {
+    chochDisplacementScore = 20; // High conviction institutional displacement
+  } else if (smc.chochDetected && (smc.displacementConfirmed || smc.displacementAtrRatio >= 0.60)) {
+    chochDisplacementScore = 16;
+  } else if (smc.chochDetected) {
+    chochDisplacementScore = 12;
+  } else if (smc.displacementConfirmed) {
+    chochDisplacementScore = 8;
+  } else {
+    chochDisplacementScore = 4;
+  }
+
+  // 4. Order Block Reaction (15 points max)
+  let obReactionScore = 0;
+  if (smc.obReactionConfirmed && smc.obRejectionWickPct >= 0.25) {
+    obReactionScore = 15; // Decisive rejection wick from institutional order block
+  } else if (smc.obReactionConfirmed || smc.obRejectionWickPct >= 0.15) {
+    obReactionScore = 11;
+  } else if (smc.fvgRetestConfirmed) {
+    obReactionScore = 8;
+  } else {
+    obReactionScore = 4;
+  }
+
+  // 5. HTF Macro Context (4H & 1H Alignment) (15 points max)
+  let htfMacroScore = 0;
+  const tf4H = tf4HBias.toUpperCase();
+  const tf1H = tf1HBias.toUpperCase();
+  if (direction === 'BUY') {
+    if (tf4H.includes('BULLISH') && tf1H.includes('BULLISH')) htfMacroScore = 15;
+    else if (tf4H.includes('BULLISH') || tf1H.includes('BULLISH')) htfMacroScore = 10;
+    else if (tf4H.includes('RANGING')) htfMacroScore = 7;
+    else htfMacroScore = 2; // Opposing
+  } else if (direction === 'SELL') {
+    if (tf4H.includes('BEARISH') && tf1H.includes('BEARISH')) htfMacroScore = 15;
+    else if (tf4H.includes('BEARISH') || tf1H.includes('BEARISH')) htfMacroScore = 10;
+    else if (tf4H.includes('RANGING')) htfMacroScore = 7;
+    else htfMacroScore = 2; // Opposing
+  }
+
+  // 6. Market Structure Quality & Volatility Safety (10 points max)
+  let structureVolatilityScore = 0;
+  const isAlignedStructure = direction === 'BUY'
+    ? marketStructure === 'HIGHER_HIGHS_HIGHER_LOWS'
+    : marketStructure === 'LOWER_HIGHS_LOWER_LOWS';
+  if (isAlignedStructure) structureVolatilityScore += 5;
+  else if (marketStructure === 'CONSOLIDATION_RANGING') structureVolatilityScore += 3;
+  else structureVolatilityScore += 1;
+
+  if (volatilityPct >= 0.3 && volatilityPct <= 2.2) structureVolatilityScore += 5;
+  else if (volatilityPct < 0.3) structureVolatilityScore += 3;
+  else structureVolatilityScore += 1;
+
+  const totalCalculated = sweepDepthScore + fvgQualityScore + chochDisplacementScore + obReactionScore + htfMacroScore + structureVolatilityScore;
+  const totalScore = Math.min(96, Math.max(38, totalCalculated));
+
+  return {
+    totalScore,
+    breakdown: {
+      htfMacroScore,
+      sweepDepthScore,
+      fvgQualityScore,
+      chochDisplacementScore,
+      obReactionScore,
+      structureVolatilityScore,
+      totalScore
+    }
+  };
+}
+
+/**
+ * Trend Pullback Independent Scoring Rubric (Option 2)
+ * Strictly evaluates Trend Pullback criteria: 4H/1H Alignment, EMA Slope & Stack, Pullback Depth & Value Zone, 5M Reclaim, 30M Trend, Volatility.
+ * Independent of Wyckoff events. Reaches >= 75% only for genuinely strong setups.
+ */
+export function scoreTrendPullbackSetup(params: {
+  trend: TrendPullbackTelemetry;
+  direction: 'BUY' | 'SELL';
+  tf4HBias: string;
+  tf1HBias: string;
+  atr15M: number;
+  marketStructure: string;
+  volatilityPct: number;
+}): {
+  totalScore: number;
+  breakdown: {
+    htfAlignmentScore: number;
+    emaSlopeStackScore: number;
+    pullbackDepthScore: number;
+    micro5MReclaimScore: number;
+    tf30MTrendScore: number;
+    volatilityQualityScore: number;
+    totalScore: number;
+  };
+} {
+  const { trend, direction, tf4HBias, tf1HBias, marketStructure, volatilityPct } = params;
+
+  // 1. 4H / 1H Trend Alignment (20 points max)
+  let htfAlignmentScore = 0;
+  const tf4H = tf4HBias.toUpperCase();
+  const tf1H = tf1HBias.toUpperCase();
+  if (direction === 'BUY') {
+    if (tf4H.includes('BULLISH') && tf1H.includes('BULLISH')) htfAlignmentScore = 20;
+    else if (tf4H.includes('BULLISH') && tf1H.includes('RANGING')) htfAlignmentScore = 15;
+    else if (tf4H.includes('RANGING') && tf1H.includes('BULLISH')) htfAlignmentScore = 12;
+    else htfAlignmentScore = 3;
+  } else if (direction === 'SELL') {
+    if (tf4H.includes('BEARISH') && tf1H.includes('BEARISH')) htfAlignmentScore = 20;
+    else if (tf4H.includes('BEARISH') && tf1H.includes('RANGING')) htfAlignmentScore = 15;
+    else if (tf4H.includes('RANGING') && tf1H.includes('BEARISH')) htfAlignmentScore = 12;
+    else htfAlignmentScore = 3;
+  }
+
+  // 2. EMA Slope & Stack (20 points max)
+  let emaSlopeStackScore = 0;
+  if (direction === 'BUY') {
+    if (trend.ema20_15M > trend.ema50_15M && trend.emaSlopeConfirmed) {
+      emaSlopeStackScore = 20; // Bullish stack with rising 15M EMA20
+    } else if (trend.ema20_15M > trend.ema50_15M) {
+      emaSlopeStackScore = 14;
+    } else {
+      emaSlopeStackScore = 4;
+    }
+  } else if (direction === 'SELL') {
+    if (trend.ema20_15M < trend.ema50_15M && trend.emaSlopeConfirmed) {
+      emaSlopeStackScore = 20; // Bearish stack with falling 15M EMA20
+    } else if (trend.ema20_15M < trend.ema50_15M) {
+      emaSlopeStackScore = 14;
+    } else {
+      emaSlopeStackScore = 4;
+    }
+  }
+
+  // 3. Pullback Depth & Value Zone Tap (20 points max)
+  let pullbackDepthScore = 0;
+  if (trend.isPullbackWithinZone) {
+    if (trend.pullbackTarget === '20_EMA' && trend.pullbackDistanceAtr <= 0.45) {
+      pullbackDepthScore = 20; // Ideal shallow continuation tap
+    } else if (trend.pullbackTarget === '50_EMA' && trend.pullbackDistanceAtr <= 0.55) {
+      pullbackDepthScore = 18; // Clean value zone retest
+    } else if (trend.pullbackTarget === 'BREAKOUT_LEVEL') {
+      pullbackDepthScore = 15; // Structure level retest
+    } else {
+      pullbackDepthScore = 11;
+    }
+  } else {
+    pullbackDepthScore = 4;
+  }
+
+  // 4. 5M Micro Reclaim & Confirmation (20 points max)
+  let micro5MReclaimScore = 0;
+  if (trend.micro5MReclaimConfirmed && trend.micro5MRejectionWickPct >= 0.25) {
+    micro5MReclaimScore = 20; // 5M reclaim candle + institutional rejection wick
+  } else if (trend.micro5MReclaimConfirmed) {
+    micro5MReclaimScore = 16;
+  } else if (trend.micro5MStructureConfirmed) {
+    micro5MReclaimScore = 12;
+  } else {
+    micro5MReclaimScore = 4;
+  }
+
+  // 5. 30M Intermediate Alignment (10 points max)
+  let tf30MTrendScore = 0;
+  if (direction === 'BUY') {
+    if (trend.tf30MDirection === 'BULLISH') tf30MTrendScore = 10;
+    else if (trend.tf30MDirection === 'RANGING') tf30MTrendScore = 6;
+    else tf30MTrendScore = 0;
+  } else if (direction === 'SELL') {
+    if (trend.tf30MDirection === 'BEARISH') tf30MTrendScore = 10;
+    else if (trend.tf30MDirection === 'RANGING') tf30MTrendScore = 6;
+    else tf30MTrendScore = 0;
+  }
+
+  // 6. Volatility & Risk Viability (10 points max)
+  let volatilityQualityScore = 0;
+  const isAlignedStructure = direction === 'BUY'
+    ? marketStructure === 'HIGHER_HIGHS_HIGHER_LOWS'
+    : marketStructure === 'LOWER_HIGHS_LOWER_LOWS';
+  if (isAlignedStructure) volatilityQualityScore += 5;
+  else if (marketStructure === 'CONSOLIDATION_RANGING') volatilityQualityScore += 3;
+  else volatilityQualityScore += 1;
+
+  if (volatilityPct >= 0.3 && volatilityPct <= 2.2) volatilityQualityScore += 5;
+  else if (volatilityPct < 0.3) volatilityQualityScore += 3;
+  else volatilityQualityScore += 1;
+
+  const totalCalculated = htfAlignmentScore + emaSlopeStackScore + pullbackDepthScore + micro5MReclaimScore + tf30MTrendScore + volatilityQualityScore;
+  const totalScore = Math.min(96, Math.max(38, totalCalculated));
+
+  return {
+    totalScore,
+    breakdown: {
+      htfAlignmentScore,
+      emaSlopeStackScore,
+      pullbackDepthScore,
+      micro5MReclaimScore,
+      tf30MTrendScore,
+      volatilityQualityScore,
+      totalScore
+    }
   };
 }
 

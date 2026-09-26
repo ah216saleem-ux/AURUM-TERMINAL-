@@ -126,16 +126,16 @@ export function calculateSetupQualityScore(
 ): SetupQualityScoreBreakdown {
   const regime = regimeResult || detectMarketRegime(market, signal);
 
-  // 1. AI Consensus (AURUM + Qwen Agreement)
+  // 1. Dual Consensus Agreement
   // When both agree: 94-98. When synchronizing/waiting: 75. When divergent: 50.
   let aiConsensus = 96;
-  let aiConsensusText = 'Dual AI Confirmed (AURUM + Qwen Consensus)';
+  let aiConsensusText = 'Dual Engine Confirmed (Consensus Validated)';
   if (qwenSyncState === 'QWEN_ANALYZING' || qwenSyncState === 'DECISION_WAITING') {
     aiConsensus = 76;
-    aiConsensusText = 'Synchronizing Second Opinion';
+    aiConsensusText = 'Synchronizing Validator Review';
   } else if (qwenSyncState === 'DIVERGENT') {
     aiConsensus = 45;
-    aiConsensusText = 'Divergent AI Stance';
+    aiConsensusText = 'Divergent Stance';
   }
 
   // 2. Market Structure Quality

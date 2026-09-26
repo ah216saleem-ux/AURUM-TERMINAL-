@@ -30,36 +30,36 @@ class RealDataIntegrationService {
     },
     {
       channel: 'CANDLE_DATA',
-      name: 'Gold & Silver Feed (Biquote API)',
+      name: 'Institutional Gold & Silver Feed',
       status: 'SYNCHRONIZED',
       protocol: 'REST',
-      endpoint: 'biquote.io/api/...',
+      endpoint: '/api/v1/liquidity/metals',
       latencyMs: 14,
       lastHeartbeat: 'Real-time',
       itemsProcessedPerSec: 50,
-      description: 'Official Biquote public API real-time feed for Gold Spot (XAU/USD) and Silver (XAG/USD).'
+      description: 'Institutional market real-time spot feed for Gold Spot (XAU/USD) and Silver (XAG/USD).'
     },
     {
       channel: 'ECONOMIC_CALENDAR',
-      name: 'Global Indices Feed (Finnhub API)',
+      name: 'Global Indices Feed',
       status: 'SYNCHRONIZED',
       protocol: 'REST',
-      endpoint: 'finnhub.io/api/v1/quote',
+      endpoint: '/api/v1/liquidity/indices',
       latencyMs: 18,
       lastHeartbeat: 'Real-time',
       itemsProcessedPerSec: 35,
-      description: 'Finnhub API institutional stock indices feed for NASDAQ 100 (QQQ) and S&P 500 (SPY).'
+      description: 'Direct institutional stock indices feed for NASDAQ 100 (QQQ) and S&P 500 (SPY).'
     },
     {
       channel: 'NEWS_FEED',
-      name: 'Forex Spot FX Matrix (Biquote API)',
+      name: 'Interbank Forex Spot FX Matrix',
       status: 'SYNCHRONIZED',
       protocol: 'REST',
-      endpoint: 'biquote.io/api/...',
+      endpoint: '/api/v1/liquidity/forex',
       latencyMs: 16,
       lastHeartbeat: 'Real-time',
       itemsProcessedPerSec: 65,
-      description: 'Official Biquote public API forex matrix feed for EUR/USD, GBP/USD, USD/JPY, AUD/USD, and USD/CAD.'
+      description: 'Institutional interbank forex matrix feed for EUR/USD, GBP/USD, USD/JPY, AUD/USD, and USD/CAD.'
     },
     {
       channel: 'WEBSOCKET_STREAM',

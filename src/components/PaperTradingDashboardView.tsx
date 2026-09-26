@@ -188,7 +188,7 @@ export const PaperTradingDashboardView: React.FC = () => {
 ⚠️ Worst Performing Asset: ${report.worstAsset.symbol} (${report.worstAsset.netPnlR}R, ${report.worstAsset.winRate}% WR)
 🎯 Best Strategy: ${report.bestStrategy.strategy} (${report.bestStrategy.winRate}% WR)
 --------------------------------------------------
-🤖 Qwen AI Contribution: ${report.qwenContribution.summary}
+⚖️ Consensus Validator Contribution: ${report.qwenContribution.summary}
 --------------------------------------------------
 📝 Executive Summary: ${report.executiveSummary}
 🔒 Note: Non-custodial simulation mode only. No real capital at risk.
@@ -666,10 +666,10 @@ export const PaperTradingDashboardView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Dual AI Consensus */}
+              {/* Dual Consensus */}
               <div className="p-3 rounded-xl bg-emerald-950/10 border border-emerald-500/20 space-y-2">
                 <div className="flex items-center justify-between text-[11px] font-bold text-emerald-400">
-                  <span>Dual AI Consensus (AURUM + Qwen)</span>
+                  <span>Dual Consensus Engine</span>
                   <span className="text-[9.5px] font-black px-1 rounded bg-emerald-500 text-black uppercase">Enhanced</span>
                 </div>
                 <div className="grid grid-cols-3 gap-1 text-center text-xs">
@@ -1022,13 +1022,13 @@ export const PaperTradingDashboardView: React.FC = () => {
               </div>
             </div>
 
-            {/* Qwen AI Contribution Box */}
+            {/* Consensus Contribution Box */}
             <div className="p-4 rounded-xl bg-gradient-to-r from-sky-950/40 via-zinc-900/60 to-sky-950/40 border border-sky-500/30 space-y-2.5">
               <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-sky-400" />
                   <span className="text-xs font-bold text-white uppercase">
-                    Qwen Second-Opinion Contribution
+                    Consensus Validator Contribution
                   </span>
                 </div>
                 <span className="text-[10px] text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded border border-sky-500/20 font-bold">
@@ -1081,7 +1081,7 @@ export const PaperTradingDashboardView: React.FC = () => {
                         <th className="p-2">Entry</th>
                         <th className="p-2">SL / TP1</th>
                         <th className="p-2">R:R</th>
-                        <th className="p-2">Qwen Status</th>
+                        <th className="p-2">Validator Status</th>
                         <th className="p-2">Result</th>
                       </tr>
                     </thead>
@@ -1968,10 +1968,10 @@ export const PaperTradingDashboardView: React.FC = () => {
                 <Sparkles className="w-5 h-5 text-sky-400" />
                 <div>
                   <h4 className="text-sm font-bold text-white uppercase font-syne">
-                    Dual-AI Decision Matrix: AURUM vs Qwen vs Outcome
+                    Consensus Decision Matrix: Primary vs Secondary Validator vs Outcome
                   </h4>
                   <span className="text-[10.5px] text-zinc-400">
-                    Quantifying Qwen confirmation accuracy boost and bad setup rejection efficiency
+                    Quantifying consensus confirmation accuracy boost and risk setup rejection efficiency
                   </span>
                 </div>
               </div>
@@ -2050,8 +2050,8 @@ export const PaperTradingDashboardView: React.FC = () => {
                   <thead>
                     <tr className="border-b border-zinc-800 text-zinc-400 text-[10px] uppercase">
                       <th className="p-2">Asset</th>
-                      <th className="p-2">AURUM Signal</th>
-                      <th className="p-2">Qwen Second Opinion</th>
+                      <th className="p-2">Primary Signal</th>
+                      <th className="p-2">Secondary Review</th>
                       <th className="p-2">Consensus Result</th>
                       <th className="p-2">Final Trade Outcome</th>
                     </tr>
@@ -2128,7 +2128,7 @@ export const PaperTradingDashboardView: React.FC = () => {
                     <div className="h-full bg-emerald-500" style={{ width: `${analytics.confidenceCalibration?.highWinRate || 88.9}%` }} />
                   </div>
                   <p className="text-[9px] text-zinc-400 font-sans leading-normal">
-                    When AURUM-Qwen consensus generates an 80%+ rating, setups show institutional win rates.
+                    When dual-engine consensus generates an 80%+ rating, setups show institutional win rates.
                   </p>
                 </div>
 
@@ -2339,7 +2339,7 @@ export const PaperTradingDashboardView: React.FC = () => {
                 <th className="p-2.5">TP1 / TP2</th>
                 <th className="p-2.5">R:R</th>
                 <th className="p-2.5">Confidence</th>
-                <th className="p-2.5">AURUM / Qwen</th>
+                <th className="p-2.5">Signal / Validator</th>
                 <th className="p-2.5">News Risk</th>
                 <th className="p-2.5">Result</th>
               </tr>
@@ -2374,7 +2374,7 @@ export const PaperTradingDashboardView: React.FC = () => {
                       trade.qwenConfirmation === 'AGREED' ? 'text-emerald-400 font-bold' :
                       trade.qwenConfirmation === 'DISAGREED' ? 'text-rose-400 font-bold' : 'text-amber-400 font-bold'
                     }`}>
-                      Qwen: {trade.qwenConfirmation}
+                      Validator: {trade.qwenConfirmation}
                     </div>
                   </td>
                   <td className="p-2.5">
@@ -2523,7 +2523,7 @@ export const PaperTradingDashboardView: React.FC = () => {
             <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-200 space-y-1">
               <span className="font-bold block">Institutional Audit Summary:</span>
               <p className="text-[11px] leading-relaxed text-zinc-300">
-                This report confirms that the system has executed high-probability paper trades adhering to SMC order blocks, news blackout windows, and dual-AI Qwen validation with 100% accurate database records and real-time tick-verified price executions. No retail risk exposure detected.
+                This report confirms that the system has executed high-probability paper trades adhering to SMC order blocks, news blackout windows, and dual-engine consensus validation with 100% accurate database records and real-time tick-verified price executions. No retail risk exposure detected.
               </p>
             </div>
 

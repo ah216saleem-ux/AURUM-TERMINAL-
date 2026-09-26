@@ -384,7 +384,7 @@ Status: ACTIVE`;
               <BarChart2 className="w-3.5 h-3.5 text-amber-400" />
               SMC Candlestick Chart ({selectedTf})
             </span>
-            <span className="text-[10.5px] text-zinc-400">Live BIQUOTE Ticks</span>
+            <span className="text-[10.5px] text-zinc-400">Live Spot Ticks</span>
           </div>
           <InteractiveCandleChart
             market={liveMarket}
@@ -458,7 +458,7 @@ Status: ACTIVE`;
           )}
         </div>
 
-        {/* 2. QWEN REASONING */}
+        {/* 2. SECONDARY VALIDATOR REASONING */}
         <div className="rounded-2xl bg-zinc-950 border border-zinc-800/90 overflow-hidden">
           <button
             onClick={() => toggleAccordion('qwenAi')}
@@ -468,10 +468,10 @@ Status: ACTIVE`;
               <BrainCircuit className="w-4 h-4 text-sky-400" />
               <div>
                 <h3 className="text-xs sm:text-sm font-bold text-white">
-                  Qwen Reasoning
+                  Consensus Validator Reasoning
                 </h3>
                 <span className="text-[10px] text-zinc-400 font-sans block">
-                  Secondary AI agent risk confirmation & counter-trend audit
+                  Secondary quantitative risk confirmation & counter-trend audit
                 </span>
               </div>
             </div>
@@ -486,7 +486,7 @@ Status: ACTIVE`;
           {expandedSection === 'qwenAi' && (
             <div className="p-3.5 border-t border-zinc-800/80 space-y-2.5 text-xs">
               <div className="p-3 rounded-xl bg-zinc-900/60 border border-zinc-800 text-zinc-200 leading-relaxed font-sans text-xs">
-                Qwen 2.5 Agent validates AURUM signal direction ({setup.signal}). Macro liquidity and risk tolerance are within institutional bounds. No fatal divergence identified.
+                Quantitative Consensus Engine validates signal direction ({setup.signal}). Macro liquidity and risk tolerance are within institutional bounds. No fatal divergence identified.
               </div>
               <div className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-900/40 border border-zinc-800 text-xs">
                 <span className="text-zinc-400 font-medium">Council Consensus Status:</span>

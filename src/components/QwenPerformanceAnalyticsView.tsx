@@ -61,14 +61,14 @@ export const QwenPerformanceAnalyticsView: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-bold text-white font-syne tracking-wide uppercase">
-                  Qwen AI Performance & Accuracy Tracker
+                  Consensus Validator Performance & Accuracy Tracker
                 </h3>
                 <span className="px-2 py-0.5 rounded-full bg-sky-500/15 border border-sky-500/30 text-sky-300 text-[9.5px] font-mono-num font-bold">
-                  MODEL: qwen/qwen3.8-max:free
+                  VALIDATION ENGINE: ACTIVE
                 </span>
               </div>
               <span className="text-[10.5px] font-mono-num text-zinc-400">
-                Independent Second-Opinion Historical & Live Review Analytics
+                Independent Secondary Quantitative & Live Review Analytics
               </span>
             </div>
           </div>
@@ -112,13 +112,13 @@ export const QwenPerformanceAnalyticsView: React.FC = () => {
 
       {/* Two-Column Analytics Layout */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Most Reliable Assets for Qwen */}
+        {/* Most Reliable Assets */}
         <div className="p-4 rounded-2xl bg-neutral-950/80 border border-zinc-900 space-y-3">
           <div className="flex items-center justify-between border-b border-zinc-900 pb-2.5">
             <div className="flex items-center gap-2">
               <Award className="w-4 h-4 text-amber-400" />
               <h4 className="text-xs font-bold text-white uppercase font-mono-num">
-                Most Reliable Assets for Qwen Confirmation
+                Most Reliable Assets for Consensus Confirmation
               </h4>
             </div>
             <span className="text-[10px] text-zinc-400 font-mono-num">Sorted by Reliability</span>
@@ -159,13 +159,13 @@ export const QwenPerformanceAnalyticsView: React.FC = () => {
           </div>
         </div>
 
-        {/* Best Market Conditions for Qwen Confirmation */}
+        {/* Best Market Conditions */}
         <div className="p-4 rounded-2xl bg-neutral-950/80 border border-zinc-900 space-y-3">
           <div className="flex items-center justify-between border-b border-zinc-900 pb-2.5">
             <div className="flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-emerald-400" />
               <h4 className="text-xs font-bold text-white uppercase font-mono-num">
-                Best Market Conditions for Qwen Confirmation
+                Best Market Conditions for Consensus Confirmation
               </h4>
             </div>
             <span className="text-[10px] text-zinc-400 font-mono-num">Highest Win Rate Setup</span>
@@ -200,7 +200,7 @@ export const QwenPerformanceAnalyticsView: React.FC = () => {
           <div className="flex items-center gap-2">
             <History className="w-4 h-4 text-sky-400" />
             <h4 className="text-xs font-bold text-white uppercase font-mono-num">
-              Qwen Review Historical Log & Signals
+              Consensus Historical Review Log & Signals
             </h4>
           </div>
 
@@ -237,8 +237,8 @@ export const QwenPerformanceAnalyticsView: React.FC = () => {
               <tr className="border-b border-zinc-800 text-zinc-400 text-[10px] uppercase">
                 <th className="p-2.5">Asset</th>
                 <th className="p-2.5">Date / Time</th>
-                <th className="p-2.5">AURUM Signal</th>
-                <th className="p-2.5">Qwen Review</th>
+                <th className="p-2.5">Primary Signal</th>
+                <th className="p-2.5">Validator Review</th>
                 <th className="p-2.5">Status</th>
                 <th className="p-2.5">Diff</th>
                 <th className="p-2.5">Final Signal</th>

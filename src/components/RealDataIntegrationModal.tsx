@@ -160,7 +160,7 @@ export const RealDataIntegrationModal: React.FC<RealDataIntegrationModalProps> =
                   All Real-Time Data Pipelines Operational & Verified
                 </span>
                 <span className="text-[10.5px] text-zinc-400">
-                  Biquote • Binance • Finnhub • Twelve Data • Yahoo Spot/Index Verified
+                  Institutional Multi-Source Spot • Interbank FX • Index & CME Verified
                 </span>
               </div>
             </div>

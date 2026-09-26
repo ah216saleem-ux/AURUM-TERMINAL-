@@ -29,7 +29,7 @@ export const ASSET_PROVIDER_CONFIGS: Record<string, AssetProviderConfig> = {
     name: 'Gold Spot',
     category: 'commodities',
     primaryProvider: 'BIQUOTE',
-    exchangeName: 'Biquote Gold Spot Feed',
+    exchangeName: 'Institutional Gold Spot Feed',
     decimals: 2
   },
   'xag-usd': {
@@ -39,7 +39,7 @@ export const ASSET_PROVIDER_CONFIGS: Record<string, AssetProviderConfig> = {
     name: 'Silver',
     category: 'commodities',
     primaryProvider: 'BIQUOTE',
-    exchangeName: 'Biquote Silver Spot Feed',
+    exchangeName: 'Institutional Silver Spot Feed',
     decimals: 2
   },
   'eur-usd': {
@@ -49,7 +49,7 @@ export const ASSET_PROVIDER_CONFIGS: Record<string, AssetProviderConfig> = {
     name: 'EUR/USD',
     category: 'forex',
     primaryProvider: 'BIQUOTE',
-    exchangeName: 'Biquote Spot FX',
+    exchangeName: 'Interbank Spot FX',
     decimals: 4
   },
   'gbp-usd': {
@@ -59,7 +59,7 @@ export const ASSET_PROVIDER_CONFIGS: Record<string, AssetProviderConfig> = {
     name: 'GBP/USD',
     category: 'forex',
     primaryProvider: 'BIQUOTE',
-    exchangeName: 'Biquote Spot FX',
+    exchangeName: 'Interbank Spot FX',
     decimals: 4
   },
   'usd-jpy': {
@@ -69,7 +69,7 @@ export const ASSET_PROVIDER_CONFIGS: Record<string, AssetProviderConfig> = {
     name: 'USD/JPY',
     category: 'forex',
     primaryProvider: 'BIQUOTE',
-    exchangeName: 'Biquote Spot FX',
+    exchangeName: 'Interbank Spot FX',
     decimals: 2
   },
   'aud-usd': {
@@ -79,7 +79,7 @@ export const ASSET_PROVIDER_CONFIGS: Record<string, AssetProviderConfig> = {
     name: 'AUD/USD',
     category: 'forex',
     primaryProvider: 'BIQUOTE',
-    exchangeName: 'Biquote Spot FX',
+    exchangeName: 'Interbank Spot FX',
     decimals: 4
   },
   'usd-cad': {
@@ -89,7 +89,7 @@ export const ASSET_PROVIDER_CONFIGS: Record<string, AssetProviderConfig> = {
     name: 'USD/CAD',
     category: 'forex',
     primaryProvider: 'BIQUOTE',
-    exchangeName: 'Biquote Spot FX',
+    exchangeName: 'Interbank Spot FX',
     decimals: 4
   },
   'sp-500': {
@@ -304,7 +304,7 @@ class MarketDataService {
       messageReceived: count > 0 ? 'YES' : 'NO',
       totalTicksReceived: count,
       ageSeconds,
-      source: this.assetSources[assetKey] || config?.exchangeName || 'BIQUOTE Live Feed',
+      source: this.assetSources[assetKey] || config?.exchangeName || 'Primary Market Feed',
       isLive,
       latencyMs: this.latencyMs
     };
@@ -675,7 +675,7 @@ class MarketDataService {
                 this.latestAsks[id] = ask;
                 this.lastTickTimestamps[id] = now;
                 this.tickCounts[id] = (this.tickCounts[id] || 0) + 1;
-                this.assetSources[id] = 'BIQUOTE (Direct FX)';
+                this.assetSources[id] = 'Institutional Spot Feed';
 
                 mapped[id] = {
                   price,

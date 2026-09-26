@@ -13,6 +13,8 @@ import {
   detectSmcLiquiditySetup,
   detectTrendPullbackSetup,
   arbitrateStrategyConfluence,
+  scoreSmcSetup,
+  scoreTrendPullbackSetup,
   PhaseXStrategyTelemetry,
   SmcEngineTelemetry,
   TrendPullbackTelemetry,
@@ -22,6 +24,11 @@ import {
 } from './phaseXMultiStrategy';
 
 export { runMultiStrategyDeterministicValidationSuite };
+
+// Production Shadow Mode (Log only, zero live Telegram / UI dispatches until explicitly enabled)
+let isShadowMode = true;
+export function isShadowModeActive(): boolean { return isShadowMode; }
+export function setShadowMode(active: boolean): void { isShadowMode = active; }
 
 // Phase 4 Lifecycle States (Section 2)
 export type PhaseXLifecycleState =
@@ -418,6 +425,9 @@ export interface PhaseXTradeConfidenceBreakdown {
   volatilityScore: number;
   timeframeAlignmentScore: number;
   totalScore: number;
+  appliedRubric?: 'WYCKOFF' | 'SMC' | 'TREND' | 'CONFLUENCE';
+  smcBreakdown?: any;
+  trendBreakdown?: any;
 }
 
 export interface PhaseXEngineDetails {
@@ -833,7 +843,15 @@ function getYahooSymbol(assetId: string): string {
  */
 export async function analyzePhaseX(
   assetId: string,
-  clientLivePrice?: number
+  clientLivePrice?: number,
+  replayOptions?: {
+    candles5mRaw: any[];
+    candles15mRaw: any[];
+    candles30mRaw: any[];
+    candles1hRaw: any[];
+    simulatedNow?: number;
+    skipSideEffects?: boolean;
+  }
 ): Promise<PhaseXAnalysisResponse> {
   // SPY is explicitly isolated / excluded
   if (assetId === 'spy' || assetId === 'spy-options') {
@@ -854,12 +872,14 @@ export async function analyzePhaseX(
 
   // 1. Fetch Closed Candles across all 5 internal timeframes:
   // 4H = Macro Context, 1H = Primary Phase, 30M = Setup Development, 15M = Precision Structure, 5M = Invalidation & Noise Buffer
-  const [candles5mRaw, candles15mRaw, candles30mRaw, candles1hRaw] = await Promise.all([
-    fetchYahooCandles(yahooSymbol, '5m', '2d'),
-    fetchYahooCandles(yahooSymbol, '15m', '5d'),
-    fetchYahooCandles(yahooSymbol, '30m', '5d'),
-    fetchYahooCandles(yahooSymbol, '60m', '1mo')
-  ]);
+  const [candles5mRaw, candles15mRaw, candles30mRaw, candles1hRaw] = replayOptions
+    ? [replayOptions.candles5mRaw, replayOptions.candles15mRaw, replayOptions.candles30mRaw, replayOptions.candles1hRaw]
+    : await Promise.all([
+        fetchYahooCandles(yahooSymbol, '5m', '2d'),
+        fetchYahooCandles(yahooSymbol, '15m', '5d'),
+        fetchYahooCandles(yahooSymbol, '30m', '5d'),
+        fetchYahooCandles(yahooSymbol, '60m', '1mo')
+      ]);
 
   // CLOSED-CANDLE RULE: Drop the last unfinished/forming candle strictly
   const filterClosed = (list: any[]): ClosedCandle[] => {
@@ -1140,6 +1160,7 @@ export async function analyzePhaseX(
           sweptLevelDescription: 'No sweep detected',
           sweepCandleTime: null,
           sweepConfirmed: false,
+          sweepDepthAtr: 0,
           chochDetected: false,
           chochLevel: null,
           chochTime: null,
@@ -1151,6 +1172,8 @@ export async function analyzePhaseX(
           fvgCandleTime: null,
           fvgStatus: 'NONE',
           fvgRetestConfirmed: false,
+          obRejectionWickPct: 0,
+          obReactionConfirmed: false,
           currentSession: 'INTERBANK_CLOSE',
           setupQualified: false,
           direction: 'WAIT',
@@ -1162,6 +1185,8 @@ export async function analyzePhaseX(
           tf30MDirection: 'RANGING',
           ema20_15M: 0,
           ema50_15M: 0,
+          emaSlope15M: 0,
+          emaSlopeConfirmed: false,
           pullbackTarget: 'NONE',
           pullbackDistanceAtr: 0,
           isPullbackWithinZone: false,
@@ -1546,7 +1571,7 @@ export async function analyzePhaseX(
     isLiveTickFresh = tickAgeMs <= 5000 && liveTick.isRealTick;
   } else if (typeof clientLivePrice === 'number' && clientLivePrice > 0 && !isNaN(clientLivePrice)) {
     currentLivePrice = clientLivePrice;
-    livePriceTimestamp = Date.now();
+    livePriceTimestamp = replayOptions?.simulatedNow || Date.now();
     isLiveTickFresh = true;
   } else {
     try {
@@ -1712,7 +1737,8 @@ export async function analyzePhaseX(
   let waitReasonCode: PhaseXWaitReasonCode = 'NONE';
   let executionTriggerDescription = 'No confirmed trigger on 15M closed candle.';
 
-  const isFeedStale = (Date.now() - lastClosedTimestamp) > (7 * 24 * 3600 * 1000);
+  const effectiveNow = replayOptions?.simulatedNow || Date.now();
+  const isFeedStale = (effectiveNow - lastClosedTimestamp) > (7 * 24 * 3600 * 1000);
   const isExtremeVolatility = volatilityPct > 4.5 || (atr15M / signalConfirmationPrice) > 0.045;
 
   if (isFeedStale) {
@@ -1743,13 +1769,13 @@ export async function analyzePhaseX(
       waitReasonCode = 'SETUP_PHASE_CONFLICT';
       executionTriggerDescription = '30M intermediate setup conflicts materially with 1H primary phase.';
     } else if (!hasBullishWyckoff && !hasBearishWyckoff && !smcTelemetry.setupQualified && !trendTelemetry.setupQualified) {
-      waitReasonCode = 'NO_WYCKOFF_EVENT';
+      waitReasonCode = 'EXECUTION_STRUCTURE_UNCONFIRMED';
       executionTriggerDescription = 'PHASE X multi-strategy scanner is actively searching for high-probability setups.';
     } else if (!bullish15MTrigger && !bearish15MTrigger && !smcTelemetry.setupQualified && !trendTelemetry.setupQualified) {
       waitReasonCode = 'EXECUTION_STRUCTURE_UNCONFIRMED';
       executionTriggerDescription = '15M closed candle micro structure has not confirmed an executable trigger.';
     } else {
-      waitReasonCode = 'NO_WYCKOFF_EVENT';
+      waitReasonCode = 'EXECUTION_STRUCTURE_UNCONFIRMED';
       executionTriggerDescription = 'Multi-strategy confluence threshold not satisfied.';
     }
   }
@@ -1826,6 +1852,62 @@ export async function analyzePhaseX(
   let timeframeAlignmentScore = alignment === 'ALIGNED' ? 5 : alignment === 'PARTIALLY ALIGNED' ? 3 : 0;
 
   const totalConfidenceCalculated = htfMacroContextScore + wyckoffPhaseQualityScore + wyckoffEventQualityScore + setupConfirmation30MScore + executionTrigger15MScore + structureQualityScore + volumeEvidenceScore + volatilityScore + timeframeAlignmentScore;
+  const wyckoffConfidence = Math.min(96, Math.max(38, totalConfidenceCalculated));
+
+  // Option 2: Independent Scoring Rubrics for SMC and Trend Pullback
+  const detectedStrategies = confluenceResult.confluenceTelemetry?.detectedStrategies || [];
+  const isWyckoffActive = detectedStrategies.includes('WYCKOFF STRUCTURE');
+  const isSmcActive = detectedStrategies.includes('SMC / ICT LIQUIDITY');
+  const isTrendActive = detectedStrategies.includes('TREND PULLBACK');
+
+  const evalDirection = candidateDirection !== 'WAIT' 
+    ? (candidateDirection as 'BUY' | 'SELL') 
+    : (confluenceResult.finalDirection !== 'WAIT' ? (confluenceResult.finalDirection as 'BUY' | 'SELL') : 'BUY');
+
+  const smcScoreObj = (smcTelemetry.setupQualified || isSmcActive)
+    ? scoreSmcSetup({
+        smc: smcTelemetry,
+        direction: evalDirection,
+        tf4HBias: tf4H.bias,
+        tf1HBias: tf1H.bias,
+        atr15M,
+        marketStructure,
+        volatilityPct
+      })
+    : null;
+
+  const trendScoreObj = (trendTelemetry.setupQualified || isTrendActive)
+    ? scoreTrendPullbackSetup({
+        trend: trendTelemetry,
+        direction: evalDirection,
+        tf4HBias: tf4H.bias,
+        tf1HBias: tf1H.bias,
+        atr15M,
+        marketStructure,
+        volatilityPct
+      })
+    : null;
+
+  let tradeConfidence = wyckoffConfidence;
+  let appliedRubric: 'WYCKOFF' | 'SMC' | 'TREND' | 'CONFLUENCE' = 'WYCKOFF';
+
+  if (candidateDirection !== 'WAIT') {
+    const activeScores: Array<{ rubric: 'WYCKOFF' | 'SMC' | 'TREND'; score: number }> = [];
+    if (isWyckoffActive) activeScores.push({ rubric: 'WYCKOFF', score: wyckoffConfidence });
+    if (isSmcActive && smcScoreObj) activeScores.push({ rubric: 'SMC', score: smcScoreObj.totalScore });
+    if (isTrendActive && trendScoreObj) activeScores.push({ rubric: 'TREND', score: trendScoreObj.totalScore });
+
+    if (activeScores.length >= 2) {
+      appliedRubric = 'CONFLUENCE';
+      const maxScore = Math.max(...activeScores.map(s => s.score));
+      tradeConfidence = Math.min(96, maxScore + 4);
+    } else if (activeScores.length === 1) {
+      appliedRubric = activeScores[0].rubric;
+      tradeConfidence = activeScores[0].score;
+    } else {
+      tradeConfidence = wyckoffConfidence;
+    }
+  }
 
   const tradeConfidenceBreakdown: PhaseXTradeConfidenceBreakdown = {
     htfMacroContextScore,
@@ -1837,10 +1919,11 @@ export async function analyzePhaseX(
     volumeEvidenceScore,
     volatilityScore,
     timeframeAlignmentScore,
-    totalScore: totalConfidenceCalculated
+    totalScore: totalConfidenceCalculated,
+    appliedRubric,
+    smcBreakdown: smcScoreObj?.breakdown,
+    trendBreakdown: trendScoreObj?.breakdown
   };
-
-  let tradeConfidence = Math.min(96, Math.max(38, totalConfidenceCalculated));
 
   // 6. Trade Confidence Threshold Gate (>= 75% Required) (Section 12)
   if (candidateDirection !== 'WAIT' && tradeConfidence < 75) {
@@ -2243,7 +2326,7 @@ export async function analyzePhaseX(
           recordCompletedTrade(managedRecord, bidAskAvailability);
           executionStatus = 'SETUP_EXPIRED';
           finalDirection = 'WAIT';
-          waitReasonCode = 'NO_WYCKOFF_EVENT';
+          waitReasonCode = 'ENTRY_EXTENDED';
           managedRecord = null; // Unblock active slot for fresh setup search
         }
         // 2. Pre-Entry Invalidation check (Structural invalidation)
@@ -2470,8 +2553,10 @@ export async function analyzePhaseX(
         partialExitPctAtTP1: 50
       };
 
-      setupRegistry.set(setupId, newRecord);
-      managedRecord = newRecord;
+      if (!replayOptions?.skipSideEffects) {
+        setupRegistry.set(setupId, newRecord);
+        managedRecord = newRecord;
+      }
     }
   }
 
@@ -2666,8 +2751,8 @@ export async function analyzePhaseX(
       livePrice: currentLivePrice,
       bidAskAvailability: liveTradeDetails?.bidAskAvailability || (assetConfig.primaryProvider === 'BIQUOTE' || assetConfig.primaryProvider === 'BINANCE' ? 'VERIFIED' : 'LIMITED'),
       lastTickTimestamp: liveTradeDetails?.lastVerifiedPriceTimestamp || livePriceTimestamp || lastClosedTimestamp,
-      tickAgeMs: Math.max(0, Date.now() - (liveTradeDetails?.lastVerifiedPriceTimestamp || livePriceTimestamp || lastClosedTimestamp)),
-      tickAgeFormatted: `${(Math.max(0, Date.now() - (liveTradeDetails?.lastVerifiedPriceTimestamp || livePriceTimestamp || lastClosedTimestamp)) / 1000).toFixed(1)}s`,
+      tickAgeMs: Math.max(0, effectiveNow - (liveTradeDetails?.lastVerifiedPriceTimestamp || livePriceTimestamp || lastClosedTimestamp)),
+      tickAgeFormatted: `${(Math.max(0, effectiveNow - (liveTradeDetails?.lastVerifiedPriceTimestamp || livePriceTimestamp || lastClosedTimestamp)) / 1000).toFixed(1)}s`,
       candleSource5M: `Yahoo Finance API (${yahooSymbol} - 5M Closed)`,
       candleSource15M: `Yahoo Finance API (${yahooSymbol} - 15M Closed)`,
       candleSource30M: `Yahoo Finance API (${yahooSymbol} - 30M Closed)`,
@@ -2675,12 +2760,12 @@ export async function analyzePhaseX(
       candleSource4H: `Aggregated from 1H Closed Candles (${yahooSymbol})`,
       lastClosedCandleTimestamp: lastClosedTimestamp,
       historicalDataRange: '5 days (5M/15M/30M) / 1 month (1H/4H)',
-      dataFreshnessStatus: Math.max(0, Date.now() - (liveTradeDetails?.lastVerifiedPriceTimestamp || livePriceTimestamp || lastClosedTimestamp)) <= 60000 ? 'FRESH' : 'STALE',
+      dataFreshnessStatus: Math.max(0, effectiveNow - (liveTradeDetails?.lastVerifiedPriceTimestamp || livePriceTimestamp || lastClosedTimestamp)) <= 60000 ? 'FRESH' : 'STALE',
       dataGapsDetected: false,
       dataGapsDetails: 'NO DATA GAPS DETECTED',
       fallbackProviderUsed: yahooSymbol !== assetConfig.providerSymbol,
       fallbackProviderName: yahooSymbol !== assetConfig.providerSymbol ? `Yahoo Finance API (${yahooSymbol})` : 'NONE',
-      realDataStatus: primaryCandles.length >= 15 && closed15M.length >= 10 ? (Math.max(0, Date.now() - (liveTradeDetails?.lastVerifiedPriceTimestamp || livePriceTimestamp || lastClosedTimestamp)) <= 60000 ? 'VERIFIED' : 'DEGRADED') : 'UNAVAILABLE'
+      realDataStatus: primaryCandles.length >= 15 && closed15M.length >= 10 ? (Math.max(0, effectiveNow - (liveTradeDetails?.lastVerifiedPriceTimestamp || livePriceTimestamp || lastClosedTimestamp)) <= 60000 ? 'VERIFIED' : 'DEGRADED') : 'UNAVAILABLE'
     },
     setupType: managedRecord?.setupType || setupType,
     strategyTelemetry
@@ -2722,7 +2807,8 @@ export async function analyzePhaseX(
     assetId,
     symbol: assetConfig.symbol,
     currentLivePrice,
-    lastTickTimestamp: livePriceTimestamp || liveTradeDetails?.lastVerifiedPriceTimestamp || Date.now(),
+    lastTickTimestamp: replayOptions?.simulatedNow || livePriceTimestamp || liveTradeDetails?.lastVerifiedPriceTimestamp || Date.now(),
+    simulatedNow: replayOptions?.simulatedNow,
     primaryCandlesCount: primaryCandles.length,
     closed5MCount: closed5M.length,
     closed15MCount: closed15M.length,
@@ -2757,7 +2843,8 @@ export async function analyzePhaseX(
     realDataStatus: engineDetails.dataProvenance?.realDataStatus || 'VERIFIED',
     existingActiveSetupCount,
     isPreEntryInvalidated: managedRecord?.lifecycleState === 'INVALIDATED_BEFORE_ENTRY',
-    isStrategyConflict: confluenceResult.agreementStatus === 'CONFLICTING'
+    isStrategyConflict: confluenceResult.agreementStatus === 'CONFLICTING',
+    strategyType: managedRecord?.setupType || setupType || confluenceResult.setupTypeLabel
   });
 
   engineDetails.phase5QualityGate = phase5QualityGate;
@@ -2775,8 +2862,10 @@ export async function analyzePhaseX(
       finalUserOutputState = finalDirectionOutput === 'BUY' ? '🟢 BUY — READY' : '🔴 SELL — READY';
     }
 
-    // Persistent Signal History Recording (XAU/USD ONLY, Phase 5 APPROVED/ACTIVE ONLY)
+    // Persistent Signal History Recording (XAU/USD ONLY, Phase 5 APPROVED/ACTIVE ONLY, SUPPRESSED IN SHADOW MODE)
     if (
+      !isShadowMode &&
+      !replayOptions?.skipSideEffects &&
       assetId === 'xau-usd' &&
       (finalDirectionOutput === 'BUY' || finalDirectionOutput === 'SELL') &&
       preferredEntry != null &&
@@ -2800,7 +2889,7 @@ export async function analyzePhaseX(
         isLive: true
       });
 
-      // Asynchronous Telegram Initial Signal Notification (XAU/USD ONLY, Phase 5 APPROVED/ACTIVE ONLY)
+      // Asynchronous Telegram Initial Signal Notification (XAU/USD ONLY, Phase 5 APPROVED/ACTIVE ONLY, SUPPRESSED IN SHADOW MODE)
       dispatchPhaseXApprovedTelegramSignal(
         {
           setupId: currentSetupId,
@@ -2829,6 +2918,35 @@ export async function analyzePhaseX(
     finalExecutionStatusOutput = phase5QualityGate.cleanWaitState === 'MISSED ENTRY — DO NOT CHASE' ? 'MISSED_ENTRY' : 'WAIT';
     finalDisplayStatusLabel = phase5QualityGate.cleanWaitState || 'WAIT';
     finalUserOutputState = phase5QualityGate.cleanWaitState || '🟡 WAIT — SETUP NOT CONFIRMED';
+
+    // Map Phase 5 rejection code accurately
+    if (phase5QualityGate.rejectionPriority === 1) {
+      waitReasonCode = (phase5QualityGate.liveDataStatus === 'INSUFFICIENT' || primaryCandles.length < 15) ? 'INSUFFICIENT_DATA' : 'STALE_FEED';
+    } else if (phase5QualityGate.rejectionPriority === 2) {
+      const reason = phase5QualityGate.primaryRejectionReason || '';
+      if (reason.includes('Macro') || reason.includes('4H')) {
+        waitReasonCode = 'MACRO_REGIME_CONTRADICTION';
+      } else if (reason.includes('Phase') || reason.includes('conflict')) {
+        waitReasonCode = 'SETUP_PHASE_CONFLICT';
+      } else {
+        waitReasonCode = 'EXECUTION_STRUCTURE_UNCONFIRMED';
+      }
+    } else if (phase5QualityGate.rejectionPriority === 3) {
+      waitReasonCode = 'RISK_STRUCTURE_UNSUITABLE';
+    } else if (phase5QualityGate.rejectionPriority === 4 || phase5QualityGate.rejectionPriority === 8 || phase5QualityGate.rejectionPriority === 9) {
+      waitReasonCode = 'ENTRY_EXTENDED';
+    } else if (phase5QualityGate.rejectionPriority === 5 || phase5QualityGate.rejectionPriority === 6) {
+      waitReasonCode = 'RR_NOT_VIABLE';
+    } else if (phase5QualityGate.rejectionPriority === 7) {
+      waitReasonCode = 'EXTREME_VOLATILITY';
+    } else if (phase5QualityGate.rejectionPriority === 10) {
+      waitReasonCode = 'LOW_CONFIDENCE';
+    } else if (phase5QualityGate.rejectionPriority === 11) {
+      waitReasonCode = 'STRUCTURE_INVALIDATED';
+    }
+    if (phase5QualityGate.primaryRejectionReason) {
+      executionTriggerDescription = phase5QualityGate.primaryRejectionReason;
+    }
   }
 
   return {
@@ -3182,6 +3300,8 @@ export interface Phase5EvaluationInput {
   existingActiveSetupCount: number;
   isPreEntryInvalidated?: boolean;
   isStrategyConflict?: boolean;
+  simulatedNow?: number;
+  strategyType?: string;
 }
 
 interface FailureRecord {
@@ -3198,7 +3318,8 @@ export function evaluatePhase5QualityGate(input: Phase5EvaluationInput): Phase5Q
   const normalizedLastTickTimestamp = (typeof rawTs === 'number' && rawTs > 0 && rawTs < 10000000000) 
     ? rawTs * 1000 
     : (typeof rawTs === 'number' && rawTs > 0 ? rawTs : Date.now());
-  const tickAgeMs = Math.max(0, Date.now() - normalizedLastTickTimestamp);
+  const now = input.simulatedNow || Date.now();
+  const tickAgeMs = Math.max(0, now - normalizedLastTickTimestamp);
   const tickAgeFormatted = `${(tickAgeMs / 1000).toFixed(1)}s`;
   const setupAgeFormatted = `${input.setupAgeCandles} candles (${input.setupAgeCandles * 15}m)`;
   const isExpired = input.setupAgeCandles > 16;
@@ -3310,27 +3431,54 @@ export function evaluatePhase5QualityGate(input: Phase5EvaluationInput): Phase5Q
 
   let alignment1H: 'ALIGNED' | 'CONFLICTING' = 'ALIGNED';
   let alignment1HDetails = `1H Phase: ${input.tf1HPhase}`;
-  if (input.direction === 'BUY' && (input.tf1HPhase.toUpperCase().includes('DISTRIBUTION') || input.tf1HPhase.toUpperCase().includes('MARKDOWN'))) {
-    alignment1H = 'CONFLICTING';
-    alignment1HDetails = '1H Primary Wyckoff Phase is Distribution/Markdown, contradicting BUY setup.';
-    failures.push({
-      priority: 2,
-      reason: '1H Wyckoff phase contradicts trade direction.',
-      waitState: 'WAIT — MARKET STRUCTURE'
-    });
-  } else if (input.direction === 'SELL' && (input.tf1HPhase.toUpperCase().includes('ACCUMULATION') || input.tf1HPhase.toUpperCase().includes('MARKUP'))) {
-    alignment1H = 'CONFLICTING';
-    alignment1HDetails = '1H Primary Wyckoff Phase is Accumulation/Markup, contradicting SELL setup.';
-    failures.push({
-      priority: 2,
-      reason: '1H Wyckoff phase contradicts trade direction.',
-      waitState: 'WAIT — MARKET STRUCTURE'
-    });
+  const isWyckoffStrategy = !input.strategyType || input.strategyType.toUpperCase().includes('WYCKOFF');
+  const isSmcOrTrend = input.strategyType && (input.strategyType.toUpperCase().includes('SMC') || input.strategyType.toUpperCase().includes('TREND'));
+
+  if (isWyckoffStrategy) {
+    if (input.direction === 'BUY' && (input.tf1HPhase.toUpperCase().includes('DISTRIBUTION') || input.tf1HPhase.toUpperCase().includes('MARKDOWN'))) {
+      alignment1H = 'CONFLICTING';
+      alignment1HDetails = '1H Primary Wyckoff Phase is Distribution/Markdown, contradicting BUY setup.';
+      failures.push({
+        priority: 2,
+        reason: '1H Wyckoff phase contradicts trade direction.',
+        waitState: 'WAIT — MARKET STRUCTURE'
+      });
+    } else if (input.direction === 'SELL' && (input.tf1HPhase.toUpperCase().includes('ACCUMULATION') || input.tf1HPhase.toUpperCase().includes('MARKUP'))) {
+      alignment1H = 'CONFLICTING';
+      alignment1HDetails = '1H Primary Wyckoff Phase is Accumulation/Markup, contradicting SELL setup.';
+      failures.push({
+        priority: 2,
+        reason: '1H Wyckoff phase contradicts trade direction.',
+        waitState: 'WAIT — MARKET STRUCTURE'
+      });
+    }
+  } else {
+    // SMC / Trend Pullback: 1H Macro Alignment
+    if (input.direction === 'BUY' && input.tf1HPhase.toUpperCase().includes('BEARISH')) {
+      alignment1H = 'CONFLICTING';
+      alignment1HDetails = '1H Macro bias is BEARISH, contradicting BUY setup.';
+      failures.push({
+        priority: 2,
+        reason: '1H Macro trend opposes trade direction.',
+        waitState: 'WAIT — MARKET STRUCTURE'
+      });
+    } else if (input.direction === 'SELL' && input.tf1HPhase.toUpperCase().includes('BULLISH')) {
+      alignment1H = 'CONFLICTING';
+      alignment1HDetails = '1H Macro bias is BULLISH, contradicting SELL setup.';
+      failures.push({
+        priority: 2,
+        reason: '1H Macro trend opposes trade direction.',
+        waitState: 'WAIT — MARKET STRUCTURE'
+      });
+    }
   }
 
-  let confirmation30M: 'CONFIRMED' | 'UNCONFIRMED' = input.tf30MConfirmed ? 'CONFIRMED' : 'UNCONFIRMED';
-  let confirmation30MDetails = input.tf30MConfirmed ? '30M Setup verified by structural shift / test.' : '30M Setup confirmation not yet validated.';
-  if (!input.tf30MConfirmed && input.direction !== 'WAIT') {
+  let confirmation30M: 'CONFIRMED' | 'UNCONFIRMED' = (input.tf30MConfirmed || isSmcOrTrend) ? 'CONFIRMED' : 'UNCONFIRMED';
+  let confirmation30MDetails = input.tf30MConfirmed 
+    ? '30M Setup verified by structural shift / test.' 
+    : (isSmcOrTrend ? '30M Confirmation verified via independent strategy criteria.' : '30M Setup confirmation not yet validated.');
+  
+  if (isWyckoffStrategy && !input.tf30MConfirmed && input.direction !== 'WAIT') {
     failures.push({
       priority: 2,
       reason: '30M Setup development remains unconfirmed.',
@@ -3348,13 +3496,37 @@ export function evaluatePhase5QualityGate(input: Phase5EvaluationInput): Phase5Q
     });
   }
 
-  // If no Wyckoff setup exists originally
+  // If no setup exists originally
   if (input.direction === 'WAIT') {
-    failures.push({
-      priority: 2,
-      reason: 'No qualified Wyckoff accumulation or distribution setup identified.',
-      waitState: 'WAIT — MARKET STRUCTURE'
-    });
+    const triggerDesc = input.tf15MTrigger && input.tf15MTrigger !== 'No confirmed trigger on 15M closed candle.'
+      ? input.tf15MTrigger
+      : 'No qualified strategy setup identified (Wyckoff, SMC, or Trend Pullback).';
+    
+    if (triggerDesc.includes('confidence') || triggerDesc.includes('below the mandatory 75%')) {
+      failures.push({
+        priority: 10,
+        reason: triggerDesc,
+        waitState: 'WAIT — CONFIRMATION WEAK'
+      });
+    } else if (triggerDesc.includes('Macro') || triggerDesc.includes('4H')) {
+      failures.push({
+        priority: 2,
+        reason: triggerDesc,
+        waitState: 'WAIT — MARKET STRUCTURE'
+      });
+    } else if (triggerDesc.includes('stale') || triggerDesc.includes('Stale')) {
+      failures.push({
+        priority: 1,
+        reason: triggerDesc,
+        waitState: 'WAIT — MARKET DATA'
+      });
+    } else {
+      failures.push({
+        priority: 2,
+        reason: triggerDesc,
+        waitState: 'WAIT — MARKET STRUCTURE'
+      });
+    }
   }
 
   // ==========================================

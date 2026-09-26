@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { analyzePhaseX } from './phaseXEngine';
+import { analyzePhaseX, isShadowModeActive } from './phaseXEngine';
 import {
   dispatchPhaseXApprovedTelegramSignal,
   dispatchPhaseXLifecycleTelegramUpdate,
@@ -417,6 +417,12 @@ export async function executePhaseXLiveScanCycle(): Promise<void> {
 
     // STAGE 6: EXECUTION OR WAIT
     if (gateStatus === 'APPROVED' && isSetupDetected) {
+      if (isShadowModeActive()) {
+        currentPipelineState = 'QUALITY CHECK';
+        recordPipelineLog('EXECUTION_OR_WAIT', 'INFO', `[SHADOW MODE] Signal APPROVED! Setup ID: ${analysis.setupId} (${analysis.finalDirection}). Telegram & Live UI state dispatch suppressed.`);
+        return;
+      }
+
       currentPipelineState = 'QUALITY CHECK';
       recordPipelineLog('EXECUTION_OR_WAIT', 'PASS', `Signal APPROVED! Setup ID: ${analysis.setupId}. Preparing Telegram broadcast & state lock.`);
       

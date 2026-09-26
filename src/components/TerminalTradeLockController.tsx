@@ -302,7 +302,7 @@ Take Profit 1: $${tp1}
 Take Profit 2: $${tp2}
 Confidence: ${conf}%
 Status: ${activeTrade ? 'ACTIVE TRADE LOCKED 🔒' : 'APPROVED'}
-Provider: ${activeTrade?.marketDataProvider || 'FINNHUB/BIQUOTE'}`;
+Provider: ${activeTrade?.marketDataProvider || 'INSTITUTIONAL DIRECT FEED'}`;
 
     navigator.clipboard.writeText(text);
     setCopied(true);
@@ -335,9 +335,9 @@ Provider: ${activeTrade?.marketDataProvider || 'FINNHUB/BIQUOTE'}`;
 
   const progressLabels = [
     'Fetching closed candles & OHLC structure...',
-    'AURUM AI multi-timeframe analysis...',
-    'Qwen Institutional agent evaluation...',
-    'Multi-agent consensus & HTF trend check...',
+    'Primary algorithmic multi-timeframe analysis...',
+    'Secondary quantitative validator evaluation...',
+    'Institutional consensus & HTF trend check...',
     'Risk & ATR validation...'
   ];
 

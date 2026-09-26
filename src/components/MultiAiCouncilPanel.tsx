@@ -98,8 +98,8 @@ export const MultiAiCouncilPanel: React.FC<MultiAiCouncilPanelProps> = ({
         : `Elevated Risk: Counter-trend momentum vectors detected on higher timeframes.`;
 
       const reasoning = isAligned
-        ? `Qwen Second-Opinion: Strong SMC alignment confirmed. Price action displays clear ${market.changePercent >= 0 ? 'BULLISH' : 'BEARISH'} momentum, supporting the proposed ${direction} bias.`
-        : `Qwen Second-Opinion: Divergence detected between short-term displacement and long-term market structure. Recommended waiting for LTF CHOCH confirmation.`;
+        ? `Secondary Validator: Strong SMC alignment confirmed. Price action displays clear ${market.changePercent >= 0 ? 'BULLISH' : 'BEARISH'} momentum, supporting the proposed ${direction} bias.`
+        : `Secondary Validator: Divergence detected between short-term displacement and long-term market structure. Recommended waiting for LTF CHOCH confirmation.`;
 
       return {
         direction,
@@ -262,14 +262,14 @@ export const MultiAiCouncilPanel: React.FC<MultiAiCouncilPanelProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-black text-white uppercase tracking-wide">
-                Multi-AI Decision Council
+                Institutional Decision Council
               </h3>
               <span className="text-[9px] px-2 py-0.5 rounded bg-sky-500/15 text-sky-400 border border-sky-500/25 font-bold uppercase tracking-wider">
-                Qwen Engine
+                Consensus Engine
               </span>
             </div>
             <span className="text-[10px] text-zinc-400 font-sans block mt-0.5">
-              AURUM Core Primary & Independent Qwen 3.8 Max Reviewer
+              Primary Algorithmic Core & Independent Secondary Quantitative Validator
             </span>
           </div>
         </div>
@@ -278,18 +278,18 @@ export const MultiAiCouncilPanel: React.FC<MultiAiCouncilPanelProps> = ({
           {/* Status Badge */}
           {apiKeyConfigured && !isSimulated ? (
             <span className="flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 font-sans font-medium">
-              <Zap className="w-3 h-3 animate-pulse" /> XKiro Live Connected
+              <Zap className="w-3 h-3 animate-pulse" /> Live Connected
             </span>
           ) : (
             <span className="flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 font-sans">
-              <Info className="w-3 h-3 text-amber-400" /> Dynamic Fallback Mode
+              <Info className="w-3 h-3 text-amber-400" /> Quantitative Consensus Mode
             </span>
           )}
 
           <button
             onClick={fetchQwenOpinion}
             disabled={loading}
-            title="Re-run Qwen Analysis"
+            title="Re-run Consensus Analysis"
             className="p-1.5 rounded-lg bg-zinc-950 border border-zinc-900 hover:bg-zinc-900 text-zinc-400 hover:text-white transition cursor-pointer flex items-center justify-center disabled:opacity-50"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-amber-400' : ''}`} />
@@ -304,7 +304,7 @@ export const MultiAiCouncilPanel: React.FC<MultiAiCouncilPanelProps> = ({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
               <BrainCircuit className="w-4 h-4 text-amber-400" />
-              <span className="text-xs font-bold text-white uppercase">AURUM Core AI</span>
+              <span className="text-xs font-bold text-white uppercase">Primary Quantitative Core</span>
             </div>
             <span className="text-[9.5px] px-2 py-0.5 rounded bg-amber-500/15 text-amber-400 font-black border border-amber-500/25">
               PRIMARY SIGNAL
@@ -333,37 +333,37 @@ export const MultiAiCouncilPanel: React.FC<MultiAiCouncilPanelProps> = ({
           </div>
         </div>
 
-        {/* Card 2: Qwen Market Analysis Agent */}
+        {/* Card 2: Secondary Validator */}
         <div className="p-3.5 rounded-2xl bg-neutral-950/80 border border-sky-500/20 space-y-3 relative">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
               <Sparkles className="w-4 h-4 text-sky-400" />
-              <span className="text-xs font-bold text-white uppercase">Qwen Second Opinion</span>
+              <span className="text-xs font-bold text-white uppercase">Secondary Validator</span>
             </div>
             <span className="text-[9px] px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 font-mono font-medium border border-sky-500/20">
-              {modelName}
+              CONSENSUS ENGINE
             </span>
           </div>
 
           {loading ? (
             <div className="h-16 flex flex-col items-center justify-center gap-1.5 text-zinc-500 text-xs">
               <Loader2 className="w-5 h-5 text-sky-400 animate-spin" />
-              <span className="text-[11px] text-zinc-400 font-sans animate-pulse">Running Qwen SMC audit...</span>
+              <span className="text-[11px] text-zinc-400 font-sans animate-pulse">Running SMC audit...</span>
             </div>
           ) : error ? (
             <div className="p-2.5 rounded-xl bg-rose-950/20 border border-rose-900/40 text-rose-300 text-[11px] font-sans flex items-start gap-2">
               <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
               <div>
-                <strong className="block font-bold">Qwen API Connection Status:</strong>
+                <strong className="block font-bold">Consensus Pipeline Status:</strong>
                 <span className="text-[10px] text-rose-200">{error}</span>
-                <span className="block text-[9.5px] text-zinc-400 mt-1">AURUM Core AI operating independently.</span>
+                <span className="block text-[9.5px] text-zinc-400 mt-1">Primary Core operating independently.</span>
               </div>
             </div>
           ) : qwenResult ? (
             <div className="space-y-2.5">
               <div className="flex items-baseline justify-between pt-1">
                 <div>
-                  <div className="text-[10px] text-zinc-500 font-sans">Qwen Voted Review</div>
+                  <div className="text-[10px] text-zinc-500 font-sans">Validator Review</div>
                   <div className={`text-2xl font-black ${
                     qwenResult.direction === 'BUY' ? 'text-emerald-400' :
                     qwenResult.direction === 'SELL' ? 'text-rose-400' : 'text-amber-400'
@@ -372,7 +372,7 @@ export const MultiAiCouncilPanel: React.FC<MultiAiCouncilPanelProps> = ({
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-[10px] text-zinc-500 font-sans">Qwen Confidence</div>
+                  <div className="text-[10px] text-zinc-500 font-sans">Validator Confidence</div>
                   <div className="text-xl font-black text-white">{qwenResult.confidence}%</div>
                 </div>
               </div>
@@ -394,7 +394,7 @@ export const MultiAiCouncilPanel: React.FC<MultiAiCouncilPanelProps> = ({
         </div>
       </div>
 
-      {/* Detailed Analysis Output from Qwen */}
+      {/* Detailed Analysis Output */}
       {qwenResult && !loading && (
         <div className="space-y-2.5 pt-2 border-t border-zinc-900/90 animate-fadeIn">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] font-sans">
@@ -418,7 +418,7 @@ export const MultiAiCouncilPanel: React.FC<MultiAiCouncilPanelProps> = ({
           <div className="p-3 rounded-xl bg-zinc-950 border border-zinc-900/80 text-xs">
             <div className="text-[10px] text-zinc-400 font-mono-num font-bold uppercase mb-1.5 flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-sky-400" />
-              Qwen Second-Opinion Reasoning
+              Secondary Quantitative Reasoning
             </div>
             <p className="text-zinc-300 font-sans leading-relaxed text-[11px]">{qwenResult.reasoning}</p>
           </div>
@@ -432,11 +432,11 @@ export const MultiAiCouncilPanel: React.FC<MultiAiCouncilPanelProps> = ({
           <div className="text-[11px] font-sans text-zinc-400 leading-normal">
             {newsBlocked ? (
               <span className="text-rose-400 font-bold font-mono-num">
-                NEWS LOCKOUT ACTIVE: Macro risk protocols strictly override all AI opinions. Trading is locked.
+                NEWS LOCKOUT ACTIVE: Macro risk protocols strictly override all evaluations. Trading is locked.
               </span>
             ) : qwenResult && qwenResult.direction !== setup.signal && setup.signal !== 'WAIT' ? (
               <span className="text-amber-400 font-bold font-mono-num">
-                DIVERGENT COUNCIL: Qwen second opinion disagrees. Confidence dropped. Trade requires cautious review.
+                DIVERGENT COUNCIL: Secondary validator disagrees. Confidence dropped. Trade requires cautious review.
               </span>
             ) : (
               <span>

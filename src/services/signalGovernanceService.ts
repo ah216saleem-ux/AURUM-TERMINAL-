@@ -271,7 +271,7 @@ class SignalGovernanceService {
     // 3. AI Validation Gate
     const confidence = signal.confidenceScore || 88;
     let aiPassed = confidence >= 80;
-    let aiDetail = `Dual-Model Consensus (AURUM + Qwen): ${confidence}% confidence score.`;
+    let aiDetail = `Dual-Engine Consensus: ${confidence}% confidence score.`;
 
     // 4. Risk Level Gate
     let riskLevel: SignalRiskLevel = 'LOW';

@@ -107,7 +107,7 @@ export const ConnectionValidationCard: React.FC<ConnectionValidationCardProps> =
           <div className="text-[9px] text-zinc-400 flex items-center gap-1">
             <span className="font-mono text-zinc-300 font-bold">{debug.lastTickTimeFormatted}</span>
             <span className="text-zinc-600">•</span>
-            <span className="truncate text-zinc-500">{debug.source || 'BIQUOTE FEED'}</span>
+            <span className="truncate text-zinc-500">{debug.source || 'INSTITUTIONAL FEED'}</span>
           </div>
         </div>
 
