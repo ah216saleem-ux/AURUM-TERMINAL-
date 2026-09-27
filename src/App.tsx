@@ -22,6 +22,11 @@ import { PaperTradingDashboardView } from './components/PaperTradingDashboardVie
 import { NewsIntelligenceView } from './components/NewsIntelligenceView';
 import { AiLearningBacktestView } from './components/AiLearningBacktestView';
 import { AiRiskControlView } from './components/AiRiskControlView';
+import { ExecutionIntelligenceView } from './components/ExecutionIntelligenceView';
+import { MarketContextStateView } from './components/MarketContextStateView';
+import { DecisionAuditView } from './components/DecisionAuditView';
+import { ScenarioSimulationLabView } from './components/ScenarioSimulationLabView';
+import { AdaptiveStrategyMemoryView } from './components/AdaptiveStrategyMemoryView';
 import { AiWatchlistView } from './components/AiWatchlistView';
 import { AiAlertCenterModal } from './components/AiAlertCenterModal';
 import { DailyMarketBriefModal } from './components/DailyMarketBriefModal';
@@ -58,7 +63,8 @@ import {
   Compass,
   Cpu,
   Target,
-  Orbit
+  Orbit,
+  Scale
 } from 'lucide-react';
 import { GannIntradayEnginePanel } from './components/GannIntradayEnginePanel';
 import { MasterIntelligenceView } from './components/MasterIntelligenceView';
@@ -93,17 +99,20 @@ function MainApp() {
   const [selectedProfileAssetId, setSelectedProfileAssetId] = useState<string | null>(null);
   const [isScannerOpen, setIsScannerOpen] = useState<boolean>(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'MARKET_RADAR' | 'SPY' | 'PHASE_X' | 'MASTER' | 'SIGNALS' | 'GANN' | 'PAPER' | 'VALIDATION' | 'SCANNER' | 'NEWS' | 'RISK' | 'LEARNING' | 'HISTORY'>(() => {
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'MARKET_RADAR' | 'SPY' | 'PHASE_X' | 'MARKET_STATE' | 'EXECUTION_INTELLIGENCE' | 'DECISION_AUDIT' | 'SCENARIO_LAB' | 'STRATEGY_MEMORY' | 'MASTER' | 'SIGNALS' | 'GANN' | 'PAPER' | 'VALIDATION' | 'SCANNER' | 'NEWS' | 'RISK' | 'LEARNING' | 'HISTORY'>(() => {
     try {
       const hash = window.location.hash.toLowerCase();
       const search = window.location.search.toLowerCase();
       if (hash.includes('phase-x') || search.includes('phase_x') || search.includes('phase-x')) {
         return 'PHASE_X';
       }
+      if (hash.includes('radar') || search.includes('radar')) {
+        return 'MARKET_RADAR';
+      }
       const saved = localStorage.getItem('aurum_active_tab');
       if (saved) return saved as any;
     } catch {}
-    return 'PHASE_X';
+    return 'DASHBOARD';
   });
   const [categoryFilter, setCategoryFilter] = useState<MarketCategory | 'all'>('all');
   
@@ -353,13 +362,15 @@ function MainApp() {
                 { id: 'MARKET_RADAR', label: 'MARKET RADAR', icon: Radar, adminOnly: false },
                 { id: 'SPY', label: 'SPY OPTIONS', icon: Target, adminOnly: false },
                 { id: 'PHASE_X', label: 'PHASE X', icon: Orbit, adminOnly: false },
+                { id: 'MARKET_STATE', label: 'Market State', icon: Compass, adminOnly: true },
+                { id: 'EXECUTION_INTELLIGENCE', label: 'Execution Intelligence', icon: BrainCircuit, adminOnly: true },
+                { id: 'NEWS', label: 'Gold News', icon: Newspaper, adminOnly: false },
                 { id: 'MASTER', label: 'Master Intelligence', icon: Cpu, adminOnly: true },
                 { id: 'SIGNALS', label: 'Signals', icon: Sparkles, adminOnly: false },
                 { id: 'GANN', label: 'Gann Intraday', icon: Compass, adminOnly: true },
                 { id: 'PAPER', label: 'Paper Trading', icon: BarChart3, adminOnly: true },
                 { id: 'VALIDATION', label: 'Validation & Health', icon: ShieldAlert, adminOnly: true },
                 { id: 'SCANNER', label: 'Scanner', icon: Radar, adminOnly: false },
-                { id: 'NEWS', label: 'News', icon: Newspaper, adminOnly: false },
                 { id: 'RISK', label: 'Risk Management', icon: ShieldCheck, adminOnly: true },
                 { id: 'LEARNING', label: 'AI Learning', icon: BrainCircuit, adminOnly: true },
                 { id: 'HISTORY', label: 'Trade History', icon: History, adminOnly: true }
@@ -407,7 +418,7 @@ function MainApp() {
             </div>
 
             {/* Role-Based Guard for USER on Admin Tabs when Locked */}
-            {currentRole === 'USER' && !isAdminUnlocked && ['GANN', 'MASTER', 'PAPER', 'VALIDATION', 'RISK', 'LEARNING', 'HISTORY'].includes(activeTab) ? (
+            {currentRole === 'USER' && !isAdminUnlocked && ['GANN', 'MASTER', 'PAPER', 'VALIDATION', 'RISK', 'LEARNING', 'HISTORY', 'MARKET_STATE', 'EXECUTION_INTELLIGENCE'].includes(activeTab) ? (
               <div className="p-8 my-4 rounded-2xl bg-[#0b0e18] border border-amber-500/40 text-center space-y-4 max-w-xl mx-auto shadow-2xl">
                 <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/40 text-amber-400 flex items-center justify-center mx-auto shadow-lg shadow-amber-500/10">
                   <Lock className="w-7 h-7 text-amber-400" />
@@ -433,6 +444,8 @@ function MainApp() {
                   </div>
                   <div className="text-amber-400 font-semibold pt-1">🔒 Admin Protected Modules:</div>
                   <div className="grid grid-cols-2 gap-1 text-[10.5px] text-zinc-300 pt-0.5">
+                    <span>• Market State</span>
+                    <span>• Execution Intelligence</span>
                     <span>• Gann Intraday</span>
                     <span>• Master Intelligence</span>
                     <span>• Paper Trading</span>
@@ -454,6 +467,8 @@ function MainApp() {
                     onClick={() => {
                       setUnlockTargetId(activeTab);
                       const tabObj = [
+                        { id: 'MARKET_STATE', label: 'Market State' },
+                        { id: 'EXECUTION_INTELLIGENCE', label: 'Execution Intelligence' },
                         { id: 'GANN', label: 'Gann Intraday' },
                         { id: 'MASTER', label: 'Master Intelligence' },
                         { id: 'PAPER', label: 'Paper Trading' },
@@ -496,6 +511,15 @@ function MainApp() {
             ) : activeTab === 'PHASE_X' ? (
               /* AURUM TERMINAL: PHASE X — MARKET CYCLE INTELLIGENCE (WYCKOFF CORE) */
               <PhaseXView />
+            ) : activeTab === 'MARKET_STATE' ? (
+              /* REAL-TIME MARKET CONTEXT INTELLIGENCE BRAIN */
+              <MarketContextStateView />
+            ) : activeTab === 'EXECUTION_INTELLIGENCE' ? (
+              /* AUTOMATED VALIDATION & EXECUTION INTELLIGENCE */
+              <ExecutionIntelligenceView />
+            ) : (activeTab === 'DECISION_AUDIT' || activeTab === 'SCENARIO_LAB' || activeTab === 'STRATEGY_MEMORY' || activeTab === 'NEWS') ? (
+              /* CONSOLIDATED XAU/USD GOLD INTELLIGENCE TERMINAL */
+              <NewsIntelligenceView />
             ) : activeTab === 'MASTER' ? (
               /* MASTER PERFORMANCE INTELLIGENCE ENGINE */
               <MasterIntelligenceView
@@ -547,9 +571,6 @@ function MainApp() {
             ) : activeTab === 'VALIDATION' ? (
               /* VALIDATION & HEALTH MONITORING TAB */
               <ValidationMonitoringDashboardView />
-            ) : activeTab === 'NEWS' ? (
-              /* NEWS TAB */
-              <NewsIntelligenceView />
             ) : activeTab === 'RISK' ? (
               /* RISK MANAGEMENT TAB */
               <AiRiskControlView />

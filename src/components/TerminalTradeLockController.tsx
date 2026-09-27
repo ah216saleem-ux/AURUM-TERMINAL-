@@ -501,7 +501,7 @@ Provider: ${activeTrade?.marketDataProvider || 'INSTITUTIONAL DIRECT FEED'}`;
                 <div className="flex items-center justify-between border-b border-zinc-800 pb-1">
                   <span className="font-black text-sky-300 flex items-center gap-1 text-[11px]">
                     <Bot className="w-3.5 h-3.5 text-sky-400" />
-                    QWEN AI VERDICT
+                    AURUM INTELLIGENCE ENGINE
                   </span>
                   <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-bold">
                     {activeTrade.direction}
@@ -660,7 +660,7 @@ Provider: ${activeTrade?.marketDataProvider || 'INSTITUTIONAL DIRECT FEED'}`;
 
                         <div className="p-2.5 rounded-xl bg-zinc-900/80 border border-zinc-800 space-y-1">
                           <div className="flex items-center justify-between text-[11px] font-bold text-sky-300 border-b border-zinc-800 pb-1">
-                            <span>QWEN AI VERDICT</span>
+                            <span>AURUM INTELLIGENCE ENGINE</span>
                             <span className="text-zinc-400">{lastAnalysis.dualAiAnalysis.qwen.direction}</span>
                           </div>
                           <p className="text-[10.5px] text-zinc-400 leading-normal">

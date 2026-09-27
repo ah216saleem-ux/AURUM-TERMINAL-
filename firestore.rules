@@ -48,5 +48,11 @@ service cloud.firestore {
       allow read: if true;
       allow write: if true;
     }
+
+    // Strategy Memory Records collection
+    match /strategy_memory_records/{recordId} {
+      allow read: if true;
+      allow write: if true;
+    }
   }
 }

@@ -9,10 +9,21 @@ import { handleTerminalSignalsRequest } from './server/terminalSignalsRouter';
 import { handlePhaseXRequest } from './server/phaseXRouter';
 import { handleAdminAuthRequest } from './server/adminAuthRouter';
 import { initWebSocketServer } from './server/websocketServer';
+import { initExecutionIntelligence, handleExecutionIntelligenceRequest } from './server/executionIntelligenceRouter';
+import { handleMarketContextRequest } from './server/marketContextRouter';
+import { initDecisionJournal, handleDecisionAuditRequest } from './server/decisionAuditRouter';
+import { handleScenarioLabRequest } from './server/scenarioSimulationRouter';
+import { handleStrategyMemoryRequest } from './server/strategyMemoryRouter';
+import { handleGoldDataIntegrityRequest } from './server/goldDataIntegrityRouter';
+import { handleGoldNewsIntelligenceRequest } from './server/goldNewsEngine';
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
+
+  // Initialize Execution Intelligence Module Data Store
+  initExecutionIntelligence();
+  initDecisionJournal();
 
   // Body parser is already mounted
   app.use(express.json());
@@ -36,6 +47,14 @@ async function startServer() {
   // News API route
   app.get('/api/news', async (req, res) => {
     await handleNewsRequest(req, res);
+  });
+
+  // Dedicated Gold News Intelligence Engine route
+  app.all('/api/gold-news-intelligence*', async (req, res) => {
+    const handled = await handleGoldNewsIntelligenceRequest(req, res);
+    if (!handled) {
+      res.status(404).json({ error: 'Gold news intelligence route not found' });
+    }
   });
 
   // Market Data API routes
@@ -67,6 +86,54 @@ async function startServer() {
     const handled = await handlePhaseXRequest(req, res);
     if (!handled) {
       res.status(404).json({ error: 'Phase X route not found' });
+    }
+  });
+
+  // AURUM EXECUTION INTELLIGENCE SYSTEM
+  app.all('/api/execution-intelligence*', async (req, res) => {
+    const handled = await handleExecutionIntelligenceRequest(req, res);
+    if (!handled) {
+      res.status(404).json({ error: 'Execution Intelligence route not found' });
+    }
+  });
+
+  // AURUM MARKET CONTEXT INTELLIGENCE BRAIN
+  app.all('/api/market-context*', async (req, res) => {
+    const handled = await handleMarketContextRequest(req, res);
+    if (!handled) {
+      res.status(404).json({ error: 'Market Context route not found' });
+    }
+  });
+
+  // AURUM DECISION AUDIT & EXPLAINABILITY ENGINE
+  app.all('/api/decision-audit*', async (req, res) => {
+    const handled = await handleDecisionAuditRequest(req, res);
+    if (!handled) {
+      res.status(404).json({ error: 'Decision Audit route not found' });
+    }
+  });
+
+  // AURUM SCENARIO SIMULATION INTELLIGENCE ENGINE (SCENARIO LAB)
+  app.all('/api/scenario-lab*', async (req, res) => {
+    const handled = await handleScenarioLabRequest(req, res);
+    if (!handled) {
+      res.status(404).json({ error: 'Scenario Lab route not found' });
+    }
+  });
+
+  // AURUM ADAPTIVE STRATEGY MEMORY ENGINE
+  app.all('/api/strategy-memory*', async (req, res) => {
+    const handled = await handleStrategyMemoryRequest(req, res);
+    if (!handled) {
+      res.status(404).json({ error: 'Strategy Memory route not found' });
+    }
+  });
+
+  // AURUM XAU/USD GOLD DATA INTEGRITY & LIVE FEED ENGINE
+  app.all('/api/gold-data-integrity*', async (req, res) => {
+    const handled = await handleGoldDataIntegrityRequest(req, res);
+    if (!handled) {
+      res.status(404).json({ error: 'Gold data integrity route not found' });
     }
   });
 

@@ -80,6 +80,24 @@
         "record_count": { "type": "number", "description": "Total records included" },
         "data_json": { "type": "string", "description": "Serialized backup payload" }
       }
+    },
+    "strategy_memory_records": {
+      "fields": {
+        "id": { "type": "string", "description": "Unique memory record ID" },
+        "timestamp": { "type": "string", "description": "ISO timestamp" },
+        "asset": { "type": "string", "description": "Asset name or pair" },
+        "market_regime": { "type": "string", "description": "TRENDING, RANGING, NEWS_DRIVEN, HIGH_VOLATILITY, LOW_LIQUIDITY" },
+        "news_environment": { "type": "string", "description": "Active news event or status" },
+        "volatility_state": { "type": "string", "description": "HIGH, EXTREME, NORMAL, COMPRESSED" },
+        "session": { "type": "string", "description": "LONDON_OPEN, NY_OPEN, etc." },
+        "smc_condition": { "type": "string", "description": "SMC setup condition" },
+        "macro_condition": { "type": "string", "description": "Macro background environment" },
+        "approach_used": { "type": "string", "description": "Strategy approach applied" },
+        "prediction": { "type": "string", "description": "Market target thesis" },
+        "outcome": { "type": "string", "description": "SUCCESS, FAILURE, BE_OR_PARTIAL" },
+        "outcome_pnl_r": { "type": "number", "description": "Risk reward PnL in R units" },
+        "outcome_notes": { "type": "string", "description": "Post-trade learning commentary" }
+      }
     }
   }
 }
