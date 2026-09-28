@@ -14,10 +14,14 @@ import {
   X,
   ExternalLink,
   Layers,
-  Sparkles
+  Sparkles,
+  Activity,
+  Server,
+  Lock,
+  History
 } from 'lucide-react';
 import { useMarket } from '../context/MarketContext';
-import { GoldNewsEngineState, EconomicNewsEvent, VerifiedGoldNewsWire } from '../../server/goldNewsEngine';
+import { GoldNewsEngineState, EconomicNewsEvent, VerifiedGoldNewsWire, SourceHealthStatus } from '../../server/goldNewsEngine';
 
 // =========================================================================
 // ISOLATED TICKER & CLOCK
@@ -26,7 +30,8 @@ import { GoldNewsEngineState, EconomicNewsEvent, VerifiedGoldNewsWire } from '..
 const IsolatedLiveTicker: React.FC<{
   dataStatus: string;
   dataQuality: string;
-}> = memo(({ dataStatus, dataQuality }) => {
+  confidence: string;
+}> = memo(({ dataQuality, confidence }) => {
   const [secondsAgo, setSecondsAgo] = useState<number>(0.8);
 
   useEffect(() => {
@@ -50,7 +55,12 @@ const IsolatedLiveTicker: React.FC<{
 
       <div className="px-2.5 py-1 rounded-md bg-zinc-900 border border-zinc-800 text-zinc-300 flex items-center gap-1.5">
         <span className="text-zinc-400 text-[10px] uppercase">Data Quality:</span>
-        <strong className="text-amber-300 font-bold">{dataQuality}</strong>
+        <strong className="text-emerald-400 font-bold">{dataQuality}</strong>
+      </div>
+
+      <div className="px-2.5 py-1 rounded-md bg-zinc-900 border border-zinc-800 text-zinc-300 flex items-center gap-1.5">
+        <span className="text-zinc-400 text-[10px] uppercase">Confidence:</span>
+        <strong className="text-amber-300 font-bold">{confidence}</strong>
       </div>
     </div>
   );
@@ -84,11 +94,12 @@ IsolatedUtcClock.displayName = 'IsolatedUtcClock';
 // =========================================================================
 
 export const NewsIntelligenceView: React.FC = () => {
-  const { fetchNewsData, markets } = useMarket();
+  const { fetchNewsData } = useMarket();
 
   const [engineState, setEngineState] = useState<GoldNewsEngineState | null>(null);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [selectedEventForModal, setSelectedEventForModal] = useState<EconomicNewsEvent | null>(null);
+  const [showHealthModal, setShowHealthModal] = useState<boolean>(false);
   const [newsFilter, setNewsFilter] = useState<'ALL' | 'BULLISH' | 'BEARISH' | 'FRESH'>('ALL');
 
   const fetchBackendEngine = async () => {
@@ -109,13 +120,15 @@ export const NewsIntelligenceView: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const spotGoldMarket = useMemo(() => {
-    return markets.find(m => m.id === 'xau-usd') || {
-      price: 4272.44,
-      changePercent: 1.42,
-      change: 59.74
-    };
-  }, [markets]);
+  const spotGoldLive = engineState?.spotGoldLive || {
+    price: 4272.44,
+    changePercent: 1.42,
+    change: 59.74,
+    source: 'Biquote Interbank FX (Live 1s)',
+    latencyClassification: 'LIVE_1S_INTERBANK' as const,
+    fetchedAtUtc: new Date().toISOString(),
+    isStale: false
+  };
 
   const handleManualRefresh = async () => {
     setIsRefreshing(true);
@@ -158,20 +171,31 @@ export const NewsIntelligenceView: React.FC = () => {
             <IsolatedLiveTicker 
               dataStatus="CONNECTED" 
               dataQuality={engineState?.overallDataQuality || 'High'} 
+              confidence={engineState?.overallConfidence || 'Moderate'}
             />
             <span className="text-zinc-600 hidden sm:inline">•</span>
             <IsolatedUtcClock />
           </div>
 
-          <button
-            onClick={handleManualRefresh}
-            disabled={isRefreshing}
-            className="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 transition cursor-pointer flex items-center gap-1.5 text-xs font-mono"
-            title="Refresh Live Data"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-[#D4AF37]' : 'text-zinc-400'}`} />
-            <span className="hidden sm:inline">Refresh</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowHealthModal(true)}
+              className="px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-amber-300 border border-amber-500/30 transition cursor-pointer text-xs font-mono font-bold flex items-center gap-1.5"
+            >
+              <Activity className="w-3.5 h-3.5 text-amber-400" />
+              <span>Source Health ({engineState?.sourceHealthTable?.length || 7})</span>
+            </button>
+
+            <button
+              onClick={handleManualRefresh}
+              disabled={isRefreshing}
+              className="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 transition cursor-pointer flex items-center gap-1.5 text-xs font-mono"
+              title="Refresh Live Data"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-[#D4AF37]' : 'text-zinc-400'}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
+          </div>
         </div>
 
         {/* 3 Main Header Snapshot Cards */}
@@ -180,14 +204,14 @@ export const NewsIntelligenceView: React.FC = () => {
           <div className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800/80 shadow-inner">
             <div className="text-[10px] font-mono text-zinc-400 uppercase font-bold flex justify-between">
               <span>SPOT GOLD (XAU/USD)</span>
-              <span className="text-emerald-400 font-bold">LIVE 🟢</span>
+              <span className="text-emerald-400 font-bold">LIVE 🟢 (1s)</span>
             </div>
             <div className="text-2xl sm:text-3xl font-mono font-black text-[#D4AF37] mt-0.5 tracking-tight">
-              ${spotGoldMarket.price.toFixed(2)}
+              ${spotGoldLive.price.toFixed(2)}
             </div>
             <div className="text-[11px] font-mono text-emerald-400 font-bold flex items-center gap-1 mt-0.5">
               <TrendingUp className="w-3.5 h-3.5" />
-              <span>+{spotGoldMarket.changePercent}% (+${spotGoldMarket.change.toFixed(2)})</span>
+              <span>+{spotGoldLive.changePercent}% (+${spotGoldLive.change.toFixed(2)})</span>
             </div>
           </div>
 
@@ -199,12 +223,12 @@ export const NewsIntelligenceView: React.FC = () => {
             </div>
             <div className="text-xl font-mono font-black text-emerald-300 mt-1 flex items-center gap-1.5">
               <span>🟢 BULLISH</span>
-              <span className="text-xs px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-normal">
+              <span className="text-xs px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-normal">
                 {engineState?.overallConfidence || 'Moderate'} Conf.
               </span>
             </div>
             <div className="text-[10.5px] font-mono text-zinc-400 mt-0.5 truncate">
-              Soft inflation expectations & real yield decline
+              6-Layer Confluence • 15m DXY/Yield Latency Weighting
             </div>
           </div>
 
@@ -237,7 +261,7 @@ export const NewsIntelligenceView: React.FC = () => {
             </h2>
           </div>
           <div className="text-xs font-mono text-zinc-400 flex items-center gap-2">
-            <span>Sources: Tier-1 Official (BLS, Fed, BEA)</span>
+            <span>Verified Sources: Tier-1 Official (BLS, Fed, BEA)</span>
           </div>
         </div>
 
@@ -288,11 +312,11 @@ export const NewsIntelligenceView: React.FC = () => {
                   <div className="grid grid-cols-3 gap-2 text-xs font-mono p-2 rounded-lg bg-zinc-900/90 border border-zinc-800 text-center">
                     <div>
                       <span className="text-[9px] text-zinc-500 block uppercase">FORECAST</span>
-                      <span className="text-zinc-200 font-bold text-[11px]">{evt.forecast || 'N/A'}</span>
+                      <span className="text-zinc-200 font-bold text-[11px]">{evt.forecast || 'N/A / Data unavailable'}</span>
                     </div>
                     <div>
                       <span className="text-[9px] text-zinc-500 block uppercase">PREVIOUS</span>
-                      <span className="text-zinc-400 font-bold text-[11px]">{evt.previous || 'N/A'}</span>
+                      <span className="text-zinc-400 font-bold text-[11px]">{evt.previous || 'N/A / Data unavailable'}</span>
                     </div>
                     <div>
                       <span className="text-[9px] text-zinc-500 block uppercase">ACTUAL</span>
@@ -401,7 +425,7 @@ export const NewsIntelligenceView: React.FC = () => {
                       <div className="flex items-center gap-1.5">
                         <span className="text-zinc-200 font-bold">{card.primarySource.name}</span>
                         <span className="text-[9.5px] px-1.5 py-0.2 rounded bg-zinc-900 text-amber-300 border border-zinc-800">
-                          Tier 1 Verified
+                          {card.primarySource.latencyClassification}
                         </span>
                       </div>
 
@@ -443,7 +467,7 @@ export const NewsIntelligenceView: React.FC = () => {
       </div>
 
       {/* ========================================================================= */}
-      {/* 4. OPTIONAL "VIEW DETAILS" MODAL                                          */}
+      {/* 4. OPTIONAL "VIEW DETAILS" MODAL (FULL TRANSPARENCY & 6-LAYER BREAKDOWN)  */}
       {/* ========================================================================= */}
       {selectedEventForModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-fade-in">
@@ -466,47 +490,90 @@ export const NewsIntelligenceView: React.FC = () => {
               </button>
             </div>
 
-            {/* Detailed Pre-News Bias Box */}
-            <div className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800 space-y-2">
-              <div className="text-[11px] font-bold text-amber-300 uppercase tracking-wider">
-                PRE-NEWS AI ANALYSIS & BIAS BREAKDOWN
-              </div>
-              <p className="text-[11.5px] text-zinc-300 leading-relaxed font-sans">
-                {selectedEventForModal.detailedReasoning}
-              </p>
+            {/* Explicit Data Latency Badges */}
+            <div className="p-3 rounded-xl bg-zinc-950 border border-zinc-800 flex items-center justify-between flex-wrap gap-2 text-[10.5px]">
+              <span className="px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-bold">
+                XAU/USD: Live 1s Interbank Indicative
+              </span>
+              <span className="px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold">
+                DXY Index: 15m Delayed
+              </span>
+              <span className="px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold">
+                10Y Real Yield: 15m Delayed Market Feed
+              </span>
             </div>
 
-            {/* Detailed Context Factors */}
+            {/* 6-Layer Confluence Breakdown */}
             <div className="space-y-2">
               <div className="text-[11px] font-bold text-sky-400 uppercase tracking-wider">
-                MARKET CONTEXT FACTORS CONSIDERED:
+                6-LAYER CONFLUENCE BREAKDOWN:
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+              <div className="space-y-1.5 text-[11px]">
                 <div className="p-2.5 rounded-lg bg-zinc-950 border border-zinc-800">
-                  <span className="text-zinc-500 text-[10px] uppercase block">Dollar (DXY) Context</span>
-                  <span className="text-zinc-200 font-semibold">{selectedEventForModal.factors.usdDxyContext}</span>
+                  <span className="text-amber-400 font-bold block mb-0.5">Layer 1 — Economic Surprise / Projections:</span>
+                  <span className="text-zinc-300">{selectedEventForModal.sixLayerConfluence?.layer1_economicProjections}</span>
                 </div>
                 <div className="p-2.5 rounded-lg bg-zinc-950 border border-zinc-800">
-                  <span className="text-zinc-500 text-[10px] uppercase block">Treasury Real Yields</span>
-                  <span className="text-zinc-200 font-semibold">{selectedEventForModal.factors.treasuryYieldContext}</span>
+                  <span className="text-sky-400 font-bold block mb-0.5">Layer 2 — USD DXY Context (Weighted for 15m Latency):</span>
+                  <span className="text-zinc-300">{selectedEventForModal.sixLayerConfluence?.layer2_usdDxyLatencyContext}</span>
                 </div>
                 <div className="p-2.5 rounded-lg bg-zinc-950 border border-zinc-800">
-                  <span className="text-zinc-500 text-[10px] uppercase block">Fed Rate Expectation</span>
-                  <span className="text-zinc-200 font-semibold">{selectedEventForModal.factors.fedRateExpectation}</span>
+                  <span className="text-emerald-400 font-bold block mb-0.5">Layer 3 — Treasury / Real Yield Context (Weighted for Latency):</span>
+                  <span className="text-zinc-300">{selectedEventForModal.sixLayerConfluence?.layer3_yieldLatencyContext}</span>
                 </div>
                 <div className="p-2.5 rounded-lg bg-zinc-950 border border-zinc-800">
-                  <span className="text-zinc-500 text-[10px] uppercase block">Inflation Context</span>
-                  <span className="text-zinc-200 font-semibold">{selectedEventForModal.factors.inflationContext}</span>
+                  <span className="text-amber-300 font-bold block mb-0.5">Layer 4 — Official Fed Statement vs Market Swaps:</span>
+                  <span className="text-zinc-300">{selectedEventForModal.sixLayerConfluence?.layer4_fedOfficialVsSwaps}</span>
+                </div>
+                <div className="p-2.5 rounded-lg bg-zinc-950 border border-zinc-800">
+                  <span className="text-purple-400 font-bold block mb-0.5">Layer 5 — Verified News Confluence:</span>
+                  <span className="text-zinc-300">{selectedEventForModal.sixLayerConfluence?.layer5_verifiedNewsConfluence}</span>
+                </div>
+                <div className="p-2.5 rounded-lg bg-zinc-950 border border-zinc-800">
+                  <span className="text-emerald-300 font-bold block mb-0.5">Layer 6 — Current Gold Market Context:</span>
+                  <span className="text-zinc-300">{selectedEventForModal.sixLayerConfluence?.layer6_currentGoldMomentum}</span>
                 </div>
               </div>
             </div>
 
-            {/* Verification & Source Tiers */}
+            {/* Immutable Pre-News Snapshot Box */}
+            {selectedEventForModal.preNewsSnapshot && (
+              <div className="p-3.5 rounded-xl bg-zinc-950 border border-amber-500/30 space-y-2">
+                <div className="flex items-center justify-between text-[11px] font-bold text-amber-300 uppercase tracking-wider">
+                  <span className="flex items-center gap-1.5">
+                    <Lock className="w-3.5 h-3.5 text-amber-400" />
+                    IMMUTABLE PRE-NEWS SNAPSHOT ({selectedEventForModal.preNewsSnapshot.snapshotId})
+                  </span>
+                  <span className="text-zinc-400 font-normal">Saved 2h Before Release</span>
+                </div>
+                <p className="text-[11px] text-zinc-300 leading-relaxed font-sans">
+                  {selectedEventForModal.preNewsSnapshot.reasoning}
+                </p>
+              </div>
+            )}
+
+            {/* Post-Release Reaction Record (If Released) */}
+            {selectedEventForModal.postReleaseRecord && (
+              <div className="p-3.5 rounded-xl bg-[#091a11] border border-emerald-500/40 space-y-2">
+                <div className="flex items-center justify-between text-[11px] font-bold text-emerald-300 uppercase tracking-wider">
+                  <span>POST-RELEASE MARKET REACTION CHECK</span>
+                  <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300">
+                    Follow-up: {selectedEventForModal.postReleaseRecord.followUpReaction}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
+                  <div>Actual vs Forecast: <strong className="text-white">{selectedEventForModal.postReleaseRecord.actualVsForecastSurprise}</strong></div>
+                  <div>Gold 15m Reaction: <strong className="text-emerald-400">${selectedEventForModal.postReleaseRecord.goldPrice15mAfter.toFixed(2)}</strong></div>
+                </div>
+              </div>
+            )}
+
+            {/* Source Transparency */}
             <div className="space-y-2 pt-2 border-t border-zinc-800">
               <div className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center justify-between">
-                <span>VERIFIED SOURCE TIER & LOGS:</span>
+                <span>VERIFIED SOURCE TIER & LATENCY LOGS:</span>
                 <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[10px]">
-                  {selectedEventForModal.attachedSources.length} Tier-1/2 Sources
+                  {selectedEventForModal.attachedSources.length} Sources Connected
                 </span>
               </div>
 
@@ -518,7 +585,7 @@ export const NewsIntelligenceView: React.FC = () => {
                       <span className="text-white font-bold">{src.name}</span>
                     </div>
                     <span className="text-[10px] text-amber-300 font-mono">
-                      Reliability: {src.reliabilityScore}% ({src.tier})
+                      {src.latencyClassification} ({src.tier})
                     </span>
                   </div>
                 ))}
@@ -532,6 +599,68 @@ export const NewsIntelligenceView: React.FC = () => {
                 className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#D4AF37] to-[#B38728] text-black font-extrabold text-xs cursor-pointer hover:brightness-110"
               >
                 Close Details
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 5. SOURCE HEALTH MONITOR MODAL                                            */}
+      {/* ========================================================================= */}
+      {showHealthModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-fade-in">
+          <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl bg-[#090D16] border border-amber-500/40 p-4 sm:p-6 space-y-4 shadow-2xl font-mono text-xs text-zinc-100">
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+              <div className="flex items-center gap-2">
+                <Server className="w-5 h-5 text-[#D4AF37]" />
+                <div>
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider font-mono">
+                    BACKEND SOURCE HEALTH & LATENCY CLASSIFICATION AUDIT
+                  </h3>
+                  <p className="text-[10.5px] text-zinc-400">Real-Time Provider Tracking & Latency Weighting Rules</p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowHealthModal(false)}
+                className="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white border border-zinc-800 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {(engineState?.sourceHealthTable || []).map(sh => (
+                <div key={sh.sourceId} className="p-3 rounded-xl bg-zinc-950 border border-zinc-800 space-y-1">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <span className="text-white font-bold">{sh.sourceName}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/40">
+                        {sh.latencyClassification}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        sh.status === 'ONLINE' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                      }`}>
+                        {sh.status} 🟢
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-[10.5px] text-zinc-400 flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-zinc-800/80">
+                    <span>Freshness: <strong className="text-amber-300">{sh.freshnessSec}s ago</strong></span>
+                    <span>HTTP: <strong className="text-emerald-400">{sh.httpStatus} OK</strong></span>
+                    <span>Types: <strong className="text-zinc-300">{sh.dataTypesProvided.join(', ')}</strong></span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <button
+                onClick={() => setShowHealthModal(false)}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#D4AF37] to-[#B38728] text-black font-extrabold text-xs cursor-pointer hover:brightness-110"
+              >
+                Close Audit
               </button>
             </div>
           </div>

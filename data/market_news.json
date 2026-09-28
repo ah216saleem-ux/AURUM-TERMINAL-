@@ -1,0 +1,215 @@
+[
+  {
+    "id": "api-news-art-0-1790588735109",
+    "headline": "A New Paper Claims Zcash-Style Privacy for Bitcoin, No Fork Required",
+    "summary": "Shielded Bitcoin is the latest idea to improve privacy for the world's largest and most popular cryptocurrency.",
+    "source": "Gizmodo.com",
+    "url": "https://gizmodo.com/a-new-paper-claims-zcash-style-privacy-for-bitcoin-no-fork-required-2000817803",
+    "publishedAt": "2026-09-27T09:30:08Z",
+    "sentiment": "Neutral",
+    "impactLevel": "Medium",
+    "riskScore": 75,
+    "relevantAssets": [
+      "XAU/USD",
+      "S&P 500",
+      "EUR/USD"
+    ],
+    "eventKeywords": [
+      "CPI",
+      "FOMC"
+    ],
+    "reliabilityScore": 50,
+    "verificationStatus": "Low Confidence"
+  },
+  {
+    "id": "api-news-art-1-1790588735109",
+    "headline": "Manchester City chairman confident club will prove innocence",
+    "summary": "Manchester City chairman Khaldoon Al Mubarak has reiterated the club’s confidence that it will prove its innocence after an independent commission found the club guilty of the majority of the 115 ch...",
+    "source": "The Football Faithful",
+    "url": "https://thefootballfaithful.com/manchester-city-chairman-confident-club-will-prove-innocence/",
+    "publishedAt": "2026-09-27T09:15:00Z",
+    "sentiment": "Neutral",
+    "impactLevel": "Medium",
+    "riskScore": 76,
+    "relevantAssets": [
+      "XAU/USD",
+      "S&P 500",
+      "EUR/USD"
+    ],
+    "eventKeywords": [
+      "CPI",
+      "FOMC"
+    ],
+    "reliabilityScore": 50,
+    "verificationStatus": "Low Confidence"
+  },
+  {
+    "id": "api-news-art-2-1790588735109",
+    "headline": "From growing up in Golden Meadow to hiring Lane Kiffin: The story of LSU President Wade Rousse",
+    "summary": "Wade Rousse brings a Cajun accent and purple suits to his job as president of LSU, which hasn’t seen a Louisiana-born leader since 1999. But he also wants to see big changes to how the university system works.",
+    "source": "The Advocate",
+    "url": "https://www.theadvocate.com/baton_rouge/news/education/meet-lsu-president-wade-rousse/article_c8f0bd28-b555-4b73-98d0-003337aba812.html",
+    "publishedAt": "2026-09-27T09:00:00Z",
+    "sentiment": "Neutral",
+    "impactLevel": "Medium",
+    "riskScore": 77,
+    "relevantAssets": [
+      "XAU/USD",
+      "S&P 500",
+      "EUR/USD"
+    ],
+    "eventKeywords": [
+      "CPI",
+      "FOMC"
+    ],
+    "reliabilityScore": 50,
+    "verificationStatus": "Low Confidence"
+  },
+  {
+    "id": "api-news-art-3-1790588735109",
+    "headline": "NFL ‘Sunday Night Football’ betting promos: Earn over $5k in sportsbook, prediction market bonuses for Rams vs. Broncos",
+    "summary": "Find every sportsbook and prediction market promo to use for \"Sunday Night Football\" between the Rams and Broncos.",
+    "source": "New York Post",
+    "url": "https://nypost.com/2026/09/27/betting/nfl-sunday-night-football-betting-promos-earn-over-5k-in-sportsbook-prediction-market-bonuses-for-rams-vs-broncos/",
+    "publishedAt": "2026-09-27T09:00:00Z",
+    "sentiment": "Neutral",
+    "impactLevel": "Medium",
+    "riskScore": 78,
+    "relevantAssets": [
+      "XAU/USD",
+      "S&P 500",
+      "EUR/USD"
+    ],
+    "eventKeywords": [
+      "CPI",
+      "FOMC"
+    ],
+    "reliabilityScore": 50,
+    "verificationStatus": "Low Confidence"
+  },
+  {
+    "id": "api-news-art-4-1790588735109",
+    "headline": "History Says a Bear Market Is Coming. Here's What the Smartest Investors Are Already Doing",
+    "summary": "This year has been one for the record books. The S&P 500 (SNPINDEX: ^GSPC) has reached more than two dozen record highs so far in 2026, remaining resilient despite stubbornly high inflation, global economic tension, and artificial intelligence (AI) doomsday w…",
+    "source": "Biztoc.com",
+    "url": "https://biztoc.com/x/cd16c837b0adbe1e",
+    "publishedAt": "2026-09-27T08:34:46Z",
+    "sentiment": "Neutral",
+    "impactLevel": "Medium",
+    "riskScore": 79,
+    "relevantAssets": [
+      "XAU/USD",
+      "S&P 500",
+      "EUR/USD"
+    ],
+    "eventKeywords": [
+      "CPI",
+      "FOMC"
+    ],
+    "reliabilityScore": 50,
+    "verificationStatus": "Low Confidence"
+  },
+  {
+    "id": "api-news-art-5-1790588735109",
+    "headline": "Financial foundation: Why insurance and emergency funds must precede stocks",
+    "summary": "Emergency Fund vs Investing: Securing your income and emergency reserves ensures market volatility never threatens your essential financial stability",
+    "source": "Business Standard",
+    "url": "https://www.business-standard.com/finance/personal-finance/financial-foundation-why-insurance-and-emergency-funds-must-precede-stocks-126092400654_1.html",
+    "publishedAt": "2026-09-27T08:30:20Z",
+    "sentiment": "Neutral",
+    "impactLevel": "Medium",
+    "riskScore": 80,
+    "relevantAssets": [
+      "XAU/USD",
+      "S&P 500",
+      "EUR/USD"
+    ],
+    "eventKeywords": [
+      "CPI",
+      "FOMC"
+    ],
+    "reliabilityScore": 50,
+    "verificationStatus": "Low Confidence"
+  },
+  {
+    "id": "api-news-art-6-1790588735109",
+    "headline": "ETMarkets Smart Talk | The next 12 months may be about capital saved, not returns made: Praveen Jagwani",
+    "summary": "Praveen Jagwani advises investors to prioritize capital preservation over chasing high returns. Highlighting the need for extensive diversification among asset classes, he warns that a forthcoming Federal Reserve rate hike may influence Indian markets, impact…",
+    "source": "The Times of India",
+    "url": "https://economictimes.indiatimes.com/markets/expert-view/etmarkets-smart-talk-the-next-12-months-may-be-about-capital-saved-not-returns-made-praveen-jagwani/articleshow/134516792.cms",
+    "publishedAt": "2026-09-27T08:01:58Z",
+    "sentiment": "Neutral",
+    "impactLevel": "Medium",
+    "riskScore": 81,
+    "relevantAssets": [
+      "XAU/USD",
+      "S&P 500",
+      "EUR/USD"
+    ],
+    "eventKeywords": [
+      "CPI",
+      "FOMC"
+    ],
+    "reliabilityScore": 50,
+    "verificationStatus": "Low Confidence"
+  },
+  {
+    "id": "art-1-1790588733950",
+    "headline": "US Core CPI Anticipation: Institutional Traders Position for Softening Inflation Print",
+    "summary": "Pre-market order flow shows heavy accumulation in Gold (XAU/USD) and NASDAQ 100 call contracts.",
+    "source": "Reuters",
+    "url": "https://biquote.io/news",
+    "publishedAt": "2026-09-28T09:37:33.950Z",
+    "sentiment": "Bullish",
+    "impactLevel": "High",
+    "riskScore": 88,
+    "relevantAssets": [
+      "XAU/USD",
+      "NASDAQ 100"
+    ],
+    "eventKeywords": [
+      "CPI"
+    ],
+    "reliabilityScore": 95,
+    "verificationStatus": "Verified"
+  },
+  {
+    "id": "art-2-1790588733950",
+    "headline": "Inflation Cooling Expectations Trigger Massive Safe-Haven Bullion Buying",
+    "summary": "Pre-market order flow shows heavy accumulation in Gold (XAU/USD) as CPI cooling signals risk-on.",
+    "source": "Bloomberg Economics",
+    "url": "https://biquote.io/news",
+    "publishedAt": "2026-09-28T09:35:33.950Z",
+    "sentiment": "Bullish",
+    "impactLevel": "High",
+    "riskScore": 88,
+    "relevantAssets": [
+      "XAU/USD"
+    ],
+    "eventKeywords": [
+      "CPI"
+    ],
+    "reliabilityScore": 94,
+    "verificationStatus": "Verified"
+  },
+  {
+    "id": "art-3-1790588733950",
+    "headline": "Fed Officials Signal Measured Easing Pace as Labor Market Remains in Equilibrium",
+    "summary": "Federal Reserve policymakers express confidence in economic soft landing.",
+    "source": "Financial Times",
+    "url": "https://biquote.io/news",
+    "publishedAt": "2026-09-28T09:20:33.950Z",
+    "sentiment": "Bullish",
+    "impactLevel": "High",
+    "riskScore": 78,
+    "relevantAssets": [
+      "S&P 500",
+      "NASDAQ 100"
+    ],
+    "eventKeywords": [
+      "FOMC"
+    ],
+    "reliabilityScore": 93,
+    "verificationStatus": "Verified"
+  }
+]

@@ -13,7 +13,8 @@ import {
   getPhaseXLiveState,
   startPhaseXBackgroundScanner,
   stopPhaseXBackgroundScanner,
-  getPhaseXPipelineLogs
+  getPhaseXPipelineLogs,
+  triggerImmediateScan
 } from './phaseXBackgroundScanner';
 import { getVerifiedXauPrice } from './websocketServer';
 
@@ -228,6 +229,13 @@ export async function handlePhaseXRequest(req: IncomingMessage, res: ServerRespo
       const liveState = getPhaseXLiveState();
       res.statusCode = 200;
       res.end(JSON.stringify(liveState));
+      return true;
+    }
+
+    if (pathname === '/api/phase-x/force-scan' && (req.method === 'POST' || req.method === 'GET')) {
+      const freshState = await triggerImmediateScan();
+      res.statusCode = 200;
+      res.end(JSON.stringify(freshState));
       return true;
     }
 

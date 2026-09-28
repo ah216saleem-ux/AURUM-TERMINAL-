@@ -41,7 +41,15 @@ export interface PhaseXLiveStateResponse {
   tickAgeSeconds: number;
   tickStatus: 'LIVE' | 'LIVE_AMBER' | 'STALE' | 'OFFLINE';
   pipelineState: 'MONITORING MARKET' | 'ANALYZING MARKET' | 'WAITING FOR SETUP' | 'SETUP DETECTED' | 'QUALITY CHECK' | 'SIGNAL ACTIVE' | 'TP HIT' | 'SL HIT' | 'SIGNAL EXPIRED';
+  scannerStatus: 'SCANNING' | 'WAITING' | 'SETUP_ACTIVE' | 'NEXT_SCAN';
+  scannerStatusDisplay: string;
   cooldownRemainingSeconds: number;
+  nextScanTimestamp: number;
+  lastScanTimestamp: number;
+  nextSetupInSeconds: number;
+  nextSetupFormatted: string;
+  nextSetupCycleText: string;
+  isScanRunning: boolean;
   activeSignal: {
     setupId: string;
     direction: 'BUY' | 'SELL';
@@ -137,6 +145,8 @@ let activeSignalState: ActiveSignalData | null = null;
 let cooldownUntilTimestamp = 0;
 let currentPipelineState: 'MONITORING MARKET' | 'ANALYZING MARKET' | 'WAITING FOR SETUP' | 'SETUP DETECTED' | 'QUALITY CHECK' | 'SIGNAL ACTIVE' | 'TP HIT' | 'SL HIT' | 'SIGNAL EXPIRED' = 'MONITORING MARKET';
 let lastScanStartTime = 0;
+export const CANDLE_INTERVAL_MS = 15 * 60 * 1000;
+let lastClosedCandleScannedMs = 0;
 
 function ensureDataDir() {
   try {
@@ -224,7 +234,7 @@ let isScanRunning = false;
 /**
  * Execute 1 background scanning tick (every 2.5s)
  */
-export async function executePhaseXLiveScanCycle(): Promise<void> {
+export async function executePhaseXLiveScanCycle(forceScan = false): Promise<void> {
   const now = Date.now();
   // Watchdog: If previous scan was running for more than 20 seconds, force reset
   if (isScanRunning && now - lastScanStartTime > 20000) {
@@ -410,9 +420,20 @@ export async function executePhaseXLiveScanCycle(): Promise<void> {
       return;
     }
 
+    // 15-Minute Closed Candle Scan Execution
+    const currentCandleBoundary = Math.floor(now / CANDLE_INTERVAL_MS) * CANDLE_INTERVAL_MS;
+    const isNewClosedCandle = (currentCandleBoundary > lastClosedCandleScannedMs);
+
+    if (!forceScan && !isNewClosedCandle) {
+      // Waiting between 15M candle closes
+      currentPipelineState = 'WAITING FOR SETUP';
+      return;
+    }
+
     // STAGE 2: CANDLE FETCH & STAGE 3: ANALYZE PHASE
+    lastClosedCandleScannedMs = currentCandleBoundary;
     currentPipelineState = 'ANALYZING MARKET';
-    recordPipelineLog('ANALYZE_PHASE', 'INFO', 'Fetching closed candles (5M/15M/30M/1H/4H) & executing multi-timeframe quantitative cycle engine...');
+    recordPipelineLog('ANALYZE_PHASE', 'INFO', `Scanning 15M closed candle structure (${new Date(currentCandleBoundary).toTimeString().substring(0, 8)} UTC). Quantitative multi-timeframe engine running...`);
 
     const analysis = await analyzePhaseX('xau-usd', livePrice > 0 ? livePrice : undefined);
 
@@ -576,6 +597,32 @@ export function getPhaseXLiveState(): PhaseXLiveStateResponse {
 
   const cooldownRemainingSeconds = cooldownUntilTimestamp > now ? Math.ceil((cooldownUntilTimestamp - now) / 1000) : 0;
 
+  // Next 15M Setup Generation Cycle Calculation (Standard UTC M15 boundary)
+  const nextScanTimestamp = (Math.floor(now / CANDLE_INTERVAL_MS) + 1) * CANDLE_INTERVAL_MS;
+  const lastScanTimestamp = Math.floor(now / CANDLE_INTERVAL_MS) * CANDLE_INTERVAL_MS;
+  const nextSetupInSeconds = Math.max(0, Math.floor((nextScanTimestamp - now) / 1000));
+  const remM = Math.floor(nextSetupInSeconds / 60);
+  const remS = nextSetupInSeconds % 60;
+  const padTwo = (n: number) => (n < 10 ? '0' + n : '' + n);
+  const nextSetupFormatted = `${padTwo(remM)}:${padTwo(remS)}`;
+
+  let scannerStatus: 'SCANNING' | 'WAITING' | 'SETUP_ACTIVE' | 'NEXT_SCAN' = 'WAITING';
+  let scannerStatusDisplay = 'Waiting for 15M Candle Close';
+
+  if (activeSignalState && activeSignalState.status === 'ACTIVE') {
+    scannerStatus = 'SETUP_ACTIVE';
+    scannerStatusDisplay = `Setup Active — Targets Tracking (${activeSignalState.direction})`;
+  } else if (isScanRunning) {
+    scannerStatus = 'SCANNING';
+    scannerStatusDisplay = 'Scanning 15M Closed Candle Matrix...';
+  } else if (nextSetupInSeconds <= 10) {
+    scannerStatus = 'NEXT_SCAN';
+    scannerStatusDisplay = '15M Candle Close Imminent (Scanning Soon)';
+  } else {
+    scannerStatus = 'WAITING';
+    scannerStatusDisplay = `Waiting for Next 15M Closed Candle (${nextSetupFormatted})`;
+  }
+
   let activeSignalPayload = null;
   if (activeSignalState) {
     const ageMin = Math.floor((now - activeSignalState.startedAt) / 60000);
@@ -650,7 +697,15 @@ export function getPhaseXLiveState(): PhaseXLiveStateResponse {
     tickAgeSeconds,
     tickStatus,
     pipelineState: activeSignalState ? 'SIGNAL ACTIVE' : currentPipelineState,
+    scannerStatus,
+    scannerStatusDisplay,
     cooldownRemainingSeconds,
+    nextScanTimestamp,
+    lastScanTimestamp,
+    nextSetupInSeconds,
+    nextSetupFormatted,
+    nextSetupCycleText: '15-Minute Closed Candle Scan (Institutional M15 Cycle)',
+    isScanRunning,
     activeSignal: activeSignalPayload,
     history: historyFormatted,
     metrics: calculatePhaseXPerformanceMetrics(),
@@ -667,6 +722,11 @@ export function getPhaseXLiveState(): PhaseXLiveStateResponse {
     serverTime: now,
     pipelineLogs: getPhaseXPipelineLogs().slice(0, 15)
   };
+}
+
+export async function triggerImmediateScan(): Promise<PhaseXLiveStateResponse> {
+  await executePhaseXLiveScanCycle(true);
+  return getPhaseXLiveState();
 }
 
 // Diagnostics helper for admin panel

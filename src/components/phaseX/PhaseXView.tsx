@@ -32,7 +32,15 @@ interface LiveStateData {
   tickAgeSeconds: number;
   tickStatus: 'LIVE' | 'LIVE_AMBER' | 'STALE' | 'OFFLINE';
   pipelineState: 'MONITORING MARKET' | 'ANALYZING MARKET' | 'WAITING FOR SETUP' | 'SETUP DETECTED' | 'QUALITY CHECK' | 'SIGNAL ACTIVE' | 'TP HIT' | 'SL HIT' | 'SIGNAL EXPIRED';
+  scannerStatus?: 'SCANNING' | 'WAITING' | 'SETUP_ACTIVE' | 'NEXT_SCAN';
+  scannerStatusDisplay?: string;
   cooldownRemainingSeconds: number;
+  nextScanTimestamp?: number;
+  lastScanTimestamp?: number;
+  nextSetupInSeconds?: number;
+  nextSetupFormatted?: string;
+  nextSetupCycleText?: string;
+  isScanRunning?: boolean;
   activeSignal: {
     setupId: string;
     direction: 'BUY' | 'SELL';
@@ -95,29 +103,20 @@ interface LiveStateData {
 }
 
 const DEFAULT_INITIAL_LIVE_DATA: LiveStateData = {
-  livePrice: 4285.57,
+  livePrice: 0,
   tickAgeSeconds: 0,
   tickStatus: 'LIVE',
-  pipelineState: 'SIGNAL ACTIVE',
+  pipelineState: 'WAITING FOR SETUP',
+  scannerStatus: 'WAITING',
+  scannerStatusDisplay: 'Waiting for 15M Candle Close',
   cooldownRemainingSeconds: 0,
-  activeSignal: {
-    setupId: "xau-usd_SELL_APEX_DUAL_CONVERGENCE_1790366400000_1790368200000",
-    direction: "SELL",
-    setupType: "APEX DUAL CONVERGENCE (ALGO-FLOW + LIQUIDITY)",
-    preferredEntry: 4285.57,
-    stopLoss: 4295.67,
-    takeProfit1: 4265.37,
-    takeProfit2: 4255.27,
-    riskRewardRatio: "1:2 / 1:3",
-    tradeConfidence: 86,
-    startedAt: Date.now() - 360000,
-    signalAgeMinutes: 6,
-    signalAgeFormatted: "6 min",
-    status: "ACTIVE",
-    tp1Reached: false,
-    tp2Reached: false,
-    slReached: false
-  },
+  nextScanTimestamp: 0,
+  lastScanTimestamp: 0,
+  nextSetupInSeconds: 900,
+  nextSetupFormatted: '15:00',
+  nextSetupCycleText: '15-Minute Closed Candle Scan (Institutional M15 Cycle)',
+  isScanRunning: false,
+  activeSignal: null,
   metrics: {
     totalApprovedSignals: 10,
     completedTrades: 9,
@@ -305,6 +304,15 @@ export const PhaseXView: React.FC = () => {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && Array.isArray(parsed.history) && parsed.history.length > 0) {
+          // If cached state has an old stale activeSignal (older than 2h or the legacy dummy one), clear it immediately
+          if (parsed.activeSignal) {
+            const ageMs = Date.now() - (parsed.activeSignal.startedAt || 0);
+            if (ageMs > 2 * 60 * 60 * 1000 || parsed.activeSignal.setupId?.includes('APEX_DUAL_CONVERGENCE')) {
+              parsed.activeSignal = null;
+              parsed.pipelineState = 'WAITING FOR SETUP';
+              parsed.scannerStatus = 'WAITING';
+            }
+          }
           return parsed;
         }
       }
@@ -321,6 +329,7 @@ export const PhaseXView: React.FC = () => {
   const [utcTimeStr, setUtcTimeStr] = useState<string>('');
   const [localTimeStr, setLocalTimeStr] = useState<string>('');
   const [candleCountdown, setCandleCountdown] = useState<string>('15:00');
+  const [nextScanSecondsRemaining, setNextScanSecondsRemaining] = useState<number>(900);
   const [activeSession, setActiveSession] = useState<string>('LONDON / NY');
   const [priceFlash, setPriceFlash] = useState<'UP' | 'DOWN' | null>(null);
   const prevPriceRef = useRef<number>(0);
@@ -343,12 +352,13 @@ export const PhaseXView: React.FC = () => {
       const lSecs = pad(now.getSeconds());
       setLocalTimeStr(`${lHours}:${lMins}:${lSecs}`);
 
-      // 15M Candle Countdown
+      // 15M Candle Countdown (Deterministic UTC M15 boundary)
       const curM = now.getUTCMinutes();
       const curS = now.getUTCSeconds();
       const remSec = (14 - (curM % 15)) * 60 + (60 - curS);
       const remMin = Math.floor(remSec / 60);
       const remSeconds = remSec % 60;
+      setNextScanSecondsRemaining(remSec);
       setCandleCountdown(`${pad(remMin)}:${pad(remSeconds)}`);
 
       // Market Session Determination
@@ -475,7 +485,7 @@ export const PhaseXView: React.FC = () => {
             const hasNewHistory = Array.isArray(data.history) && data.history.length > 0;
             const mergedHistory = hasNewHistory ? data.history : (prev.history.length > 0 ? prev.history : DEFAULT_INITIAL_LIVE_DATA.history);
             const mergedMetrics = data.metrics || prev.metrics || DEFAULT_INITIAL_LIVE_DATA.metrics;
-            const mergedActiveSignal = (data.activeSignal !== undefined) ? data.activeSignal : prev.activeSignal;
+            const mergedActiveSignal = (data.activeSignal !== undefined) ? data.activeSignal : null;
 
             const nextState: LiveStateData = {
               ...prev,
@@ -535,16 +545,17 @@ export const PhaseXView: React.FC = () => {
   // Trigger Instant Manual Scan
   const handleForceScan = async () => {
     setIsManualScanning(true);
-    setManualScanMsg('Scanning 5M/15M/30M/1H/4H structure & live quote...');
+    setManualScanMsg('Scanning 15M closed candle & quantitative structure on MT5 live feed...');
     try {
-      const res = await fetch('/api/phase-x/analyze?asset=xau-usd');
+      const res = await fetch('/api/phase-x/force-scan', { method: 'POST' });
       const data = await res.json();
-      if (data) {
-        setManualScanMsg(`Scan complete: Direction=${data.finalDirection} | Phase=${data.marketPhase} | Gate=${data.engineDetails?.phase5QualityGate?.finalGateStatus || 'APPROVED'}`);
-        fetchLiveState();
+      if (data && typeof data.livePrice === 'number') {
+        setLiveData(data);
+        setManualScanMsg(`Scan complete: ${data.scannerStatusDisplay || '15M Candle Scanned'} | Status: ${data.scannerStatus || data.pipelineState}`);
       }
     } catch {
       setManualScanMsg('Scan triggered.');
+      fetchLiveState();
     } finally {
       setIsManualScanning(false);
       setTimeout(() => setManualScanMsg(null), 5000);
@@ -597,6 +608,11 @@ export const PhaseXView: React.FC = () => {
   const activeSig = liveData.activeSignal;
   const metrics = liveData.metrics;
   const quote = liveData.quote;
+
+  const isSetupActive = !!(activeSig && activeSig.status === 'ACTIVE');
+  const isScanning = !!(liveData.isScanRunning || isManualScanning || liveData.scannerStatus === 'SCANNING');
+  const isNextScan = !isSetupActive && !isScanning && (nextScanSecondsRemaining <= 15 || liveData.scannerStatus === 'NEXT_SCAN');
+  const isWaiting = !isSetupActive && !isScanning && !isNextScan;
 
   // Filter history
   const filteredHistory = (liveData.history || []).filter(item => {
@@ -658,6 +674,94 @@ export const PhaseXView: React.FC = () => {
             <span>{manualScanMsg}</span>
           </div>
         )}
+
+        {/* TOP NEXT SETUP SCANNER & 15M CANDLE COUNTDOWN BANNER */}
+        <section className="bg-gradient-to-r from-[#12161C] via-[#161C24] to-[#12161C] border border-[#D4AF37]/40 rounded-2xl p-4 sm:p-5 shadow-2xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-48 h-48 bg-[#D4AF37]/5 rounded-full blur-3xl pointer-events-none" />
+          
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            {/* Left: Titles & 4 State Badges */}
+            <div className="space-y-2.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs sm:text-sm font-mono font-black text-white uppercase tracking-wider flex items-center gap-2">
+                  <Timer className="w-4 h-4 text-[#D4AF37] animate-pulse" />
+                  NEXT SETUP SCANNER
+                </span>
+                <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-mono font-bold">
+                  15M CLOSED CANDLE SCAN
+                </span>
+              </div>
+
+              {/* 4 Scanner States: Scanning / Waiting / Setup Active / Next Scan */}
+              <div className="flex flex-wrap items-center gap-2">
+                {/* 1. Scanning Badge */}
+                <div className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition-all ${
+                  isScanning 
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50 shadow-sm shadow-amber-500/20 animate-pulse'
+                    : 'bg-[#1E252E]/60 text-zinc-500 border border-[#1E252E]'
+                }`}>
+                  <RefreshCw className={`w-3 h-3 ${isScanning ? 'animate-spin text-amber-400' : 'text-zinc-600'}`} />
+                  <span>Scanning</span>
+                </div>
+
+                {/* 2. Waiting Badge */}
+                <div className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition-all ${
+                  isWaiting 
+                    ? 'bg-blue-500/20 text-blue-300 border border-blue-500/50 shadow-sm shadow-blue-500/20'
+                    : 'bg-[#1E252E]/60 text-zinc-500 border border-[#1E252E]'
+                }`}>
+                  <Clock className={`w-3 h-3 ${isWaiting ? 'text-blue-400' : 'text-zinc-600'}`} />
+                  <span>Waiting</span>
+                </div>
+
+                {/* 3. Setup Active Badge */}
+                <div className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition-all ${
+                  isSetupActive 
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 shadow-sm shadow-emerald-500/20'
+                    : 'bg-[#1E252E]/60 text-zinc-500 border border-[#1E252E]'
+                }`}>
+                  <CheckCircle2 className={`w-3 h-3 ${isSetupActive ? 'text-emerald-400 animate-pulse' : 'text-zinc-600'}`} />
+                  <span>Setup Active</span>
+                </div>
+
+                {/* 4. Next Scan Badge */}
+                <div className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition-all ${
+                  isNextScan 
+                    ? 'bg-[#D4AF37]/25 text-[#D4AF37] border border-[#D4AF37]/60 shadow-sm shadow-[#D4AF37]/20 animate-pulse'
+                    : 'bg-[#1E252E]/60 text-zinc-500 border border-[#1E252E]'
+                }`}>
+                  <Timer className={`w-3 h-3 ${isNextScan ? 'text-[#D4AF37]' : 'text-zinc-600'}`} />
+                  <span>Next Scan</span>
+                </div>
+              </div>
+
+              {/* Subtitle / Description */}
+              <p className="text-[11px] text-zinc-400 font-mono">
+                {isSetupActive 
+                  ? `Active Setup in progress (${activeSig.direction} @ $${activeSig.preferredEntry.toFixed(2)}) • Next scan in ${candleCountdown}`
+                  : isScanning 
+                    ? 'Analyzing 15M closed candle quantitative structure on MT5 live quote...'
+                    : isNextScan 
+                      ? '15M candle close imminent — preparing automated quantitative scan...'
+                      : `Automated scan executes after every 15-minute closed candle (:00, :15, :30, :45 UTC).`}
+              </p>
+            </div>
+
+            {/* Right: Large Synced MM:SS Countdown Timer */}
+            <div className="flex items-center gap-3 self-end md:self-center">
+              <div className="bg-[#0B0D10]/90 border border-[#D4AF37]/40 px-4 sm:px-6 py-2.5 sm:py-3 rounded-2xl shadow-inner font-mono text-right">
+                <div className="text-[10px] text-zinc-400 uppercase tracking-widest font-semibold flex items-center justify-end gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37] animate-ping" />
+                  <span>Next Scan In</span>
+                </div>
+                <div className="text-2xl sm:text-3xl md:text-4xl font-black text-[#D4AF37] tabular-nums tracking-wider flex items-center justify-end gap-1.5 mt-0.5">
+                  <span>{candleCountdown}</span>
+                  <span className="text-xs text-zinc-400 font-normal">MM:SS</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
 
         {/* 2. MAIN HEADER BAR */}
         <header className="bg-[#12161C] border border-[#1E252E] rounded-2xl p-4 sm:p-5 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -956,8 +1060,9 @@ export const PhaseXView: React.FC = () => {
               </div>
             </div>
 
-            <div className="text-[11px] text-zinc-500 font-mono text-center pt-1">
-              Next setup trigger occurs automatically when new 15M closed candle confirms structural re-test or breakout.
+            <div className="text-[11px] text-zinc-400 font-mono text-center pt-1.5 border-t border-[#1E252E]/60 flex flex-wrap items-center justify-center gap-2">
+              <Clock className="w-3.5 h-3.5 text-[#D4AF37]" />
+              <span>Naya setup exact <strong className="text-[#D4AF37] font-bold">{candleCountdown} min</strong> baad evaluation cycle mein check/generate hoga (15M Closed Candle Confirmation).</span>
             </div>
           </div>
         )}

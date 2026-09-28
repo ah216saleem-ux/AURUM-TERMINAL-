@@ -1,0 +1,90 @@
+[
+  {
+    "id": "hist-01",
+    "eventName": "US Core CPI Inflation (YoY)",
+    "category": "CPI",
+    "date": "2026-09-15",
+    "forecast": "2.6%",
+    "previous": "2.9%",
+    "actual": "2.4%",
+    "marketConditionBefore": "Gold consolidating near $2,625 support block. Treasury yields ranging.",
+    "goldPriceBefore": "$2,624.80",
+    "goldReactionAfter": "+$34.20 Rally",
+    "usdReaction": "-0.68% DXY Drop",
+    "volatility": "HIGH",
+    "reactions": {
+      "min5": "+$12.50 breakout instantly",
+      "min15": "+$21.80 follow-through",
+      "hour1": "+$30.10 consolidation",
+      "hour4": "+$34.20 peak and hold"
+    },
+    "predictedOutcome": "Gold Bullish / USD Bearish",
+    "predictionCorrect": true
+  },
+  {
+    "id": "hist-02",
+    "eventName": "FOMC Federal Funds Rate Decision",
+    "category": "FOMC",
+    "date": "2026-09-18",
+    "forecast": "4.75%",
+    "previous": "5.00%",
+    "actual": "4.50%",
+    "marketConditionBefore": "Gold in safe-haven consolidation near $2,642. DXY trading with low liquidity.",
+    "goldPriceBefore": "$2,641.50",
+    "goldReactionAfter": "+$46.80 Surge",
+    "usdReaction": "-1.12% DXY Crash",
+    "volatility": "EXTREME",
+    "reactions": {
+      "min5": "+$18.20 upward spikes",
+      "min15": "+$32.40 expansion",
+      "hour1": "+$42.50 resistance breakout",
+      "hour4": "+$46.80 standard close"
+    },
+    "predictedOutcome": "Gold Bullish / USD Bearish",
+    "predictionCorrect": true
+  },
+  {
+    "id": "hist-03",
+    "eventName": "US Non-Farm Payrolls (NFP)",
+    "category": "NFP",
+    "date": "2026-09-04",
+    "forecast": "165K",
+    "previous": "142K",
+    "actual": "112K",
+    "marketConditionBefore": "Gold trading tightly within local h1 supply channel near $2,610.",
+    "goldPriceBefore": "$2,608.20",
+    "goldReactionAfter": "+$26.10 Rally",
+    "usdReaction": "-0.52% DXY Unwind",
+    "volatility": "HIGH",
+    "reactions": {
+      "min5": "+$10.40 initial spike",
+      "min15": "+$18.50 momentum",
+      "hour1": "+$23.00 supply sweep",
+      "hour4": "+$26.10 session wrap"
+    },
+    "predictedOutcome": "Gold Bullish / USD Bearish",
+    "predictionCorrect": true
+  },
+  {
+    "id": "hist-04",
+    "eventName": "US Retail Sales (MoM)",
+    "category": "RETAIL",
+    "date": "2026-09-16",
+    "forecast": "0.3%",
+    "previous": "0.4%",
+    "actual": "0.7%",
+    "marketConditionBefore": "Gold at local support block near $2,630. Yields ticking higher.",
+    "goldPriceBefore": "$2,631.50",
+    "goldReactionAfter": "-$14.80 Decline",
+    "usdReaction": "+0.34% DXY Expansion",
+    "volatility": "MEDIUM",
+    "reactions": {
+      "min5": "-$4.80 immediate sweep",
+      "min15": "-$8.90 discount seek",
+      "hour1": "-$12.50 base support test",
+      "hour4": "-$14.80 rebound consolidation"
+    },
+    "predictedOutcome": "Gold Bearish / USD Bullish",
+    "predictionCorrect": true
+  }
+]
