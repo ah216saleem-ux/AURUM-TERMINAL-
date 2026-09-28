@@ -178,7 +178,7 @@ class MarketDataService {
 
   // Tracking for live prices, previous prices, and ticks
   public latestPrices: Record<string, number> = {
-    'xau-usd': 4358.50,
+    'xau-usd': 4137.50,
     'xag-usd': 65.65,
     'eur-usd': 1.1479,
     'gbp-usd': 1.3358,
@@ -192,7 +192,7 @@ class MarketDataService {
   };
 
   public previousPrices: Record<string, number> = {
-    'xau-usd': 4358.50,
+    'xau-usd': 4137.50,
     'xag-usd': 65.65,
     'eur-usd': 1.1479,
     'gbp-usd': 1.3358,
@@ -638,7 +638,7 @@ class MarketDataService {
 
     // 2. Metals & Forex: Biquote Direct
     const biquoteSymbols = [
-      { id: 'xau-usd', symbol: 'XAUUSD', decimals: 2, defaultBase: 4358.50, vol: '$34.2B' },
+      { id: 'xau-usd', symbol: 'XAUUSD', decimals: 2, defaultBase: 4137.50, vol: '$34.2B' },
       { id: 'xag-usd', symbol: 'XAGUSD', decimals: 2, defaultBase: 65.65, vol: '$12.4B' },
       { id: 'eur-usd', symbol: 'EURUSD', decimals: 4, defaultBase: 1.1479, vol: '$118.5B' },
       { id: 'gbp-usd', symbol: 'GBPUSD', decimals: 4, defaultBase: 1.3358, vol: '$84.2B' },

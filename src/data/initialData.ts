@@ -6,17 +6,17 @@ export const INITIAL_MARKETS: MarketItem[] = [
     symbol: 'XAU/USD',
     name: 'Gold Spot',
     category: 'commodities',
-    price: 4358.50,
-    change: 12.30,
-    changePercent: 0.28,
-    high24h: 4362.50,
-    low24h: 4341.20,
+    price: 4137.50,
+    change: -2.40,
+    changePercent: -0.06,
+    high24h: 4165.00,
+    low24h: 4110.00,
     volume24h: '$34.2B',
     isOpen: true,
     marketStatusText: 'LIVE • SPOT LIQUIDITY',
     exchange: 'LBMA / DIRECT',
     decimals: 2,
-    sparkline: [4345.5, 4348.2, 4352.0, 4355.5, 4353.0, 4357.2, 4356.0, 4359.5, 4358.5]
+    sparkline: [4155.5, 4148.2, 4152.0, 4145.5, 4143.0, 4141.2, 4138.0, 4139.5, 4137.5]
   },
   {
     id: 'xag-usd',

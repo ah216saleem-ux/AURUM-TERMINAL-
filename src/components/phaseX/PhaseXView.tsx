@@ -118,173 +118,28 @@ const DEFAULT_INITIAL_LIVE_DATA: LiveStateData = {
   isScanRunning: false,
   activeSignal: null,
   metrics: {
-    totalApprovedSignals: 10,
-    completedTrades: 9,
-    tp1Hits: 8,
-    tp2Hits: 6,
-    stopLossHits: 1,
-    winRate: 89,
-    averageR: 2.33,
-    totalR: 21,
-    averageConfidence: 86,
-    signalsPerDay: 2.9,
-    isSampleSufficient: true,
-    sampleStatus: "SUFFICIENT_SAMPLE"
+    totalApprovedSignals: 0,
+    completedTrades: 0,
+    tp1Hits: 0,
+    tp2Hits: 0,
+    stopLossHits: 0,
+    winRate: 0,
+    averageR: 0,
+    totalR: 0,
+    averageConfidence: 0,
+    signalsPerDay: 0,
+    isSampleSufficient: false,
+    sampleStatus: "INSUFFICIENT LIVE SAMPLE"
   },
-  history: [
-    {
-      setupId: "xau-usd_SELL_APEX_DUAL_CONVERGENCE_1790366400000_1790368200000",
-      timeFormatted: "12:48 UTC",
-      dateFormatted: "Sep 26",
-      timestamp: 1790426916145,
-      direction: "SELL",
-      setupType: "APEX DUAL CONVERGENCE (ALGO-FLOW + LIQUIDITY)",
-      preferredEntry: 4358.5,
-      stopLoss: 4368.6,
-      takeProfit1: 4338.3,
-      takeProfit2: 4328.2,
-      riskRewardRatio: "1:2 / 1:3",
-      tradeConfidence: 86,
-      result: "TP2 HIT",
-      rMultiple: "+3R"
-    },
-    {
-      setupId: "xau-usd_SELL_EXHAUSTION_DISPLACEMENT_1790361000000_1790361900000",
-      timeFormatted: "18:30 UTC",
-      dateFormatted: "Sep 25",
-      timestamp: 1790361000000,
-      direction: "SELL",
-      setupType: "INSTITUTIONAL EXHAUSTION & REJECTION DISPLACEMENT",
-      preferredEntry: 4348.5,
-      stopLoss: 4356.5,
-      takeProfit1: 4332.5,
-      takeProfit2: 4324.5,
-      riskRewardRatio: "1:2 / 1:3",
-      tradeConfidence: 89,
-      result: "TP2 HIT",
-      rMultiple: "+3R"
-    },
-    {
-      setupId: "xau-usd_BUY_SESSION_LIQUIDITY_1790342100000_1790343000000",
-      timeFormatted: "13:15 UTC",
-      dateFormatted: "Sep 25",
-      timestamp: 1790342100000,
-      direction: "BUY",
-      setupType: "SESSION LIQUIDITY DISPLACEMENT & PIVOT SHIFT",
-      preferredEntry: 4314.8,
-      stopLoss: 4307.2,
-      takeProfit1: 4330.0,
-      takeProfit2: 4337.6,
-      riskRewardRatio: "1:2 / 1:3",
-      tradeConfidence: 86,
-      result: "TP2 HIT",
-      rMultiple: "+3R"
-    },
-    {
-      setupId: "xau-usd_BUY_TREND_PULLBACK_1790325900000_1790326800000",
-      timeFormatted: "08:45 UTC",
-      dateFormatted: "Sep 25",
-      timestamp: 1790325900000,
-      direction: "BUY",
-      setupType: "DYNAMIC MOMENTUM CONTINUATION VECTOR",
-      preferredEntry: 4326.4,
-      stopLoss: 4319.8,
-      takeProfit1: 4339.6,
-      takeProfit2: 4346.2,
-      riskRewardRatio: "1:2 / 1:3",
-      tradeConfidence: 82,
-      result: "TP1 HIT",
-      rMultiple: "+2R"
-    },
-    {
-      setupId: "xau-usd_SELL_IMBALANCE_MITIGATION_1790266800000_1790267700000",
-      timeFormatted: "16:20 UTC",
-      dateFormatted: "Sep 24",
-      timestamp: 1790266800000,
-      direction: "SELL",
-      setupType: "IMBALANCE ZONE MITIGATION & VECTOR REVERSAL",
-      preferredEntry: 4351.6,
-      stopLoss: 4359.2,
-      takeProfit1: 4336.4,
-      takeProfit2: 4328.8,
-      riskRewardRatio: "1:2 / 1:3",
-      tradeConfidence: 81,
-      result: "SL HIT",
-      rMultiple: "-1R"
-    },
-    {
-      setupId: "xau-usd_SELL_VOLUMETRIC_BREAKDOWN_1790249400000_1790250300000",
-      timeFormatted: "11:30 UTC",
-      dateFormatted: "Sep 24",
-      timestamp: 1790249400000,
-      direction: "SELL",
-      setupType: "VOLUMETRIC STRUCTURAL BREAKDOWN VECTOR",
-      preferredEntry: 4342.2,
-      stopLoss: 4349.8,
-      takeProfit1: 4327.0,
-      takeProfit2: 4319.4,
-      riskRewardRatio: "1:2 / 1:3",
-      tradeConfidence: 90,
-      result: "TP2 HIT",
-      rMultiple: "+3R"
-    },
-    {
-      setupId: "xau-usd_BUY_LIQUIDITY_ABSORPTION_1790234100000_1790235000000",
-      timeFormatted: "07:15 UTC",
-      dateFormatted: "Sep 24",
-      timestamp: 1790234100000,
-      direction: "BUY",
-      setupType: "INSTITUTIONAL LIQUIDITY ABSORPTION & EXPANSION",
-      preferredEntry: 4298.5,
-      stopLoss: 4291.0,
-      takeProfit1: 4313.5,
-      takeProfit2: 4321.0,
-      riskRewardRatio: "1:2 / 1:3",
-      tradeConfidence: 92,
-      result: "TP2 HIT",
-      rMultiple: "+3R"
-    },
-    {
-      setupId: "xau-usd_BUY_LIQUIDITY_INJECTION_1790178300000_1790179200000",
-      timeFormatted: "15:45 UTC",
-      dateFormatted: "Sep 23",
-      timestamp: 1790178300000,
-      direction: "BUY",
-      setupType: "TIER-1 LIQUIDITY INJECTION ZONE BOUNCE",
-      preferredEntry: 4308.2,
-      stopLoss: 4301.6,
-      takeProfit1: 4321.4,
-      takeProfit2: 4328.0,
-      riskRewardRatio: "1:2 / 1:3",
-      tradeConfidence: 84,
-      result: "TP1 HIT",
-      rMultiple: "+2R"
-    },
-    {
-      setupId: "xau-usd_SELL_TREND_RESISTANCE_1790155800000_1790156700000",
-      timeFormatted: "09:30 UTC",
-      dateFormatted: "Sep 23",
-      timestamp: 1790155800000,
-      direction: "SELL",
-      setupType: "MACRO TREND RESISTANCE REJECTION",
-      preferredEntry: 4345.5,
-      stopLoss: 4353.1,
-      takeProfit1: 4330.3,
-      takeProfit2: 4322.7,
-      riskRewardRatio: "1:2 / 1:3",
-      tradeConfidence: 87,
-      result: "TP2 HIT",
-      rMultiple: "+3R"
-    }
-  ],
+  history: [],
   quote: {
-    bid: 4285.48,
-    ask: 4285.66,
+    bid: 0,
+    ask: 0,
     spread: 0.18,
-    high24h: 4315.84,
-    low24h: 4254.27,
-    change24h: -3.43,
-    changePercent24h: -0.08,
+    high24h: 0,
+    low24h: 0,
+    change24h: 0,
+    changePercent24h: 0,
     source: "BIQUOTE (MetaTrader 5)"
   }
 };
@@ -303,11 +158,19 @@ export const PhaseXView: React.FC = () => {
       const saved = localStorage.getItem('aurum_phase_x_live_state');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed && Array.isArray(parsed.history) && parsed.history.length > 0) {
-          // If cached state has an old stale activeSignal (older than 2h or the legacy dummy one), clear it immediately
+        if (parsed && typeof parsed === 'object') {
+          // Clear legacy or dummy stale local storage
+          if (
+            parsed.quote?.bid === 4285.48 || 
+            parsed.metrics?.totalApprovedSignals === 10 ||
+            (parsed.history?.[0] && parsed.history[0].preferredEntry === 4358.5)
+          ) {
+            localStorage.removeItem('aurum_phase_x_live_state');
+            return DEFAULT_INITIAL_LIVE_DATA;
+          }
           if (parsed.activeSignal) {
             const ageMs = Date.now() - (parsed.activeSignal.startedAt || 0);
-            if (ageMs > 2 * 60 * 60 * 1000 || parsed.activeSignal.setupId?.includes('APEX_DUAL_CONVERGENCE')) {
+            if (ageMs > 2 * 60 * 60 * 1000) {
               parsed.activeSignal = null;
               parsed.pipelineState = 'WAITING FOR SETUP';
               parsed.scannerStatus = 'WAITING';
@@ -482,17 +345,13 @@ export const PhaseXView: React.FC = () => {
       .then((data: LiveStateData) => {
         if (data && typeof data.livePrice === 'number') {
           setLiveData(prev => {
-            const hasNewHistory = Array.isArray(data.history) && data.history.length > 0;
-            const mergedHistory = hasNewHistory ? data.history : (prev.history.length > 0 ? prev.history : DEFAULT_INITIAL_LIVE_DATA.history);
-            const mergedMetrics = data.metrics || prev.metrics || DEFAULT_INITIAL_LIVE_DATA.metrics;
-            const mergedActiveSignal = (data.activeSignal !== undefined) ? data.activeSignal : null;
-
             const nextState: LiveStateData = {
               ...prev,
               ...data,
-              history: mergedHistory,
-              metrics: mergedMetrics,
-              activeSignal: mergedActiveSignal
+              history: Array.isArray(data.history) && data.history.length > 0 ? data.history : prev.history,
+              metrics: data.metrics || prev.metrics,
+              activeSignal: data.activeSignal !== undefined ? data.activeSignal : null,
+              quote: data.quote || prev.quote
             };
 
             try {
