@@ -456,16 +456,17 @@ export async function executePhaseXLiveScanCycle(forceScan = false): Promise<voi
     // STAGE 5: GATE VALIDATION
     const gate = analysis.engineDetails?.phase5QualityGate;
     const gateStatus = gate?.finalGateStatus || 'REJECTED';
-    const gateReason = (gate as any)?.primaryRejectionReason || (gateStatus === 'APPROVED' ? 'All 11 criteria PASSED' : 'Waiting for clean alignment');
+    const isApprovedOrActive = gateStatus === 'APPROVED' || gateStatus === 'ACTIVE';
+    const gateReason = (gate as any)?.primaryRejectionReason || (isApprovedOrActive ? 'All 11 criteria PASSED' : 'Waiting for clean alignment');
 
     recordPipelineLog(
       'GATE_VALIDATION',
-      gateStatus === 'APPROVED' ? 'PASS' : 'WAIT',
+      isApprovedOrActive ? 'PASS' : 'WAIT',
       `Phase 5 Gate: ${gateStatus} | Detail: ${gateReason}`
     );
 
     // STAGE 6: EXECUTION OR WAIT
-    if (gateStatus === 'APPROVED' && isSetupDetected) {
+    if (isApprovedOrActive && isSetupDetected) {
       if (isShadowModeActive()) {
         currentPipelineState = 'QUALITY CHECK';
         recordPipelineLog('EXECUTION_OR_WAIT', 'INFO', `[SHADOW MODE] Signal APPROVED! Setup ID: ${analysis.setupId} (${analysis.finalDirection}). Telegram & Live UI state dispatch suppressed.`);
@@ -510,7 +511,7 @@ export async function executePhaseXLiveScanCycle(forceScan = false): Promise<voi
           liveMarketPrice: livePrice > 0 ? livePrice : newSignal.preferredEntry,
           livePriceTimestamp: now
         },
-        'APPROVED',
+        gateStatus as any,
         `🟢 ${newSignal.direction} — READY`
       );
 

@@ -51,11 +51,11 @@
       },
       "generatedAt": 1790277241220,
       "generatedAtET": "03:14:01 PM ET",
-      "currentSpyPrice": 767.72,
+      "currentSpyPrice": 767.21,
       "status": "ACTIVE",
-      "currentPnlPoints": -0.29,
-      "currentPnlPercent": -0.04,
-      "target1Hit": false,
+      "currentPnlPoints": 0.22,
+      "currentPnlPercent": 0.03,
+      "target1Hit": true,
       "target2Hit": false,
       "stopHit": false,
       "completedAtET": null,
@@ -112,12 +112,12 @@
     }
   ],
   "dailyRisk": {
-    "marketDateET": "2026-09-24",
+    "marketDateET": "2026-09-28",
     "dailyPnL": 0,
     "consecutiveLosses": 0,
     "tradesToday": 0,
     "dailyLocked": false,
     "lockReason": null
   },
-  "updatedAt": 1790277671670
+  "updatedAt": 1790621466995
 }

@@ -1,5 +1,37 @@
 import { WebSocketServer, WebSocket } from 'ws';
+import https from 'https';
 import { ASSET_CONFIGS } from './marketDataRouter';
+
+export function fetchBiquoteJsonHttps(symbol: string, timeoutMs = 3500): Promise<any> {
+  return new Promise((resolve) => {
+    const req = https.get(`https://biquote.io/api/${encodeURIComponent(symbol)}`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+        'Accept': 'application/json'
+      },
+      timeout: timeoutMs
+    }, (res) => {
+      if (res.statusCode !== 200) {
+        res.resume();
+        return resolve(null);
+      }
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => {
+        try {
+          resolve(JSON.parse(data));
+        } catch {
+          resolve(null);
+        }
+      });
+    });
+    req.on('error', () => resolve(null));
+    req.on('timeout', () => {
+      req.destroy();
+      resolve(null);
+    });
+  });
+}
 
 export interface LivePriceData {
   assetId: string;
@@ -41,19 +73,19 @@ const latestPrices: Record<string, LivePriceData> = {
     assetId: 'xau-usd',
     symbol: 'XAU/USD',
     providerSymbol: 'XAUUSD',
-    price: 4285.57,
-    previousPrice: 4285.57,
-    bid: 4285.48,
-    ask: 4285.66,
-    change: -3.43,
-    changePercent: -0.08,
-    high24h: 4315.84,
-    low24h: 4254.27,
+    price: 4137.50,
+    previousPrice: 4137.50,
+    bid: 4137.40,
+    ask: 4137.60,
+    change: -2.40,
+    changePercent: -0.06,
+    high24h: 4165.00,
+    low24h: 4110.00,
     volume24h: '$34.2B',
     timestamp: Date.now(),
     source: 'BIQUOTE (MetaTrader 5)',
-    isRealTick: true,
-    tickCount: 1
+    isRealTick: false,
+    tickCount: 0
   },
   'xag-usd': {
     assetId: 'xag-usd',
@@ -338,16 +370,21 @@ async function pollBiquoteTicks() {
   await Promise.all(
     BIQUOTE_SYMBOLS.map(async ({ id, symbol, decimals }) => {
       try {
-        const res = await fetch(`https://biquote.io/api/${encodeURIComponent(symbol)}`, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-            'Accept': 'application/json'
-          },
-          signal: AbortSignal.timeout(3500)
-        });
-
-        if (!res.ok) return;
-        const d = await res.json();
+        let d = await fetchBiquoteJsonHttps(symbol, 2500);
+        if (!d) {
+          try {
+            const res = await fetch(`https://biquote.io/api/${encodeURIComponent(symbol)}`, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+                'Accept': 'application/json'
+              },
+              signal: AbortSignal.timeout(2500)
+            });
+            if (res.ok) {
+              d = await res.json();
+            }
+          } catch {}
+        }
         if (!d) return;
 
         const rawPrice = d.mid || d.bid || d.ask || d.last;

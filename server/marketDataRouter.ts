@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'http';
+import https from 'https';
 
 interface CachedData {
   timestamp: number;
@@ -147,17 +148,50 @@ export async function fetchBiquoteQuote(symbol: string = 'XAUUSD') {
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const res = await fetch(`https://biquote.io/api/${encodeURIComponent(symbol)}`, {
-        headers: { 
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-          'Accept': 'application/json'
-        },
-        signal: AbortSignal.timeout(4000)
+      let d: any = await new Promise((resolve) => {
+        const req = https.get(`https://biquote.io/api/${encodeURIComponent(symbol)}`, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+            'Accept': 'application/json'
+          },
+          timeout: 2500
+        }, (res) => {
+          if (res.statusCode !== 200) {
+            res.resume();
+            return resolve(null);
+          }
+          let data = '';
+          res.on('data', chunk => { data += chunk; });
+          res.on('end', () => {
+            try {
+              resolve(JSON.parse(data));
+            } catch {
+              resolve(null);
+            }
+          });
+        });
+        req.on('error', () => resolve(null));
+        req.on('timeout', () => {
+          req.destroy();
+          resolve(null);
+        });
       });
-      if (!res.ok) {
-        continue;
+
+      if (!d) {
+        try {
+          const res = await fetch(`https://biquote.io/api/${encodeURIComponent(symbol)}`, {
+            headers: { 
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+              'Accept': 'application/json'
+            },
+            signal: AbortSignal.timeout(2500)
+          });
+          if (res.ok) {
+            d = await res.json();
+          }
+        } catch {}
       }
-      const d = await res.json();
+
       if (!d) continue;
 
       const rawPrice = d.mid || d.bid || d.ask || d.last;
@@ -188,7 +222,7 @@ export async function fetchBiquoteQuote(symbol: string = 'XAUUSD') {
       return quoteData;
     } catch {
       if (attempt === 0) {
-        await new Promise(r => setTimeout(r, 200));
+        await new Promise(r => setTimeout(r, 100));
       }
     }
   }

@@ -526,8 +526,8 @@ export async function dispatchPhaseXApprovedTelegramSignal(
     return { dispatched: false, status: 'SKIPPED_WAIT_STATE' };
   }
 
-  // Requirement 2: Send ONLY after Phase 5 FINAL GATE = APPROVED
-  if (gateStatus !== 'APPROVED') {
+  // Requirement 2: Send ONLY after Phase 5 FINAL GATE = APPROVED or ACTIVE
+  if (gateStatus !== 'APPROVED' && gateStatus !== 'ACTIVE') {
     return { dispatched: false, status: 'SKIPPED_GATE_NOT_APPROVED' };
   }
 
