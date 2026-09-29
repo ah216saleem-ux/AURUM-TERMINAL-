@@ -1,7 +1,18 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import { analyzePhaseX, cancelPhaseXSetup, getPhaseXTradeHistory, runPhase4VerificationSuite, runPhase5VerificationSuite, runMultiStrategyDeterministicValidationSuite } from './phaseXEngine';
 import { ASSET_CONFIGS } from './marketDataRouter';
-import { getTelegramServiceStatus, runTelegramVerificationSuite, sendTelegramConnectionTest, sendPhaseXApprovedSignalPreviewTest, setDynamicTelegramConfig } from './phaseXTelegramService';
+import {
+  getTelegramServiceStatus,
+  runTelegramVerificationSuite,
+  sendTelegramConnectionTest,
+  sendPhaseXApprovedSignalPreviewTest,
+  setDynamicTelegramConfig,
+  getAdminRecipients,
+  addAdminRecipient,
+  removeAdminRecipient,
+  getAdminSettings,
+  updateAdminSettings
+} from './phaseXTelegramService';
 import {
   getPersistentPhaseXLiveHistory,
   calculatePhaseXPerformanceMetrics,
@@ -359,6 +370,61 @@ export async function handlePhaseXRequest(req: IncomingMessage, res: ServerRespo
       const testResult = await sendPhaseXApprovedSignalPreviewTest();
       res.statusCode = 200;
       res.end(JSON.stringify(testResult));
+      return true;
+    }
+
+    if (pathname === '/api/phase-x/telegram-admins' && req.method === 'GET') {
+      const admins = getAdminRecipients();
+      const settings = getAdminSettings();
+      res.statusCode = 200;
+      res.end(JSON.stringify({ success: true, admins, settings }));
+      return true;
+    }
+
+    if (pathname === '/api/phase-x/telegram-admins/add' && req.method === 'POST') {
+      let body = (req as any).body;
+      if (!body || typeof body !== 'object' || Object.keys(body).length === 0) {
+        let bodyStr = '';
+        req.on('data', chunk => { bodyStr += chunk; });
+        await new Promise(r => { req.on('end', r); setTimeout(r, 300); });
+        if (bodyStr) { try { body = JSON.parse(bodyStr); } catch {} }
+      }
+      body = body || {};
+      const { chatId, name, username, role } = body;
+      const result = addAdminRecipient(chatId, name, username, role);
+      res.statusCode = result.success ? 200 : 400;
+      res.end(JSON.stringify(result));
+      return true;
+    }
+
+    if (pathname === '/api/phase-x/telegram-admins/remove' && req.method === 'POST') {
+      let body = (req as any).body;
+      if (!body || typeof body !== 'object' || Object.keys(body).length === 0) {
+        let bodyStr = '';
+        req.on('data', chunk => { bodyStr += chunk; });
+        await new Promise(r => { req.on('end', r); setTimeout(r, 300); });
+        if (bodyStr) { try { body = JSON.parse(bodyStr); } catch {} }
+      }
+      body = body || {};
+      const { chatId } = body;
+      const result = removeAdminRecipient(chatId);
+      res.statusCode = 200;
+      res.end(JSON.stringify(result));
+      return true;
+    }
+
+    if (pathname === '/api/phase-x/admin-settings' && req.method === 'POST') {
+      let body = (req as any).body;
+      if (!body || typeof body !== 'object' || Object.keys(body).length === 0) {
+        let bodyStr = '';
+        req.on('data', chunk => { bodyStr += chunk; });
+        await new Promise(r => { req.on('end', r); setTimeout(r, 300); });
+        if (bodyStr) { try { body = JSON.parse(bodyStr); } catch {} }
+      }
+      body = body || {};
+      const updated = updateAdminSettings(body);
+      res.statusCode = 200;
+      res.end(JSON.stringify({ success: true, settings: updated }));
       return true;
     }
 

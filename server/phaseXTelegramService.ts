@@ -114,8 +114,44 @@ function recordDeliveryLog(log: TelegramDeliveryLog) {
 let dynamicBotToken = '';
 let dynamicChatId = '';
 
+export interface AdminRecipient {
+  chatId: string;
+  name?: string;
+  username?: string;
+  role: 'PRIMARY_ADMIN' | 'CO_ADMIN' | 'SUBSCRIBER';
+  addedAt: number;
+}
+
+export interface DynamicTelegramSettings {
+  cooldownMinutes: number;
+  tp1: number;
+  tp2: number;
+  slMin: number;
+  slMax: number;
+}
+
+let dynamicSettings: DynamicTelegramSettings = {
+  cooldownMinutes: 30,
+  tp1: 7.00,
+  tp2: 10.00,
+  slMin: 8.00,
+  slMax: 10.00
+};
+
 const DATA_DIR = path.join(process.cwd(), 'data');
 const TELEGRAM_CONFIG_FILE = path.join(DATA_DIR, 'telegram_config.json');
+const TELEGRAM_ADMINS_FILE = path.join(DATA_DIR, 'telegram_admins.json');
+const DYNAMIC_SETTINGS_FILE = path.join(DATA_DIR, 'phase_x_settings.json');
+
+let adminRecipients: AdminRecipient[] = [
+  {
+    chatId: '7124285012',
+    name: 'Ahmed',
+    username: 'ahmaadit',
+    role: 'PRIMARY_ADMIN',
+    addedAt: 1790699131000
+  }
+];
 
 function ensureDataDir() {
   try {
@@ -143,6 +179,30 @@ function loadPersistedTelegramConfig() {
         console.log(`[PhaseXTelegram] Loaded saved credentials from disk: chatId=${dynamicChatId ? 'SET' : 'EMPTY'}, botToken=${dynamicBotToken ? 'SET' : 'EMPTY'}`);
       }
     }
+
+    if (fs.existsSync(TELEGRAM_ADMINS_FILE)) {
+      const content = fs.readFileSync(TELEGRAM_ADMINS_FILE, 'utf-8');
+      const data = JSON.parse(content);
+      if (Array.isArray(data) && data.length > 0) {
+        adminRecipients = data;
+        console.log(`[PhaseXTelegram] Loaded ${adminRecipients.length} registered admins from disk.`);
+      }
+    }
+
+    if (fs.existsSync(DYNAMIC_SETTINGS_FILE)) {
+      const content = fs.readFileSync(DYNAMIC_SETTINGS_FILE, 'utf-8');
+      const data = JSON.parse(content);
+      if (data && typeof data === 'object') {
+        dynamicSettings = {
+          cooldownMinutes: data.cooldownMinutes && data.cooldownMinutes > 0 ? Number(data.cooldownMinutes) : 30,
+          tp1: data.tp1 && data.tp1 > 0 ? Number(data.tp1) : 7.00,
+          tp2: data.tp2 && data.tp2 > 0 ? Number(data.tp2) : 10.00,
+          slMin: data.slMin && data.slMin > 0 ? Number(data.slMin) : 8.00,
+          slMax: data.slMax && data.slMax > 0 ? Number(data.slMax) : 10.00
+        };
+        console.log(`[PhaseXTelegram] Loaded dynamic settings: Cooldown=${dynamicSettings.cooldownMinutes}m, TP1=$${dynamicSettings.tp1}, TP2=$${dynamicSettings.tp2}, SL=$${dynamicSettings.slMin}-$${dynamicSettings.slMax}`);
+      }
+    }
   } catch (err) {
     console.error('[PhaseXTelegram] Error loading saved telegram config:', err);
   }
@@ -150,6 +210,114 @@ function loadPersistedTelegramConfig() {
 
 // Auto-load on module initialization
 loadPersistedTelegramConfig();
+
+export function getAdminRecipients(): AdminRecipient[] {
+  return [...adminRecipients];
+}
+
+export function saveAdminRecipientsToDisk() {
+  ensureDataDir();
+  try {
+    fs.writeFileSync(TELEGRAM_ADMINS_FILE, JSON.stringify(adminRecipients, null, 2), 'utf-8');
+  } catch (e) {
+    console.error('[PhaseXTelegram] Error saving admin recipients to disk:', e);
+  }
+}
+
+export function addAdminRecipient(chatId: string, name?: string, username?: string, role: 'PRIMARY_ADMIN' | 'CO_ADMIN' | 'SUBSCRIBER' = 'CO_ADMIN'): { success: boolean; message: string; admins: AdminRecipient[] } {
+  const cleanId = String(chatId).trim().replace(/[^\d-]/g, '');
+  if (!cleanId || cleanId.length < 3) {
+    return { success: false, message: 'Invalid Telegram Chat ID format. Must be numeric.', admins: adminRecipients };
+  }
+
+  const existingIdx = adminRecipients.findIndex(a => a.chatId === cleanId);
+  if (existingIdx >= 0) {
+    adminRecipients[existingIdx] = {
+      ...adminRecipients[existingIdx],
+      name: name || adminRecipients[existingIdx].name,
+      username: username || adminRecipients[existingIdx].username,
+      role
+    };
+  } else {
+    adminRecipients.push({
+      chatId: cleanId,
+      name: name || `Admin_${cleanId.slice(-4)}`,
+      username: username || '',
+      role,
+      addedAt: Date.now()
+    });
+  }
+
+  saveAdminRecipientsToDisk();
+
+  // Send a welcome alert to the new admin
+  sendRawTelegramMessage(
+    `🟡 AURUM TERMINAL • ADMIN ACCESS GRANTED\n━━━━━━━━━━━━━━━━━━━━━━\nWelcome! You are now registered as an Admin recipient.\n\nYou will automatically receive all XAU/USD (Gold) trade signals, TP1/TP2 hits, and SL updates.\n\nType /help to view interactive bot controls.`,
+    undefined,
+    cleanId
+  ).catch(() => {});
+
+  return { success: true, message: `Admin ${cleanId} successfully registered.`, admins: adminRecipients };
+}
+
+export function removeAdminRecipient(chatId: string): { success: boolean; message: string; admins: AdminRecipient[] } {
+  const cleanId = String(chatId).trim();
+  const initialLen = adminRecipients.length;
+  adminRecipients = adminRecipients.filter(a => a.chatId !== cleanId);
+  
+  if (adminRecipients.length === 0) {
+    // Keep primary fallback
+    adminRecipients.push({
+      chatId: '7124285012',
+      name: 'Ahmed',
+      username: 'ahmaadit',
+      role: 'PRIMARY_ADMIN',
+      addedAt: Date.now()
+    });
+  }
+
+  saveAdminRecipientsToDisk();
+  return {
+    success: adminRecipients.length < initialLen,
+    message: `Admin ${cleanId} removed.`,
+    admins: adminRecipients
+  };
+}
+
+export function getAdminSettings(): DynamicTelegramSettings {
+  return { ...dynamicSettings };
+}
+
+export function updateAdminSettings(partial: Partial<DynamicTelegramSettings>): DynamicTelegramSettings {
+  if (partial.cooldownMinutes !== undefined && partial.cooldownMinutes > 0 && partial.cooldownMinutes <= 180) {
+    dynamicSettings.cooldownMinutes = Math.round(partial.cooldownMinutes);
+  }
+  if (partial.tp1 !== undefined && partial.tp1 > 0 && partial.tp1 < 100) {
+    dynamicSettings.tp1 = +Number(partial.tp1).toFixed(2);
+  }
+  if (partial.tp2 !== undefined && partial.tp2 > 0 && partial.tp2 < 100) {
+    dynamicSettings.tp2 = +Number(partial.tp2).toFixed(2);
+  }
+  if (partial.slMin !== undefined && partial.slMin > 0 && partial.slMin < 100) {
+    dynamicSettings.slMin = +Number(partial.slMin).toFixed(2);
+  }
+  if (partial.slMax !== undefined && partial.slMax > 0 && partial.slMax < 100) {
+    dynamicSettings.slMax = +Number(partial.slMax).toFixed(2);
+  }
+
+  ensureDataDir();
+  try {
+    fs.writeFileSync(DYNAMIC_SETTINGS_FILE, JSON.stringify(dynamicSettings, null, 2), 'utf-8');
+  } catch (e) {
+    console.error('[PhaseXTelegram] Error saving dynamic settings:', e);
+  }
+
+  return { ...dynamicSettings };
+}
+
+export function getEffectiveCooldownMinutes(): number {
+  return dynamicSettings.cooldownMinutes || 30;
+}
 
 export interface ActiveTelegramTradeRecord {
   setupId: string;
@@ -247,7 +415,7 @@ export function getTelegramCredentials(overrideToken?: string, overrideChatId?: 
 
 /**
  * Low-level Telegram Bot API Dispatcher.
- * Safely handles missing credentials, sanitizes tokens/chat IDs, and logs detailed API status without throwing.
+ * Safely handles missing credentials, sanitizes tokens/chat IDs, and broadcasts to all registered admins.
  */
 export async function sendRawTelegramMessage(
   text: string,
@@ -256,93 +424,330 @@ export async function sendRawTelegramMessage(
   replyToMessageId?: number
 ): Promise<{ success: boolean; status: 'SENT' | 'FAILED' | 'CONFIG_MISSING'; error?: string; messageId?: number; httpStatus?: number; apiResponse?: any }> {
   const { botToken, chatId: initialChatId } = getTelegramCredentials(overrideToken, overrideChatId);
-  let chatId = initialChatId;
-
-  // Auto-format channel handle: if not numeric and not starting with @, prefix @
-  if (chatId && !chatId.startsWith('@') && !/^-?\d+$/.test(chatId)) {
-    chatId = `@${chatId}`;
-  }
-
-  // Direct routing: If chat ID is bot username, non-existent channel, or empty, route directly to Ahmed's private chat
-  if (
-    !chatId ||
-    chatId.toLowerCase() === '@aurumterminal_bot' ||
-    chatId.toLowerCase() === 'aurumterminal_bot' ||
-    chatId.toLowerCase() === '@aurum_ai_signals' ||
-    chatId.toLowerCase() === 'aurum_ai_signals'
-  ) {
-    chatId = '7124285012';
-    console.log('[PhaseXTelegram] Directing trade signal to Ahmed (@ahmaadit) chat ID: 7124285012');
-  }
-
-  if (!botToken || !chatId) {
-    const missing: string[] = [];
-    if (!botToken) missing.push('TELEGRAM_BOT_TOKEN');
-    if (!chatId) missing.push('TELEGRAM_CHAT_ID');
-    const errorMsg = `Configuration Missing: ${missing.join(' and ')} not set in server environment.`;
+  
+  if (!botToken) {
+    const errorMsg = 'Configuration Missing: TELEGRAM_BOT_TOKEN not set.';
     console.warn(`[PhaseXTelegram] ${errorMsg}`);
-    return {
-      success: false,
-      status: 'CONFIG_MISSING',
-      error: errorMsg
-    };
+    return { success: false, status: 'CONFIG_MISSING', error: errorMsg };
   }
 
-  try {
-    const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
-    console.log(`[PhaseXTelegram] Dispatching message to chat_id: ${chatId} (message length: ${text.length}${replyToMessageId ? `, reply_to: ${replyToMessageId}` : ''})`);
-    
-    const bodyObj: any = {
-      chat_id: chatId,
-      text,
-      disable_web_page_preview: true
-    };
-    if (replyToMessageId && replyToMessageId > 0) {
-      bodyObj.reply_to_message_id = replyToMessageId;
-    }
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(bodyObj)
-    });
-
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok || !data.ok) {
-      let errorMsg = data.description || `HTTP ${response.status}: ${response.statusText}`;
-      if (errorMsg.toLowerCase().includes('chat not found')) {
-        if (chatId !== '7124285012') {
-          console.warn(`[PhaseXTelegram] Chat ${chatId} not found. Retrying delivery directly to Ahmed's chat ID 7124285012...`);
-          return sendRawTelegramMessage(text, overrideToken, '7124285012', replyToMessageId);
-        }
+  // Determine target chat IDs (either specific override or broadcast to ALL registered admins)
+  const targetChatIds: string[] = [];
+  if (overrideChatId && overrideChatId.trim().length > 2) {
+    targetChatIds.push(overrideChatId.trim());
+  } else {
+    for (const admin of adminRecipients) {
+      if (admin.chatId && !targetChatIds.includes(admin.chatId)) {
+        targetChatIds.push(admin.chatId);
       }
-      console.error(`[PhaseXTelegram] Telegram API Delivery Error: HTTP ${response.status} — ${errorMsg}`, data);
-      return {
-        success: false,
-        status: 'FAILED',
-        error: errorMsg,
-        httpStatus: response.status,
-        apiResponse: data
-      };
+    }
+    if (initialChatId && !targetChatIds.includes(initialChatId) && !initialChatId.toLowerCase().includes('aurumterminal_bot')) {
+      targetChatIds.push(initialChatId);
+    }
+    if (targetChatIds.length === 0) {
+      targetChatIds.push('7124285012');
+    }
+  }
+
+  let lastResponse: any = null;
+  let anySuccess = false;
+  let firstMessageId: number | undefined = undefined;
+  let lastError: string | undefined = undefined;
+
+  for (const targetId of targetChatIds) {
+    let cleanTarget = targetId;
+    if (cleanTarget.toLowerCase() === '@aurumterminal_bot' || cleanTarget.toLowerCase() === 'aurumterminal_bot' || cleanTarget.toLowerCase() === '@aurum_ai_signals') {
+      cleanTarget = '7124285012';
     }
 
-    console.log(`[PhaseXTelegram] Successfully delivered message! message_id: ${data.result?.message_id}`);
+    try {
+      const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+      const bodyObj: any = {
+        chat_id: cleanTarget,
+        text,
+        disable_web_page_preview: true
+      };
+      if (replyToMessageId && replyToMessageId > 0) {
+        bodyObj.reply_to_message_id = replyToMessageId;
+      }
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bodyObj)
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && data.ok) {
+        anySuccess = true;
+        if (!firstMessageId) firstMessageId = data.result?.message_id;
+        lastResponse = data;
+        console.log(`[PhaseXTelegram] Successfully delivered to admin chat ${cleanTarget}! (Msg ID: ${data.result?.message_id})`);
+      } else {
+        const errorMsg = data.description || `HTTP ${response.status}`;
+        lastError = errorMsg;
+        console.warn(`[PhaseXTelegram] Delivery to ${cleanTarget} returned: ${errorMsg}`);
+      }
+    } catch (err: any) {
+      lastError = err?.message || String(err);
+      console.error(`[PhaseXTelegram] Transport failure delivering to ${cleanTarget}:`, err);
+    }
+  }
+
+  if (anySuccess) {
     return {
       success: true,
       status: 'SENT',
-      messageId: data.result?.message_id,
-      httpStatus: response.status,
-      apiResponse: data
+      messageId: firstMessageId,
+      httpStatus: 200,
+      apiResponse: lastResponse
     };
-  } catch (err: any) {
-    console.error('[PhaseXTelegram] Network/Transport failure during Telegram dispatch:', err);
-    return {
-      success: false,
-      status: 'FAILED',
-      error: err?.message || 'Network transport error during Telegram dispatch'
-    };
+  }
+
+  return {
+    success: false,
+    status: 'FAILED',
+    error: lastError || 'Failed to dispatch to Telegram recipients.',
+    httpStatus: 400
+  };
+}
+
+// Bot Control Handlers Callback Registry
+let botScanHandler: (() => Promise<any>) | null = null;
+let botCancelHandler: (() => boolean) | null = null;
+let botCooldownHandler: ((mins: number) => void) | null = null;
+
+export function registerBotActionHandlers(handlers: {
+  onScan: () => Promise<any>;
+  onCancel: () => boolean;
+  onCooldownChange: (mins: number) => void;
+}) {
+  botScanHandler = handlers.onScan;
+  botCancelHandler = handlers.onCancel;
+  botCooldownHandler = handlers.onCooldownChange;
+}
+
+// Two-Way Interactive Telegram Bot Command Listener
+let pollerHandle: NodeJS.Timeout | null = null;
+let lastUpdateOffset = 0;
+let isPollingActive = false;
+
+export function startTelegramBotCommandPoller() {
+  if (isPollingActive) return;
+  isPollingActive = true;
+  console.log('[PhaseXTelegram] Starting Two-Way Telegram Bot Command Poller...');
+
+  const pollCycle = async () => {
+    try {
+      const { botToken } = getTelegramCredentials();
+      if (!botToken || botToken.length < 10) return;
+
+      const url = `https://api.telegram.org/bot${botToken}/getUpdates?offset=${lastUpdateOffset}&timeout=3`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.ok && Array.isArray(data.result)) {
+          for (const update of data.result) {
+            if (update.update_id >= lastUpdateOffset) {
+              lastUpdateOffset = update.update_id + 1;
+            }
+            const msg = update.message || update.channel_post;
+            if (msg && msg.text && msg.chat && msg.chat.id) {
+              await processIncomingBotCommand(msg);
+            }
+          }
+        }
+      }
+    } catch {
+      // Ignore transient polling network timeouts
+    }
+  };
+
+  pollCycle().catch(() => {});
+  pollerHandle = setInterval(pollCycle, 2500);
+}
+
+async function processIncomingBotCommand(msg: any) {
+  const chatId = String(msg.chat.id);
+  const text = String(msg.text || '').trim();
+  const fromUser = msg.from?.username || msg.from?.first_name || 'Admin';
+  const { botToken } = getTelegramCredentials();
+
+  if (!text.startsWith('/')) return;
+
+  const parts = text.split(/\s+/);
+  const command = parts[0].toLowerCase();
+  const args = parts.slice(1);
+
+  // Auto-register user as admin if they send /start or /register
+  const isKnownAdmin = adminRecipients.some(a => a.chatId === chatId);
+  if (!isKnownAdmin && (command === '/start' || command === '/register')) {
+    addAdminRecipient(chatId, msg.from?.first_name || 'Admin', msg.from?.username || '');
+  }
+
+  if (command === '/start' || command === '/help' || command === '/menu') {
+    const welcomeMsg = [
+      `🟡 AURUM TERMINAL • BOT ADMIN CONTROL`,
+      `━━━━━━━━━━━━━━━━━━━━━━`,
+      `👋 Welcome ${fromUser}! You have full control over the Phase X Auto-Signal engine.`,
+      ``,
+      `🎮 Interactive Admin Commands:`,
+      `📊 /status — Live Gold spot price, active trade & cooldown state`,
+      `⚡ /scan — Force instant 15M candle scan on MT5 feed`,
+      `⏳ /cooldown <mins> — Set cooldown (e.g. /cooldown 5 or /cooldown 30)`,
+      `🎯 /tp <tp1> <tp2> — Set TP targets (e.g. /tp 7 10)`,
+      `🛡️ /sl <min> [max] — Set SL range (e.g. /sl 8 10)`,
+      `🛑 /cancel — Force close/cancel current active trade`,
+      `👥 /admins — View all registered admin recipients`,
+      `➕ /addadmin <chat_id> [name] — Add another admin to receive trades`,
+      `🗑️ /deladmin <chat_id> — Remove an admin recipient`,
+      `━━━━━━━━━━━━━━━━━━━━━━`,
+      `Current Cooldown: ${dynamicSettings.cooldownMinutes} minutes`,
+      `Target Strategy: TP1 = +$${dynamicSettings.tp1.toFixed(2)} | TP2 = +$${dynamicSettings.tp2.toFixed(2)} | SL = $${dynamicSettings.slMin.toFixed(2)}-$${dynamicSettings.slMax.toFixed(2)}`
+    ].join('\n');
+
+    await sendRawTelegramMessage(welcomeMsg, botToken, chatId);
+    return;
+  }
+
+  if (command === '/status') {
+    const liveTick = getVerifiedXauPrice(30000);
+    const livePrice = liveTick?.price || 4145.00;
+    const cooldownRem = getTelegramCooldownRemainingSeconds();
+    
+    const statusMsg = [
+      `📊 AURUM TERMINAL • LIVE STATUS`,
+      `━━━━━━━━━━━━━━━━━━━━━━`,
+      `🟡 XAU/USD Spot: $${livePrice.toFixed(2)} (${liveTick?.source || 'MT5 Live'})`,
+      `⏳ Cooldown Setting: ${dynamicSettings.cooldownMinutes} minutes`,
+      cooldownRem > 0 ? `⏱️ Cooldown Remaining: ${Math.floor(cooldownRem / 60)}m ${cooldownRem % 60}s` : `🟢 Cooldown: CLEAR (Scanner Active)`,
+      ``,
+      activeTelegramTrade ? [
+        `🔴 ACTIVE TRADE IN PROGRESS:`,
+        `• Direction: ${activeTelegramTrade.direction}`,
+        `• Entry: $${activeTelegramTrade.preferredEntry.toFixed(2)}`,
+        `• Stop Loss: $${activeTelegramTrade.stopLoss.toFixed(2)}`,
+        `• TP1: $${activeTelegramTrade.takeProfit1.toFixed(2)} | TP2: $${activeTelegramTrade.takeProfit2.toFixed(2)}`,
+        `• Status: ${activeTelegramTrade.status}`
+      ].join('\n') : `🟢 Active Trade: None (Continuous Scanner Running)`,
+      ``,
+      `👥 Registered Admins: ${adminRecipients.length} recipients`,
+      `━━━━━━━━━━━━━━━━━━━━━━`
+    ].join('\n');
+
+    await sendRawTelegramMessage(statusMsg, botToken, chatId);
+    return;
+  }
+
+  if (command === '/scan') {
+    await sendRawTelegramMessage(`⚡ Instant 15M candle scan triggered by ${fromUser}! Evaluating quantitative structure...`, botToken, chatId);
+    if (botScanHandler) {
+      try {
+        const scanRes = await botScanHandler();
+        const outcome = scanRes?.activeSignal 
+          ? `🟢 Setup Approved! ${scanRes.activeSignal.direction} @ $${scanRes.activeSignal.preferredEntry.toFixed(2)}` 
+          : `🟡 Scan Completed: ${scanRes?.scannerStatusDisplay || 'Waiting for high-probability structure'}`;
+        await sendRawTelegramMessage(`📊 Scan Result: ${outcome}`, botToken, chatId);
+      } catch (err: any) {
+        await sendRawTelegramMessage(`❌ Scan Exception: ${err?.message || 'Error executing scan'}`, botToken, chatId);
+      }
+    }
+    return;
+  }
+
+  if (command === '/cooldown' || command === '/cd') {
+    const mins = parseInt(args[0], 10);
+    if (isNaN(mins) || mins < 1 || mins > 180) {
+      await sendRawTelegramMessage(`⚠️ Please specify valid cooldown minutes (1 to 180). Example: /cooldown 5 or /cooldown 30`, botToken, chatId);
+      return;
+    }
+
+    updateAdminSettings({ cooldownMinutes: mins });
+    if (botCooldownHandler) {
+      botCooldownHandler(mins);
+    }
+
+    await sendRawTelegramMessage(
+      `✅ Cooldown period successfully updated to ${mins} minutes for all subsequent trades!\n\nAll registered admins notified.`,
+      botToken,
+      chatId
+    );
+    return;
+  }
+
+  if (command === '/tp') {
+    const p1 = parseFloat(args[0]);
+    const p2 = parseFloat(args[1]);
+    if (isNaN(p1) || isNaN(p2) || p1 <= 0 || p2 <= 0) {
+      await sendRawTelegramMessage(`⚠️ Please specify valid TP1 and TP2 targets. Example: /tp 7 10 (TP1 = $7.00, TP2 = $10.00)`, botToken, chatId);
+      return;
+    }
+
+    updateAdminSettings({ tp1: p1, tp2: p2 });
+    await sendRawTelegramMessage(`✅ Take Profit targets updated to TP1: +$${p1.toFixed(2)} (70 pips) | TP2: +$${p2.toFixed(2)} (100 pips)!`, botToken, chatId);
+    return;
+  }
+
+  if (command === '/sl') {
+    const s1 = parseFloat(args[0]);
+    const s2 = args[1] ? parseFloat(args[1]) : s1;
+    if (isNaN(s1) || s1 <= 0) {
+      await sendRawTelegramMessage(`⚠️ Please specify valid SL range. Example: /sl 8 10 (Min $8.00, Max $10.00)`, botToken, chatId);
+      return;
+    }
+
+    updateAdminSettings({ slMin: s1, slMax: s2 });
+    await sendRawTelegramMessage(`✅ Stop Loss calibrated to $${s1.toFixed(2)} - $${s2.toFixed(2)}!`, botToken, chatId);
+    return;
+  }
+
+  if (command === '/cancel' || command === '/close') {
+    activeTelegramTrade = null;
+    saveActiveTelegramTradeToDisk(null);
+    telegramCooldownUntilTimestamp = 0;
+
+    let cancelled = false;
+    if (botCancelHandler) {
+      cancelled = botCancelHandler();
+    }
+
+    await sendRawTelegramMessage(
+      `🛑 Active trade manually cancelled by Admin (${fromUser}). Engine reset to monitoring state with cooldown cleared.`,
+      botToken,
+      chatId
+    );
+    return;
+  }
+
+  if (command === '/admins') {
+    const adminList = adminRecipients.map((a, i) => `${i + 1}. ${a.name || 'Admin'} (@${a.username || a.chatId}) — Role: ${a.role}`).join('\n');
+    await sendRawTelegramMessage(`👥 Registered Telegram Admins (${adminRecipients.length}):\n━━━━━━━━━━━━━━━━━━━━━━\n${adminList}\n\nTo add an admin: /addadmin <chat_id> [name]`, botToken, chatId);
+    return;
+  }
+
+  if (command === '/addadmin') {
+    const newId = args[0];
+    const newName = args.slice(1).join(' ') || `Admin_${newId ? newId.slice(-4) : ''}`;
+    if (!newId || newId.length < 4) {
+      await sendRawTelegramMessage(`⚠️ Please provide a valid numeric Chat ID. Example: /addadmin 123456789 Ali`, botToken, chatId);
+      return;
+    }
+
+    const res = addAdminRecipient(newId, newName);
+    await sendRawTelegramMessage(`✅ ${res.message}\nTotal Admins: ${res.admins.length}`, botToken, chatId);
+    return;
+  }
+
+  if (command === '/deladmin') {
+    const idToDel = args[0];
+    if (!idToDel) {
+      await sendRawTelegramMessage(`⚠️ Please provide the Chat ID to remove. Example: /deladmin 123456789`, botToken, chatId);
+      return;
+    }
+
+    const res = removeAdminRecipient(idToDel);
+    await sendRawTelegramMessage(`🗑️ ${res.message}\nRemaining Admins: ${res.admins.length}`, botToken, chatId);
+    return;
   }
 }
 

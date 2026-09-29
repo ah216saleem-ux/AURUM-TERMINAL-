@@ -4,7 +4,10 @@ import { analyzePhaseX, isShadowModeActive } from './phaseXEngine';
 import {
   dispatchPhaseXApprovedTelegramSignal,
   dispatchPhaseXLifecycleTelegramUpdate,
-  getTelegramServiceStatus
+  getTelegramServiceStatus,
+  registerBotActionHandlers,
+  startTelegramBotCommandPoller,
+  getEffectiveCooldownMinutes
 } from './phaseXTelegramService';
 import {
   recordNewApprovedLiveSignal,
@@ -569,6 +572,36 @@ export async function executePhaseXLiveScanCycle(forceScan = false): Promise<voi
  * Start the continuous server background scanner (every 2.5 seconds)
  */
 export function startPhaseXBackgroundScanner(): void {
+  // Register two-way bot command actions
+  registerBotActionHandlers({
+    onScan: async () => {
+      await executePhaseXLiveScanCycle(true);
+      return getPhaseXLiveState();
+    },
+    onCancel: () => {
+      if (activeSignalState) {
+        const id = activeSignalState.setupId;
+        updateLiveSignalLifecycle(id, {
+          phase4FinalStatus: 'CANCELLED',
+          displayStatusLabel: 'SIGNAL CANCELLED (BOT ADMIN)',
+          exitTimestamp: Date.now()
+        });
+        activeSignalState = null;
+        saveActiveStateToDisk(null);
+        currentPipelineState = 'WAITING FOR SETUP';
+        cooldownUntilTimestamp = 0;
+        return true;
+      }
+      return false;
+    },
+    onCooldownChange: (mins: number) => {
+      cooldownUntilTimestamp = Date.now() + mins * 60000;
+    }
+  });
+
+  // Start two-way Telegram Bot Poller
+  startTelegramBotCommandPoller();
+
   if (scanIntervalHandle) return;
   console.log('[PhaseXScanner] Starting background scanner (2.5s interval)...');
   executePhaseXLiveScanCycle().catch(() => {});

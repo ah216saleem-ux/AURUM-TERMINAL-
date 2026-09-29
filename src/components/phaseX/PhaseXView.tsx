@@ -26,6 +26,7 @@ import { useMarket } from '../../context/MarketContext';
 import { PhaseXLiveDiagnosticsPanel } from './PhaseXLiveDiagnosticsPanel';
 import { PhaseXLivePerformanceAndHistory } from './PhaseXLivePerformanceAndHistory';
 import { PhaseXHistoryAndVerification } from './PhaseXHistoryAndVerification';
+import { PhaseXAdminTelegramControls } from './PhaseXAdminTelegramControls';
 
 interface LiveStateData {
   livePrice: number;
@@ -317,7 +318,7 @@ export const PhaseXView: React.FC = () => {
   const [adminPasswordInput, setAdminPasswordInput] = useState<string>('');
   const [adminAuthError, setAdminAuthError] = useState<string | null>(null);
   const [isAuthSubmitting, setIsAuthSubmitting] = useState<boolean>(false);
-  const [adminTab, setAdminTab] = useState<'diagnostics' | 'history' | 'verification'>('diagnostics');
+  const [adminTab, setAdminTab] = useState<'telegram' | 'diagnostics' | 'history' | 'verification'>('telegram');
 
   // Verify stored session token on mount
   useEffect(() => {
@@ -1210,7 +1211,15 @@ export const PhaseXView: React.FC = () => {
                 </div>
 
                 {/* Sub-Tabs */}
-                <div className="flex gap-2 border-b border-[#1E252E] pb-2 font-mono text-xs">
+                <div className="flex flex-wrap gap-2 border-b border-[#1E252E] pb-2 font-mono text-xs">
+                  <button
+                    onClick={() => setAdminTab('telegram')}
+                    className={`px-3 py-1.5 rounded-lg font-bold transition-colors ${
+                      adminTab === 'telegram' ? 'bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/40' : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    Bot & Controls
+                  </button>
                   <button
                     onClick={() => setAdminTab('diagnostics')}
                     className={`px-3 py-1.5 rounded-lg font-bold transition-colors ${
@@ -1239,6 +1248,9 @@ export const PhaseXView: React.FC = () => {
 
                 {/* Tab Contents */}
                 <div>
+                  {adminTab === 'telegram' && (
+                    <PhaseXAdminTelegramControls />
+                  )}
                   {adminTab === 'diagnostics' && (
                     <PhaseXLiveDiagnosticsPanel selectedAssetId="xau-usd" />
                   )}
