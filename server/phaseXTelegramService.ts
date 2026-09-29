@@ -39,7 +39,7 @@ export interface TelegramSignalPayload {
   livePriceTimestamp?: number;
 }
 
-export type TelegramLifecycleEvent = 'TP1_HIT' | 'TP2_HIT' | 'STOP_LOSS_HIT' | 'EXPIRED';
+export type TelegramLifecycleEvent = 'TP1_HIT' | 'TP2_HIT' | 'STOP_LOSS_HIT' | 'EXPIRED' | 'AUTO_BREAK_EVEN' | 'EARLY_EXIT';
 
 export interface TelegramLifecyclePayload {
   setupId: string;
@@ -49,13 +49,14 @@ export interface TelegramLifecyclePayload {
   replyToMessageId?: number;
   price?: number;
   timestamp?: number;
+  reason?: string;
 }
 
 export interface TelegramDeliveryLog {
   id: string;
   setupId: string;
   assetId: string;
-  type: 'INITIAL_SIGNAL' | 'TP1_HIT' | 'TP2_HIT' | 'STOP_LOSS_HIT' | 'EXPIRED';
+  type: 'INITIAL_SIGNAL' | 'TP1_HIT' | 'TP2_HIT' | 'STOP_LOSS_HIT' | 'EXPIRED' | 'AUTO_BREAK_EVEN' | 'EARLY_EXIT';
   status: 'SENT' | 'FAILED' | 'CONFIG_MISSING' | 'SKIPPED';
   reason?: string;
   messageText: string;
@@ -68,6 +69,8 @@ const sentInitialSignals = new Set<string>();
 const sentTP1Updates = new Set<string>();
 const sentTP2Updates = new Set<string>();
 const sentSLUpdates = new Set<string>();
+const sentBreakEvenUpdates = new Set<string>();
+const sentEarlyExitUpdates = new Set<string>();
 
 export interface TelegramDispatchedSignalRecord {
   setupId: string;
@@ -126,6 +129,34 @@ export interface AdminRecipient {
   username?: string;
   role: 'PRIMARY_ADMIN' | 'CO_ADMIN' | 'SUBSCRIBER';
   addedAt: number;
+  expiresAt?: number; // 0 or undefined = LIFETIME, otherwise Unix timestamp in ms
+  accessPlan?: '7_DAYS' | '14_DAYS' | '30_DAYS' | 'CUSTOM' | 'LIFETIME';
+  lastExpiryWarnedAt?: number;
+}
+
+export function isRecipientActive(recipient: AdminRecipient): boolean {
+  if (recipient.role === 'PRIMARY_ADMIN') return true;
+  if (!recipient.expiresAt || recipient.expiresAt === 0) return true; // Lifetime
+  return recipient.expiresAt > Date.now();
+}
+
+export function getRecipientAccessFormatted(recipient: AdminRecipient): string {
+  if (recipient.role === 'PRIMARY_ADMIN' || !recipient.expiresAt || recipient.expiresAt === 0) {
+    return '♾️ LIFETIME ACCESS';
+  }
+  const now = Date.now();
+  if (recipient.expiresAt <= now) {
+    return '❌ EXPIRED';
+  }
+  const remainingMs = recipient.expiresAt - now;
+  const days = Math.floor(remainingMs / (86400 * 1000));
+  const hours = Math.floor((remainingMs % (86400 * 1000)) / (3600 * 1000));
+  const expDate = new Date(recipient.expiresAt).toLocaleDateString();
+  
+  if (days > 0) {
+    return `⏳ ${days}d ${hours}h Left (Expires ${expDate})`;
+  }
+  return `⏱️ ${hours}h Left (Expires Today)`;
 }
 
 export interface DynamicTelegramSettings {
@@ -134,6 +165,7 @@ export interface DynamicTelegramSettings {
   tp2: number;
   slMin: number;
   slMax: number;
+  newsGuardEnabled?: boolean;
 }
 
 let dynamicSettings: DynamicTelegramSettings = {
@@ -141,8 +173,64 @@ let dynamicSettings: DynamicTelegramSettings = {
   tp1: 7.00,
   tp2: 10.00,
   slMin: 8.00,
-  slMax: 10.00
+  slMax: 10.00,
+  newsGuardEnabled: true
 };
+
+export interface NewsGuardStatus {
+  enabled: boolean;
+  isInNewsWindow: boolean;
+  upcomingEvent?: string;
+  windowReason?: string;
+}
+
+export function getNewsGuardStatus(): NewsGuardStatus {
+  const isEnabled = dynamicSettings.newsGuardEnabled !== false;
+  if (!isEnabled) {
+    return { enabled: false, isInNewsWindow: false };
+  }
+
+  const now = new Date();
+  const utcDay = now.getUTCDay();
+  const utcDate = now.getUTCDate();
+  const utcHours = now.getUTCHours();
+  const utcMinutes = now.getUTCMinutes();
+  const currentUtcMinutes = utcHours * 60 + utcMinutes;
+
+  // 1. NFP Guard: First Friday of month (12:15 to 14:00 UTC)
+  if (utcDay === 5 && utcDate <= 7) {
+    if (currentUtcMinutes >= 12 * 60 + 15 && currentUtcMinutes <= 14 * 60) {
+      return {
+        enabled: true,
+        isInNewsWindow: true,
+        upcomingEvent: 'USD Non-Farm Payrolls (NFP) Release',
+        windowReason: 'High volatility spike & slippage guard active during NFP announcement.'
+      };
+    }
+  }
+
+  // 2. High Impact USD CPI / PPI / Retail Sales Release Window (12:20 to 13:10 UTC)
+  if (currentUtcMinutes >= 12 * 60 + 20 && currentUtcMinutes <= 13 * 60 + 10) {
+    return {
+      enabled: true,
+      isInNewsWindow: true,
+      upcomingEvent: 'US High-Impact Macroeconomic Data (CPI/PPI/Retail Sales)',
+      windowReason: 'Scanner held in news protection window to avoid spread spikes.'
+    };
+  }
+
+  // 3. FOMC Interest Rate Window (Wednesdays 18:45 to 19:45 UTC)
+  if (utcDay === 3 && currentUtcMinutes >= 18 * 60 + 45 && currentUtcMinutes <= 19 * 60 + 45) {
+    return {
+      enabled: true,
+      isInNewsWindow: true,
+      upcomingEvent: 'Federal Reserve FOMC Interest Rate Announcement',
+      windowReason: 'High impact central bank rate decision volatility guard.'
+    };
+  }
+
+  return { enabled: true, isInNewsWindow: false };
+}
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const TELEGRAM_CONFIG_FILE = path.join(DATA_DIR, 'telegram_config.json');
@@ -233,40 +321,83 @@ export function saveAdminRecipientsToDisk() {
   }
 }
 
-export function addAdminRecipient(chatId: string, name?: string, username?: string, role: 'PRIMARY_ADMIN' | 'CO_ADMIN' | 'SUBSCRIBER' = 'CO_ADMIN'): { success: boolean; message: string; admins: AdminRecipient[] } {
+export function addAdminRecipient(
+  chatId: string,
+  name?: string,
+  username?: string,
+  role: 'PRIMARY_ADMIN' | 'CO_ADMIN' | 'SUBSCRIBER' = 'SUBSCRIBER',
+  durationInput: string | number = 'lifetime'
+): { success: boolean; message: string; admins: AdminRecipient[]; recipient?: AdminRecipient } {
   const cleanId = String(chatId).trim().replace(/[^\d-]/g, '');
   if (!cleanId || cleanId.length < 3) {
     return { success: false, message: 'Invalid Telegram Chat ID format. Must be numeric.', admins: adminRecipients };
   }
 
-  const existingIdx = adminRecipients.findIndex(a => a.chatId === cleanId);
-  if (existingIdx >= 0) {
-    adminRecipients[existingIdx] = {
-      ...adminRecipients[existingIdx],
-      name: name || adminRecipients[existingIdx].name,
-      username: username || adminRecipients[existingIdx].username,
-      role
-    };
+  let expiresAt = 0; // 0 = Lifetime
+  let planLabel = 'LIFETIME';
+
+  const durStr = String(durationInput).toLowerCase().trim();
+  if (durStr === '7' || durStr === '7d' || durStr === '7days') {
+    expiresAt = Date.now() + 7 * 86400 * 1000;
+    planLabel = '7_DAYS';
+  } else if (durStr === '14' || durStr === '14d' || durStr === '14days') {
+    expiresAt = Date.now() + 14 * 86400 * 1000;
+    planLabel = '14_DAYS';
+  } else if (durStr === '30' || durStr === '30d' || durStr === '30days') {
+    expiresAt = Date.now() + 30 * 86400 * 1000;
+    planLabel = '30_DAYS';
+  } else if (durStr === 'lifetime' || durStr === 'lifeline' || durStr === 'life' || durStr === '0') {
+    expiresAt = 0;
+    planLabel = 'LIFETIME';
   } else {
-    adminRecipients.push({
-      chatId: cleanId,
-      name: name || `Admin_${cleanId.slice(-4)}`,
-      username: username || '',
-      role,
-      addedAt: Date.now()
-    });
+    const customDays = parseInt(durStr, 10);
+    if (!isNaN(customDays) && customDays > 0) {
+      expiresAt = Date.now() + customDays * 86400 * 1000;
+      planLabel = `${customDays}_DAYS`;
+    }
+  }
+
+  // Primary admin is always LIFETIME
+  if (cleanId === '7124285012') {
+    expiresAt = 0;
+    planLabel = 'LIFETIME';
+    role = 'PRIMARY_ADMIN';
+  }
+
+  const existingIdx = adminRecipients.findIndex(a => a.chatId === cleanId);
+  const updatedRecipient: AdminRecipient = {
+    chatId: cleanId,
+    name: name || (existingIdx >= 0 ? adminRecipients[existingIdx].name : `User_${cleanId.slice(-4)}`),
+    username: username || (existingIdx >= 0 ? adminRecipients[existingIdx].username : ''),
+    role: cleanId === '7124285012' ? 'PRIMARY_ADMIN' : role,
+    addedAt: existingIdx >= 0 ? adminRecipients[existingIdx].addedAt : Date.now(),
+    expiresAt,
+    accessPlan: planLabel as any
+  };
+
+  if (existingIdx >= 0) {
+    adminRecipients[existingIdx] = updatedRecipient;
+  } else {
+    adminRecipients.push(updatedRecipient);
   }
 
   saveAdminRecipientsToDisk();
 
-  // Send a welcome alert to the new admin
-  sendRawTelegramMessage(
-    `🟡 AURUM TERMINAL • ADMIN ACCESS GRANTED\n━━━━━━━━━━━━━━━━━━━━━━\nWelcome! You are now registered as an Admin recipient.\n\nYou will automatically receive all XAU/USD (Gold) trade signals, TP1/TP2 hits, and SL updates.\n\nType /help to view interactive bot controls.`,
-    undefined,
-    cleanId
-  ).catch(() => {});
+  const accessFormatted = getRecipientAccessFormatted(updatedRecipient);
 
-  return { success: true, message: `Admin ${cleanId} successfully registered.`, admins: adminRecipients };
+  // Send Welcome & Access Duration notification to recipient
+  const welcomeText = role === 'SUBSCRIBER'
+    ? `🟡 AURUM TERMINAL • SIGNAL ACCESS GRANTED\n━━━━━━━━━━━━━━━━━━━━━━\nWelcome ${updatedRecipient.name || 'Trader'}! You have been granted access to XAU/USD (Gold) Trade Signals.\n\n📅 Plan / Access: ${accessFormatted}\n🎯 Strategy: TP1 = +$7.00 | TP2 = +$10.00 | SL = $8-$10\n\nYou will automatically receive high-probability institutional trade alerts and TP/SL updates directly in this chat!`
+    : `🟡 AURUM TERMINAL • ADMIN ACCESS GRANTED\n━━━━━━━━━━━━━━━━━━━━━━\nWelcome ${updatedRecipient.name || 'Admin'}! You are registered as an Admin recipient.\n\n📅 Access Duration: ${accessFormatted}\n\nType /help to view interactive bot controls.`;
+
+  sendRawTelegramMessage(welcomeText, undefined, cleanId).catch(() => {});
+
+  return {
+    success: true,
+    message: `Recipient ${cleanId} registered with plan ${planLabel} (${accessFormatted}).`,
+    admins: adminRecipients,
+    recipient: updatedRecipient
+  };
 }
 
 export function removeAdminRecipient(chatId: string): { success: boolean; message: string; admins: AdminRecipient[] } {
@@ -291,6 +422,80 @@ export function removeAdminRecipient(chatId: string): { success: boolean; messag
     message: `Admin ${cleanId} removed.`,
     admins: adminRecipients
   };
+}
+
+/**
+ * Broadcasts an announcement or market message to all active recipients.
+ */
+export async function broadcastToAllRecipients(
+  messageText: string,
+  senderName: string = 'Admin'
+): Promise<{ success: boolean; deliveredCount: number; totalActive: number; error?: string }> {
+  const activeRecipients = adminRecipients.filter(isRecipientActive);
+  if (activeRecipients.length === 0) {
+    return { success: false, deliveredCount: 0, totalActive: 0, error: 'No active recipients registered.' };
+  }
+
+  const broadcastMsg = [
+    `📢 AURUM TERMINAL • ANNOUNCEMENT`,
+    `━━━━━━━━━━━━━━━━━━━━━━`,
+    messageText.trim(),
+    `━━━━━━━━━━━━━━━━━━━━━━`,
+    `— Official Notice from Admin (${senderName})`
+  ].join('\n');
+
+  let delivered = 0;
+  for (const r of activeRecipients) {
+    try {
+      const res = await sendRawTelegramMessage(broadcastMsg, undefined, r.chatId);
+      if (res.success || (res as any).apiResponse?.ok) delivered++;
+    } catch {}
+  }
+
+  return { success: true, deliveredCount: delivered, totalActive: activeRecipients.length };
+}
+
+/**
+ * Polled periodically to send 24h subscription expiry reminders.
+ */
+export function checkAndSendExpiryReminders(): number {
+  const now = Date.now();
+  const warnThreshold = now + 24 * 3600 * 1000;
+  let remindersSent = 0;
+
+  for (const recipient of adminRecipients) {
+    if (recipient.role === 'PRIMARY_ADMIN') continue;
+    if (!recipient.expiresAt || recipient.expiresAt === 0) continue;
+
+    if (recipient.expiresAt > now && recipient.expiresAt <= warnThreshold) {
+      const lastWarned = recipient.lastExpiryWarnedAt || 0;
+      if (now - lastWarned > 18 * 3600 * 1000) {
+        recipient.lastExpiryWarnedAt = now;
+        remindersSent++;
+
+        const accessText = getRecipientAccessFormatted(recipient);
+        const reminderMsg = [
+          `⚠️ AURUM TERMINAL • SUBSCRIPTION EXPIRING SOON`,
+          `━━━━━━━━━━━━━━━━━━━━━━`,
+          `👋 Hello ${recipient.name || 'Trader'}!`,
+          `Your XAU/USD (Gold) signal subscription will expire in less than 24 hours!`,
+          ``,
+          `📅 Remaining Access: ${accessText}`,
+          `🎯 Strategy Targets: TP1 = +$7.00 | TP2 = +$10.00 | SL = $8-$10`,
+          ``,
+          `Please contact the Admin (@ahmaadit) to renew your 7 Days, 14 Days, or Lifetime access to continue receiving trade alerts!`
+        ].join('\n');
+
+        sendRawTelegramMessage(reminderMsg, undefined, recipient.chatId).catch(() => {});
+      }
+    }
+  }
+
+  if (remindersSent > 0) {
+    saveAdminRecipientsToDisk();
+    console.log(`[PhaseXTelegram] Sent 24h subscription expiry reminders to ${remindersSent} recipient(s).`);
+  }
+  return remindersSent;
 }
 
 export function getAdminSettings(): DynamicTelegramSettings {
@@ -499,14 +704,18 @@ export async function sendRawTelegramMessage(
     return { success: false, status: 'CONFIG_MISSING', error: errorMsg };
   }
 
-  // Determine target chat IDs (either specific override or broadcast to ALL registered admins)
+  // Determine target chat IDs (either specific override or broadcast to ACTIVE registered recipients)
   const targetChatIds: string[] = [];
   if (overrideChatId && overrideChatId.trim().length > 2) {
     targetChatIds.push(overrideChatId.trim());
   } else {
-    for (const admin of adminRecipients) {
-      if (admin.chatId && !targetChatIds.includes(admin.chatId)) {
-        targetChatIds.push(admin.chatId);
+    for (const recipient of adminRecipients) {
+      if (recipient.chatId && !targetChatIds.includes(recipient.chatId)) {
+        if (isRecipientActive(recipient)) {
+          targetChatIds.push(recipient.chatId);
+        } else {
+          console.log(`[PhaseXTelegram] Skipping broadcast to EXPIRED subscriber Chat ID ${recipient.chatId} (${recipient.name || 'User'})`);
+        }
       }
     }
     if (initialChatId && !targetChatIds.includes(initialChatId) && !initialChatId.toLowerCase().includes('aurumterminal_bot')) {
@@ -608,13 +817,15 @@ export async function registerTelegramBotMenuCommands(token?: string) {
     const commands = [
       { command: 'status', description: '📊 Live Gold Spot Price, Active Trade & Cooldown' },
       { command: 'scan', description: '⚡ Force Instant 15M Candle Scan & Trade Detection' },
+      { command: 'broadcast', description: '📢 Send Announcement to All Subscribers' },
+      { command: 'news', description: '📰 View High-Impact USD News Protection Status' },
       { command: 'cooldown', description: '⏳ Set Post-Trade Cooldown (e.g. /cooldown 5 or /cooldown 30)' },
       { command: 'tp', description: '🎯 Set TP Targets (e.g. /tp 7 10)' },
       { command: 'sl', description: '🛡️ Set SL Range (e.g. /sl 8 10)' },
       { command: 'cancel', description: '🛑 Force Cancel Active Trade & Reset Engine' },
-      { command: 'admins', description: '👥 View Registered Admin Recipients' },
-      { command: 'addadmin', description: '➕ Add Admin Chat ID (e.g. /addadmin 123456789 Ali)' },
-      { command: 'deladmin', description: '🗑️ Remove an Admin Chat ID' },
+      { command: 'users', description: '👥 View Subscribers & Time-Based Access (7d, 14d, Lifetime)' },
+      { command: 'adduser', description: '➕ Grant Access (e.g. /adduser 123456789 7 Ali)' },
+      { command: 'deluser', description: '🗑️ Revoke Signal Access' },
       { command: 'help', description: '📖 View Complete Interactive Admin Control Dashboard' }
     ];
 
@@ -646,6 +857,14 @@ export function startTelegramBotCommandPoller() {
   if (botToken) {
     registerTelegramBotMenuCommands(botToken).catch(() => {});
   }
+
+  // Run initial expiry reminder check on startup and set 30-minute interval
+  checkAndSendExpiryReminders();
+  setInterval(() => {
+    try {
+      checkAndSendExpiryReminders();
+    } catch {}
+  }, 30 * 60 * 1000);
 
   const pollCycle = async () => {
     try {
@@ -689,21 +908,50 @@ async function processIncomingBotCommand(msg: any) {
   const command = parts[0].toLowerCase();
   const args = parts.slice(1);
 
-  // STRICT ADMIN AUTHORIZATION GATE
-  // ONLY explicitly registered Admin Chat IDs can execute commands or manage the terminal!
-  const isAuthorizedAdmin = adminRecipients.some(a => a.chatId === chatId) || chatId === '7124285012' || (dynamicChatId && chatId === dynamicChatId);
+  // Check if sender is a registered recipient
+  const recipient = adminRecipients.find(a => a.chatId === chatId) || (chatId === '7124285012' ? { chatId: '7124285012', name: 'Ahmed', role: 'PRIMARY_ADMIN', addedAt: Date.now() } as AdminRecipient : null);
+  const isAuthorizedAdmin = recipient && (recipient.role === 'PRIMARY_ADMIN' || recipient.role === 'CO_ADMIN');
 
+  // Handle subscriber query (/myaccess or /status for regular users)
   if (!isAuthorizedAdmin) {
+    if (recipient && recipient.role === 'SUBSCRIBER') {
+      const active = isRecipientActive(recipient);
+      const accessFormatted = getRecipientAccessFormatted(recipient);
+
+      if (active) {
+        const subMsg = [
+          `🟡 AURUM TERMINAL • SIGNAL SUBSCRIPTION ACTIVE`,
+          `━━━━━━━━━━━━━━━━━━━━━━`,
+          `👋 Hello ${fromUser}!`,
+          `📅 Subscription Access: ${accessFormatted}`,
+          `🎯 Strategy Targets: TP1 = +$7.00 | TP2 = +$10.00 | SL = $8-$10`,
+          ``,
+          `🟢 Signals are active. All XAU/USD trade alerts, TP1/TP2 hits, and SL updates are automatically delivered directly to this chat.`
+        ].join('\n');
+        await sendRawTelegramMessage(subMsg, botToken, chatId);
+        return;
+      } else {
+        const expMsg = [
+          `⚠️ AURUM TERMINAL • SUBSCRIPTION EXPIRED`,
+          `━━━━━━━━━━━━━━━━━━━━━━`,
+          `Your signal subscription has expired.`,
+          ``,
+          `📅 Access Status: ❌ EXPIRED`,
+          `Contact Admin (@ahmaadit) to renew your 7 Days, 14 Days, or Lifetime access.`
+        ].join('\n');
+        await sendRawTelegramMessage(expMsg, botToken, chatId);
+        return;
+      }
+    }
+
     console.warn(`[PhaseXTelegram] Unauthorized command attempt by Chat ID ${chatId} (@${msg.from?.username || 'unknown'}): ${command}`);
     const deniedMsg = [
       `🔒 AURUM TERMINAL — RESTRICTED ACCESS`,
       `━━━━━━━━━━━━━━━━━━━━━━`,
       `⚠️ Access Denied.`,
-      `Your Chat ID (${chatId}) is NOT authorized as an Admin.`,
+      `Your Chat ID (${chatId}) is NOT registered.`,
       ``,
-      `Terminal controls, scanner triggers, and strategy settings are strictly restricted to verified Admins.`,
-      ``,
-      `Contact the Primary Admin (@ahmaadit) to request access.`
+      `Contact the Admin (@ahmaadit) to get 7 Days, 14 Days, or Lifetime signal access.`
     ].join('\n');
 
     await sendRawTelegramMessage(deniedMsg, botToken, chatId);
@@ -723,15 +971,55 @@ async function processIncomingBotCommand(msg: any) {
       `🎯 /tp <tp1> <tp2> — Set TP targets (e.g. /tp 7 10)`,
       `🛡️ /sl <min> [max] — Set SL range (e.g. /sl 8 10)`,
       `🛑 /cancel — Force close/cancel current active trade`,
-      `👥 /admins — View all registered admin recipients`,
-      `➕ /addadmin <chat_id> [name] — Add another admin to receive trades`,
-      `🗑️ /deladmin <chat_id> — Remove an admin recipient`,
+      `👥 /users — View all subscribers & access durations (7d, 14d, Lifetime)`,
+      `➕ /adduser <chat_id> <7|14|30|lifetime> [name] — Grant time-based signal access`,
+      `🗑️ /deluser <chat_id> — Revoke user signal access`,
       `━━━━━━━━━━━━━━━━━━━━━━`,
       `Current Cooldown: ${dynamicSettings.cooldownMinutes} minutes`,
       `Target Strategy: TP1 = +$${dynamicSettings.tp1.toFixed(2)} | TP2 = +$${dynamicSettings.tp2.toFixed(2)} | SL = $${dynamicSettings.slMin.toFixed(2)}-$${dynamicSettings.slMax.toFixed(2)}`
     ].join('\n');
 
     await sendRawTelegramMessage(welcomeMsg, botToken, chatId);
+    return;
+  }
+
+  if (command === '/broadcast' || command === '/announcement') {
+    const broadcastMsg = args.join(' ').trim();
+    if (!broadcastMsg) {
+      await sendRawTelegramMessage(`⚠️ Please specify the announcement text to broadcast.\nExample: /broadcast Market Update: High volatility expected around NY Open.`, botToken, chatId);
+      return;
+    }
+
+    const res = await broadcastToAllRecipients(broadcastMsg, fromUser);
+    await sendRawTelegramMessage(`📢 Broadcast Delivered to ${res.deliveredCount} / ${res.totalActive} active recipient(s)!`, botToken, chatId);
+    return;
+  }
+
+  if (command === '/news' || command === '/newsguard') {
+    const subCommand = args[0]?.toLowerCase();
+    if (subCommand === 'on') {
+      updateAdminSettings({ newsGuardEnabled: true });
+      await sendRawTelegramMessage(`🛡️ High-Impact News Protection Guard ENABLED. Scanner will automatically pause during CPI, NFP, and FOMC releases.`, botToken, chatId);
+      return;
+    } else if (subCommand === 'off') {
+      updateAdminSettings({ newsGuardEnabled: false });
+      await sendRawTelegramMessage(`⚠️ High-Impact News Protection Guard DISABLED. Scanner will run continuously through news events.`, botToken, chatId);
+      return;
+    }
+
+    const status = getNewsGuardStatus();
+    const newsMsg = [
+      `📰 AURUM TERMINAL • HIGH-IMPACT NEWS GUARD`,
+      `━━━━━━━━━━━━━━━━━━━━━━`,
+      `🛡️ News Guard Status: ${status.enabled ? '🟢 ENABLED (Active Protection)' : '🔴 DISABLED'}`,
+      `⏱️ Current Protection Window: ${status.isInNewsWindow ? '⚠️ ACTIVE (Scanner Paused for High Impact Event)' : '🟢 CLEAR (Normal Scanner Running)'}`,
+      status.upcomingEvent ? `📌 Active Event: ${status.upcomingEvent}` : `📌 Next Major Watch: NFP (1st Friday) & CPI (Mid-Month)`,
+      status.windowReason ? `💡 Reason: ${status.windowReason}` : `💡 Protects Gold entries from sudden slippage and broker spread spikes.`,
+      `━━━━━━━━━━━━━━━━━━━━━━`,
+      `To toggle: /newsguard on  or  /newsguard off`
+    ].join('\n');
+
+    await sendRawTelegramMessage(newsMsg, botToken, chatId);
     return;
   }
 
@@ -844,34 +1132,55 @@ async function processIncomingBotCommand(msg: any) {
     return;
   }
 
-  if (command === '/admins') {
-    const adminList = adminRecipients.map((a, i) => `${i + 1}. ${a.name || 'Admin'} (@${a.username || a.chatId}) — Role: ${a.role}`).join('\n');
-    await sendRawTelegramMessage(`👥 Registered Telegram Admins (${adminRecipients.length}):\n━━━━━━━━━━━━━━━━━━━━━━\n${adminList}\n\nTo add an admin: /addadmin <chat_id> [name]`, botToken, chatId);
+  if (command === '/admins' || command === '/users' || command === '/subscribers') {
+    const listFormatted = adminRecipients.map((a, i) => {
+      const accessStr = getRecipientAccessFormatted(a);
+      return `${i + 1}. ${a.name || 'User'} (${a.chatId}) — Role: ${a.role}\n   └ Access: ${accessStr}`;
+    }).join('\n\n');
+
+    await sendRawTelegramMessage(
+      `👥 Registered Telegram Recipients (${adminRecipients.length}):\n━━━━━━━━━━━━━━━━━━━━━━\n${listFormatted}\n\nTo Grant Access:\n/adduser <chat_id> <7|14|30|lifetime> [name]\nExample: /adduser 123456789 7 Ali\nExample: /adduser 987654321 lifetime Usman`,
+      botToken,
+      chatId
+    );
     return;
   }
 
-  if (command === '/addadmin') {
+  if (command === '/adduser' || command === '/addadmin') {
     const newId = args[0];
-    const newName = args.slice(1).join(' ') || `Admin_${newId ? newId.slice(-4) : ''}`;
+    let duration = 'lifetime';
+    let newName = '';
+
+    if (args[1]) {
+      const durCand = args[1].toLowerCase();
+      if (['7', '7d', '14', '14d', '30', '30d', 'lifetime', 'lifeline'].includes(durCand) || !isNaN(parseInt(durCand, 10))) {
+        duration = durCand;
+        newName = args.slice(2).join(' ');
+      } else {
+        newName = args.slice(1).join(' ');
+      }
+    }
+
     if (!newId || newId.length < 4) {
-      await sendRawTelegramMessage(`⚠️ Please provide a valid numeric Chat ID. Example: /addadmin 123456789 Ali`, botToken, chatId);
+      await sendRawTelegramMessage(`⚠️ Please provide a valid numeric Chat ID and duration.\nExamples:\n/adduser 123456789 7 Ali (7 Days Access)\n/adduser 123456789 14 Ali (14 Days Access)\n/adduser 123456789 lifetime Ali (Lifetime Access)`, botToken, chatId);
       return;
     }
 
-    const res = addAdminRecipient(newId, newName);
-    await sendRawTelegramMessage(`✅ ${res.message}\nTotal Admins: ${res.admins.length}`, botToken, chatId);
+    const role = command === '/addadmin' ? 'CO_ADMIN' : 'SUBSCRIBER';
+    const res = addAdminRecipient(newId, newName, undefined, role, duration);
+    await sendRawTelegramMessage(`✅ ${res.message}\nTotal Recipients: ${res.admins.length}`, botToken, chatId);
     return;
   }
 
-  if (command === '/deladmin') {
+  if (command === '/deluser' || command === '/deladmin') {
     const idToDel = args[0];
     if (!idToDel) {
-      await sendRawTelegramMessage(`⚠️ Please provide the Chat ID to remove. Example: /deladmin 123456789`, botToken, chatId);
+      await sendRawTelegramMessage(`⚠️ Please provide the Chat ID to remove. Example: /deluser 123456789`, botToken, chatId);
       return;
     }
 
     const res = removeAdminRecipient(idToDel);
-    await sendRawTelegramMessage(`🗑️ ${res.message}\nRemaining Admins: ${res.admins.length}`, botToken, chatId);
+    await sendRawTelegramMessage(`🗑️ ${res.message}\nRemaining Recipients: ${res.admins.length}`, botToken, chatId);
     return;
   }
 }
@@ -1112,6 +1421,31 @@ export function buildLifecycleUpdateMessage(payload: TelegramLifecyclePayload): 
       `⏳ 3-Minute cooldown initiated before next 15M market scan.`,
       `━━━━━━━━━━━━━━━━━━━━━━`
     ].join('\n');
+  }
+  if (payload.event === 'AUTO_BREAK_EVEN') {
+    return [
+      `🛡️ AUTO BREAK-EVEN ALERT (+$4.00 Profit Reached) 🟢`,
+      `━━━━━━━━━━━━━━━━━━━━━━`,
+      `AURUM TERMINAL • XAUUSD (GOLD) ${dir}`,
+      priceStr ? `Live Price: ${priceStr}` : '',
+      ``,
+      ` Floating Profit: +$4.00 (+40 pips)!`,
+      `🛡️ ACTION RECOMMENDED: Move Stop Loss to Entry Price now.`,
+      `✨ Your trade is now 100% RISK-FREE!`,
+      `━━━━━━━━━━━━━━━━━━━━━━`
+    ].filter(Boolean).join('\n');
+  }
+  if (payload.event === 'EARLY_EXIT') {
+    return [
+      `⚠️ EARLY TRADE EXIT ALERT (Structure Invalidation) 🚨`,
+      `━━━━━━━━━━━━━━━━━━━━━━`,
+      `AURUM TERMINAL • XAUUSD (GOLD) ${dir}`,
+      priceStr ? `Live Price: ${priceStr}` : '',
+      ``,
+      `🚨 Market Structure Invalidated! Opposite momentum detected.`,
+      `🛑 ACTION RECOMMENDED: Close trade manually now to minimize loss before full SL is hit!`,
+      `━━━━━━━━━━━━━━━━━━━━━━`
+    ].filter(Boolean).join('\n');
   }
   return `AURUM TERMINAL — XAU/USD ${dir}: ${payload.event}`;
 }
@@ -1365,6 +1699,16 @@ export async function dispatchPhaseXLifecycleTelegramUpdate(
       return { dispatched: false, status: 'SKIPPED_DUPLICATE_EXPIRED' };
     }
     sentExpiredUpdates.add(payload.setupId);
+  } else if (payload.event === 'AUTO_BREAK_EVEN') {
+    if (sentBreakEvenUpdates.has(payload.setupId)) {
+      return { dispatched: false, status: 'SKIPPED_DUPLICATE_BREAK_EVEN' };
+    }
+    sentBreakEvenUpdates.add(payload.setupId);
+  } else if (payload.event === 'EARLY_EXIT') {
+    if (sentEarlyExitUpdates.has(payload.setupId)) {
+      return { dispatched: false, status: 'SKIPPED_DUPLICATE_EARLY_EXIT' };
+    }
+    sentEarlyExitUpdates.add(payload.setupId);
   } else {
     return { dispatched: false, status: 'SKIPPED_UNHANDLED_EVENT' };
   }

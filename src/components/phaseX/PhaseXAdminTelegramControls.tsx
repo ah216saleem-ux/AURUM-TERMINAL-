@@ -14,7 +14,9 @@ import {
   Users, 
   Sliders,
   Zap,
-  Radio
+  Radio,
+  FileText,
+  Download
 } from 'lucide-react';
 
 interface AdminRecipient {
@@ -23,6 +25,8 @@ interface AdminRecipient {
   username?: string;
   role: 'PRIMARY_ADMIN' | 'CO_ADMIN' | 'SUBSCRIBER';
   addedAt: number;
+  expiresAt?: number;
+  accessPlan?: '7_DAYS' | '14_DAYS' | '30_DAYS' | 'CUSTOM' | 'LIFETIME';
 }
 
 interface DynamicSettings {
@@ -46,7 +50,82 @@ export const PhaseXAdminTelegramControls: React.FC = () => {
   const [n8nWebhookUrl, setN8nWebhookUrl] = useState('');
   const [newChatId, setNewChatId] = useState('');
   const [newName, setNewName] = useState('');
+  const [newDuration, setNewDuration] = useState('7');
+  const [newRole, setNewRole] = useState<'SUBSCRIBER' | 'CO_ADMIN'>('SUBSCRIBER');
+  const [broadcastMsgText, setBroadcastMsgText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isBroadcasting, setIsBroadcasting] = useState(false);
+
+  const handleSendBroadcast = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!broadcastMsgText.trim()) return;
+    setIsBroadcasting(true);
+    setFeedbackMsg(null);
+    try {
+      const res = await fetch('/api/phase-x/telegram-broadcast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: broadcastMsgText.trim() })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setFeedbackMsg({ type: 'success', text: `Broadcast delivered to ${data.deliveredCount} active recipient(s)!` });
+        setBroadcastMsgText('');
+      } else {
+        setFeedbackMsg({ type: 'error', text: data.error || 'Failed to send broadcast.' });
+      }
+    } catch {
+      setFeedbackMsg({ type: 'error', text: 'Error dispatching broadcast.' });
+    } finally {
+      setIsBroadcasting(false);
+      setTimeout(() => setFeedbackMsg(null), 5000);
+    }
+  };
+  const [reportMonth, setReportMonth] = useState('ALL');
+  const [monthlyReport, setMonthlyReport] = useState<any>(null);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+
+  const fetchMonthlyReport = async (monthVal = reportMonth) => {
+    setIsGeneratingReport(true);
+    try {
+      const res = await fetch(`/api/phase-x/monthly-report?month=${monthVal}`);
+      const data = await res.json();
+      if (data.success && data.report) {
+        setMonthlyReport(data.report);
+      }
+    } catch {
+      console.warn('Error fetching monthly report');
+    } finally {
+      setIsGeneratingReport(false);
+    }
+  };
+
+  const exportReportCSV = () => {
+    if (!monthlyReport || !monthlyReport.trades) return;
+    const headers = ['Setup ID', 'Symbol', 'Direction', 'Entry', 'Stop Loss', 'TP1', 'TP2', 'Confidence %', 'Result', 'Final R', 'Timestamp'];
+    const rows = monthlyReport.trades.map((t: any) => [
+      t.setupId,
+      t.symbol,
+      t.direction,
+      t.preferredEntry,
+      t.stopLoss,
+      t.takeProfit1,
+      t.takeProfit2,
+      t.tradeConfidence,
+      t.displayStatusLabel || t.phase4FinalStatus,
+      t.finalR || 0,
+      new Date(t.signalTimestamp).toISOString()
+    ]);
+    const csvContent = [headers.join(','), ...rows.map((e: any[]) => e.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `Aurum_Terminal_Monthly_Report_${monthlyReport.yearMonth}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
   const [isTestingN8n, setIsTestingN8n] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -131,20 +210,22 @@ export const PhaseXAdminTelegramControls: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           chatId: newChatId.trim(),
-          name: newName.trim() || undefined
+          name: newName.trim() || undefined,
+          duration: newDuration,
+          role: newRole
         })
       });
       const data = await res.json();
       if (data.success) {
-        setFeedbackMsg({ type: 'success', text: `Admin added! Welcome notification sent to Chat ID: ${newChatId}` });
+        setFeedbackMsg({ type: 'success', text: `User ${newChatId} registered (${newDuration === '0' || newDuration === 'lifetime' ? 'Lifetime Access' : `${newDuration} Days Access`})!` });
         setNewChatId('');
         setNewName('');
         if (data.admins) setAdmins(data.admins);
       } else {
-        setFeedbackMsg({ type: 'error', text: data.message || 'Failed to add admin.' });
+        setFeedbackMsg({ type: 'error', text: data.message || 'Failed to add recipient.' });
       }
     } catch {
-      setFeedbackMsg({ type: 'error', text: 'Network error adding admin.' });
+      setFeedbackMsg({ type: 'error', text: 'Network error adding recipient.' });
     } finally {
       setIsLoading(false);
       setTimeout(() => setFeedbackMsg(null), 5000);
@@ -377,75 +458,234 @@ export const PhaseXAdminTelegramControls: React.FC = () => {
         </div>
       </form>
 
-      {/* Admin Recipients Distribution List */}
+      {/* Telegram Recipients & Access Management List */}
       <div className="bg-[#12161C] border border-[#1E252E] rounded-2xl p-4 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-white font-bold text-xs uppercase tracking-wider">
             <Users className="w-4 h-4 text-[#D4AF37]" />
-            <span>Registered Admin Telegram Recipients ({admins.length})</span>
+            <span>Telegram Recipients & Time-Based Signal Access ({admins.length})</span>
           </div>
         </div>
 
         <div className="space-y-2">
-          {admins.map((admin, idx) => (
-            <div key={admin.chatId} className="bg-[#161C24] border border-[#1E252E] p-3 rounded-xl flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-bold text-[#D4AF37] w-5">{idx + 1}.</span>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-white font-bold text-xs">{admin.name || 'Admin'}</span>
-                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-[#1E252E] text-zinc-400">
-                      ID: {admin.chatId}
-                    </span>
-                    {admin.username && (
-                      <span className="text-xs text-blue-400">@{admin.username}</span>
-                    )}
-                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-[#D4AF37]/15 text-[#D4AF37] border border-[#D4AF37]/30">
-                      {admin.role}
+          {admins.map((admin, idx) => {
+            const isExpired = admin.expiresAt && admin.expiresAt > 0 && admin.expiresAt <= Date.now();
+            const isLifetime = admin.role === 'PRIMARY_ADMIN' || !admin.expiresAt || admin.expiresAt === 0;
+            let remainingText = 'LIFETIME ACCESS';
+            if (!isLifetime && admin.expiresAt) {
+              const remMs = admin.expiresAt - Date.now();
+              if (remMs <= 0) {
+                remainingText = 'EXPIRED';
+              } else {
+                const days = Math.floor(remMs / (86400 * 1000));
+                const hours = Math.floor((remMs % (86400 * 1000)) / (3600 * 1000));
+                remainingText = `${days}d ${hours}h Left`;
+              }
+            }
+
+            return (
+              <div key={admin.chatId} className={`p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                isExpired ? 'bg-rose-950/10 border-rose-500/20 text-rose-300' : 'bg-[#161C24] border-[#1E252E] text-white'
+              }`}>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-bold text-[#D4AF37] w-5">{idx + 1}.</span>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-bold text-xs">{admin.name || 'User'}</span>
+                      <span className="px-1.5 py-0.5 rounded text-[10px] bg-[#1E252E] text-zinc-400 font-mono">
+                        ID: {admin.chatId}
+                      </span>
+                      {admin.username && (
+                        <span className="text-xs text-blue-400 font-mono">@{admin.username}</span>
+                      )}
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${
+                        admin.role === 'PRIMARY_ADMIN' 
+                          ? 'bg-[#D4AF37]/20 text-[#D4AF37] border-[#D4AF37]/40' 
+                          : admin.role === 'CO_ADMIN' 
+                            ? 'bg-purple-500/20 text-purple-300 border-purple-500/30' 
+                            : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                      }`}>
+                        {admin.role}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 ${
+                        isExpired 
+                          ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40' 
+                          : isLifetime 
+                            ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' 
+                            : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                      }`}>
+                        <Clock className="w-3 h-3 shrink-0" />
+                        <span>{remainingText}</span>
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-zinc-500">
+                      Registered: {new Date(admin.addedAt).toLocaleDateString()}
+                      {!isLifetime && admin.expiresAt ? ` • Expiration: ${new Date(admin.expiresAt).toLocaleDateString()}` : ''}
                     </span>
                   </div>
-                  <span className="text-[11px] text-zinc-500">
-                    Registered: {new Date(admin.addedAt).toLocaleDateString()}
-                  </span>
                 </div>
-              </div>
 
-              {admin.chatId !== '7124285012' && (
-                <button
-                  onClick={() => handleRemoveAdmin(admin.chatId)}
-                  className="p-1.5 rounded-lg text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
-                  title="Remove Admin"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-          ))}
+                {admin.chatId !== '7124285012' && (
+                  <button
+                    onClick={() => handleRemoveAdmin(admin.chatId)}
+                    className="p-1.5 rounded-lg text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors self-end sm:self-center"
+                    title="Remove Recipient"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
 
-        {/* Add New Admin Form */}
-        <form onSubmit={handleAddAdmin} className="bg-[#0B0D10] border border-[#1E252E] p-3 rounded-xl flex flex-col sm:flex-row items-center gap-2.5">
-          <input
-            type="text"
-            placeholder="Telegram Chat ID (e.g. 7124285012)"
-            value={newChatId}
-            onChange={e => setNewChatId(e.target.value)}
-            className="w-full sm:w-1/2 bg-[#161C24] border border-[#1E252E] rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-500"
-          />
-          <input
-            type="text"
-            placeholder="Admin Name (Optional)"
-            value={newName}
-            onChange={e => setNewName(e.target.value)}
-            className="w-full sm:w-1/3 bg-[#161C24] border border-[#1E252E] rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-500"
-          />
+        {/* Add New Recipient Form with Duration Selector */}
+        <form onSubmit={handleAddAdmin} className="bg-[#0B0D10] border border-[#1E252E] p-3 rounded-xl space-y-3">
+          <div className="text-xs font-bold text-zinc-300 flex items-center gap-2">
+            <UserPlus className="w-4 h-4 text-[#D4AF37]" />
+            <span>Grant Time-Based Signal Access</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+            <input
+              type="text"
+              placeholder="Telegram Chat ID (e.g. 123456789)"
+              value={newChatId}
+              onChange={e => setNewChatId(e.target.value)}
+              className="bg-[#161C24] border border-[#1E252E] rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-500 font-mono"
+            />
+            <input
+              type="text"
+              placeholder="User Name (Optional)"
+              value={newName}
+              onChange={e => setNewName(e.target.value)}
+              className="bg-[#161C24] border border-[#1E252E] rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-500"
+            />
+            <select
+              value={newDuration}
+              onChange={e => setNewDuration(e.target.value)}
+              className="bg-[#161C24] border border-[#1E252E] rounded-lg px-3 py-2 text-xs text-white font-bold"
+            >
+              <option value="7">7 Days Access</option>
+              <option value="14">14 Days Access</option>
+              <option value="30">30 Days Access</option>
+              <option value="lifetime">Lifetime Access (Unlimited)</option>
+            </select>
+            <select
+              value={newRole}
+              onChange={e => setNewRole(e.target.value as any)}
+              className="bg-[#161C24] border border-[#1E252E] rounded-lg px-3 py-2 text-xs text-white font-bold"
+            >
+              <option value="SUBSCRIBER">Subscriber (Signals Only)</option>
+              <option value="CO_ADMIN">Co-Admin (Full Commands)</option>
+            </select>
+          </div>
+
           <button
             type="submit"
             disabled={isLoading || !newChatId.trim()}
-            className="w-full sm:w-auto px-4 py-2 rounded-lg bg-[#D4AF37] hover:bg-[#B89628] text-black font-bold text-xs flex items-center justify-center gap-1.5 transition-all disabled:opacity-50 shrink-0"
+            className="w-full sm:w-auto px-5 py-2 rounded-lg bg-[#D4AF37] hover:bg-[#B89628] text-black font-bold text-xs flex items-center justify-center gap-1.5 transition-all disabled:opacity-50"
           >
             <UserPlus className="w-3.5 h-3.5" />
-            <span>Add Admin</span>
+            <span>Grant Access Now</span>
+          </button>
+        </form>
+      </div>
+
+      {/* Monthly Performance Report Generator */}
+      <div className="bg-[#12161C] border border-[#1E252E] rounded-2xl p-4 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-white font-bold text-xs uppercase tracking-wider">
+            <FileText className="w-4 h-4 text-[#D4AF37]" />
+            <span>Monthly Performance Report Generator</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <select
+              value={reportMonth}
+              onChange={e => {
+                setReportMonth(e.target.value);
+                fetchMonthlyReport(e.target.value);
+              }}
+              className="bg-[#161C24] border border-[#1E252E] rounded-lg px-2.5 py-1.5 text-xs text-white font-bold"
+            >
+              <option value="ALL">All-Time Performance</option>
+              <option value="2026-09">September 2026</option>
+              <option value="2026-08">August 2026</option>
+              <option value="2026-07">July 2026</option>
+            </select>
+            <button
+              type="button"
+              onClick={() => fetchMonthlyReport()}
+              disabled={isGeneratingReport}
+              className="px-3 py-1.5 rounded-lg bg-[#D4AF37] hover:bg-[#B89628] text-black font-bold text-xs transition-all disabled:opacity-50"
+            >
+              {isGeneratingReport ? 'Generating...' : 'Generate'}
+            </button>
+            {monthlyReport && (
+              <button
+                type="button"
+                onClick={exportReportCSV}
+                className="px-3 py-1.5 rounded-lg bg-[#1E252E] hover:bg-[#2A3441] text-emerald-400 border border-emerald-500/30 font-bold text-xs flex items-center gap-1 transition-all"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Export CSV</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {monthlyReport ? (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-xs">
+              <div className="bg-[#161C24] border border-[#1E252E] p-2.5 rounded-xl">
+                <span className="text-zinc-400 block text-[10px]">Total Trades</span>
+                <span className="text-white font-bold text-sm">{monthlyReport.totalTrades}</span>
+              </div>
+              <div className="bg-[#161C24] border border-[#1E252E] p-2.5 rounded-xl">
+                <span className="text-zinc-400 block text-[10px]">Win Rate</span>
+                <span className="text-emerald-400 font-bold text-sm">{monthlyReport.winRatePercent}%</span>
+              </div>
+              <div className="bg-[#161C24] border border-[#1E252E] p-2.5 rounded-xl">
+                <span className="text-zinc-400 block text-[10px]">Total Pips</span>
+                <span className="text-[#D4AF37] font-bold text-sm">{monthlyReport.totalPips > 0 ? `+${monthlyReport.totalPips}` : monthlyReport.totalPips} Pips</span>
+              </div>
+              <div className="bg-[#161C24] border border-[#1E252E] p-2.5 rounded-xl">
+                <span className="text-zinc-400 block text-[10px]">Average R:R</span>
+                <span className="text-purple-300 font-bold text-sm">1:{monthlyReport.averageRR}</span>
+              </div>
+              <div className="bg-[#161C24] border border-[#1E252E] p-2.5 rounded-xl col-span-2 sm:col-span-1">
+                <span className="text-zinc-400 block text-[10px]">BUY / SELL Breakdown</span>
+                <span className="text-zinc-200 font-bold text-xs">BUY: {monthlyReport.buyBreakdown.buyWins}/{monthlyReport.buyBreakdown.totalBuyTrades} | SELL: {monthlyReport.sellBreakdown.sellWins}/{monthlyReport.sellBreakdown.totalSellTrades}</span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p className="text-xs text-zinc-500 italic">Click "Generate" to construct full monthly institutional trade performance report.</p>
+        )}
+      </div>
+
+      {/* Broadcast Announcement Card */}
+      <div className="bg-[#12161C] border border-[#1E252E] rounded-2xl p-4 space-y-3">
+        <div className="flex items-center gap-2 text-white font-bold text-xs uppercase tracking-wider">
+          <Send className="w-4 h-4 text-[#D4AF37]" />
+          <span>Broadcast Announcement to All Active Subscribers</span>
+        </div>
+        <form onSubmit={handleSendBroadcast} className="space-y-2.5">
+          <textarea
+            rows={2}
+            placeholder="Type custom announcement / market update to dispatch to all active recipients..."
+            value={broadcastMsgText}
+            onChange={e => setBroadcastMsgText(e.target.value)}
+            className="w-full bg-[#161C24] border border-[#1E252E] rounded-lg p-2.5 text-xs text-white placeholder-zinc-500"
+          />
+          <button
+            type="submit"
+            disabled={isBroadcasting || !broadcastMsgText.trim()}
+            className="px-4 py-2 rounded-lg bg-[#D4AF37] hover:bg-[#B89628] text-black font-bold text-xs flex items-center gap-1.5 transition-all disabled:opacity-50"
+          >
+            <Send className={`w-3.5 h-3.5 ${isBroadcasting ? 'animate-bounce' : ''}`} />
+            <span>Send Broadcast to All</span>
           </button>
         </form>
       </div>

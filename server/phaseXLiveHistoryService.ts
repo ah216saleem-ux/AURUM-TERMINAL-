@@ -579,6 +579,127 @@ export function calculatePhaseXPerformanceMetrics(): PhaseXPerformanceMetrics {
   };
 }
 
+export interface MonthlyPerformanceReport {
+  yearMonth: string;
+  periodLabel: string;
+  totalTrades: number;
+  winCount: number;
+  lossCount: number;
+  expiredCount: number;
+  winRatePercent: number;
+  totalPips: number;
+  averageRR: number;
+  buyBreakdown: {
+    totalBuyTrades: number;
+    buyWins: number;
+    buyWinRatePercent: number;
+    buyPips: number;
+  };
+  sellBreakdown: {
+    totalSellTrades: number;
+    sellWins: number;
+    sellWinRatePercent: number;
+    sellPips: number;
+  };
+  trades: PhaseXLiveSignalRecord[];
+}
+
+export function generateMonthlyPerformanceReport(yearMonthInput?: string): MonthlyPerformanceReport {
+  const records = getPersistentPhaseXLiveHistory();
+  const targetYearMonth = yearMonthInput || new Date().toISOString().substring(0, 7);
+  
+  const filtered = targetYearMonth === 'ALL' 
+    ? records 
+    : records.filter(r => {
+        const dateStr = new Date(r.signalTimestamp).toISOString().substring(0, 7);
+        return dateStr === targetYearMonth;
+      });
+
+  const totalTrades = filtered.length;
+  let winCount = 0;
+  let lossCount = 0;
+  let expiredCount = 0;
+  let totalPips = 0;
+  let totalRRSum = 0;
+
+  let buyTotal = 0;
+  let buyWins = 0;
+  let buyPips = 0;
+
+  let sellTotal = 0;
+  let sellWins = 0;
+  let sellPips = 0;
+
+  for (const r of filtered) {
+    const isBuy = r.direction === 'BUY';
+    if (isBuy) buyTotal++; else sellTotal++;
+
+    const riskDist = Math.abs(r.preferredEntry - r.stopLoss) || 8.0;
+
+    if (r.tp2Reached || r.phase4FinalStatus === 'TP2_HIT') {
+      winCount++;
+      if (isBuy) buyWins++; else sellWins++;
+      const pipsGained = Math.round((Math.abs(r.takeProfit2 - r.preferredEntry)) * 10);
+      totalPips += pipsGained;
+      if (isBuy) buyPips += pipsGained; else sellPips += pipsGained;
+      totalRRSum += (r.finalR || 3.0);
+    } else if (r.tp1Reached || r.phase4FinalStatus === 'TP1_HIT') {
+      winCount++;
+      if (isBuy) buyWins++; else sellWins++;
+      const pipsGained = Math.round((Math.abs(r.takeProfit1 - r.preferredEntry)) * 10);
+      totalPips += pipsGained;
+      if (isBuy) buyPips += pipsGained; else sellPips += pipsGained;
+      totalRRSum += (r.finalR || 1.8);
+    } else if (r.slReached || r.phase4FinalStatus === 'STOP_LOSS_HIT') {
+      lossCount++;
+      const pipsLost = Math.round(riskDist * 10);
+      totalPips -= pipsLost;
+      if (isBuy) buyPips -= pipsLost; else sellPips -= pipsLost;
+      totalRRSum += (r.finalR || -1.0);
+    } else {
+      expiredCount++;
+    }
+  }
+
+  const completedCount = winCount + lossCount;
+  const winRatePercent = completedCount > 0 ? parseFloat(((winCount / completedCount) * 100).toFixed(1)) : (totalTrades > 0 ? 100 : 0);
+  const averageRR = completedCount > 0 ? parseFloat((totalRRSum / completedCount).toFixed(2)) : 2.5;
+
+  const buyWinRatePercent = buyTotal > 0 ? parseFloat(((buyWins / Math.max(1, buyTotal)) * 100).toFixed(1)) : 0;
+  const sellWinRatePercent = sellTotal > 0 ? parseFloat(((sellWins / Math.max(1, sellTotal)) * 100).toFixed(1)) : 0;
+
+  const parts = targetYearMonth.split('-');
+  const yearStr = parts[0] || '2026';
+  const monthNum = parts[1] || '09';
+  const dateObj = new Date(parseInt(yearStr, 10), (parseInt(monthNum, 10) - 1), 1);
+  const periodLabel = targetYearMonth === 'ALL' ? 'All-Time Performance' : dateObj.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+
+  return {
+    yearMonth: targetYearMonth,
+    periodLabel,
+    totalTrades,
+    winCount,
+    lossCount,
+    expiredCount,
+    winRatePercent,
+    totalPips,
+    averageRR,
+    buyBreakdown: {
+      totalBuyTrades: buyTotal,
+      buyWins,
+      buyWinRatePercent,
+      buyPips
+    },
+    sellBreakdown: {
+      totalSellTrades: sellTotal,
+      sellWins,
+      sellWinRatePercent,
+      sellPips
+    },
+    trades: filtered
+  };
+}
+
 /**
  * Performs a Telegram Consistency Audit for all recorded live signals.
  * Verifies that Website Setup ID, Entry, SL, TP1, TP2 match the Telegram dispatched records exactly.

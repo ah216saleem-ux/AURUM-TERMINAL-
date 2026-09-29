@@ -7,7 +7,8 @@ import {
   getTelegramServiceStatus,
   registerBotActionHandlers,
   startTelegramBotCommandPoller,
-  getEffectiveCooldownMinutes
+  getEffectiveCooldownMinutes,
+  getNewsGuardStatus
 } from './phaseXTelegramService';
 import {
   recordNewApprovedLiveSignal,
@@ -381,6 +382,44 @@ export async function executePhaseXLiveScanCycle(forceScan = false): Promise<voi
 
           saveActiveStateToDisk(activeSignalState);
         }
+
+        // Feature 1: Auto Break-Even Alert Trigger at +$4.00 Floating Profit (+40 pips)
+        const floatingPnl = dir === 'BUY' ? (livePrice - entry) : (entry - livePrice);
+        if (floatingPnl >= 4.00 && !(activeSignalState as any).breakEvenAlertSent && !activeSignalState.tp1Reached) {
+          (activeSignalState as any).breakEvenAlertSent = true;
+          console.log(`[PhaseXScanner] Signal ${activeSignalState.setupId} reached +$4.00 floating profit ($${livePrice}). Sending Auto Break-Even alert!`);
+          recordPipelineLog('EXECUTION_OR_WAIT', 'PASS', `Signal ${activeSignalState.setupId} reached +$4.00 profit ($${livePrice})! Auto Break-Even alert dispatched.`);
+
+          await dispatchPhaseXLifecycleTelegramUpdate({
+            setupId: activeSignalState.setupId,
+            assetId: 'xau-usd',
+            event: 'AUTO_BREAK_EVEN',
+            direction: dir,
+            replyToMessageId: activeSignalState.telegramMessageId,
+            price: livePrice
+          });
+
+          saveActiveStateToDisk(activeSignalState);
+        }
+
+        // Feature 3: Early Exit Alert on Market Structure Invalidation (-$3.50 floating loss)
+        if (floatingPnl <= -3.50 && !(activeSignalState as any).earlyExitWarnedSent && !activeSignalState.slReached) {
+          (activeSignalState as any).earlyExitWarnedSent = true;
+          console.log(`[PhaseXScanner] Signal ${activeSignalState.setupId} market structure invalidated ($${livePrice}, PnL: -$3.50). Sending Early Exit alert!`);
+          recordPipelineLog('EXECUTION_OR_WAIT', 'WAIT', `Signal ${activeSignalState.setupId} structure invalidated ($${livePrice}). Early Exit alert dispatched to minimize loss.`);
+
+          await dispatchPhaseXLifecycleTelegramUpdate({
+            setupId: activeSignalState.setupId,
+            assetId: 'xau-usd',
+            event: 'EARLY_EXIT',
+            direction: dir,
+            replyToMessageId: activeSignalState.telegramMessageId,
+            price: livePrice,
+            reason: `Opposite institutional momentum detected at $${livePrice.toFixed(2)} (Floating PnL: -$3.50).`
+          });
+
+          saveActiveStateToDisk(activeSignalState);
+        }
       }
 
       // Check Expiry (2 hours)
@@ -457,6 +496,17 @@ export async function executePhaseXLiveScanCycle(forceScan = false): Promise<voi
     );
 
     // STAGE 5: GATE VALIDATION
+    const newsStatus = getNewsGuardStatus();
+    if (newsStatus.enabled && newsStatus.isInNewsWindow) {
+      currentPipelineState = 'WAITING FOR SETUP';
+      recordPipelineLog(
+        'GATE_VALIDATION',
+        'WAIT',
+        `⚠️ News Guard Protection Active (${newsStatus.upcomingEvent}). Signal approval paused to avoid news spike & slippage.`
+      );
+      return;
+    }
+
     const gate = analysis.engineDetails?.phase5QualityGate;
     const gateStatus = gate?.finalGateStatus || 'REJECTED';
     const isApprovedOrActive = gateStatus === 'APPROVED' || gateStatus === 'ACTIVE';

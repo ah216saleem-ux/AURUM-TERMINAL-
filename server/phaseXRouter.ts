@@ -14,13 +14,16 @@ import {
   updateAdminSettings,
   getN8nWebhookUrl,
   setDynamicN8nWebhookUrl,
-  sendN8nWebhookPayload
+  sendN8nWebhookPayload,
+  broadcastToAllRecipients,
+  getNewsGuardStatus
 } from './phaseXTelegramService';
 import {
   getPersistentPhaseXLiveHistory,
   calculatePhaseXPerformanceMetrics,
   runPhaseXLiveValidationSuite,
-  auditTelegramConsistency
+  auditTelegramConsistency,
+  generateMonthlyPerformanceReport
 } from './phaseXLiveHistoryService';
 import {
   getPhaseXDiagnostics,
@@ -253,6 +256,15 @@ export async function handlePhaseXRequest(req: IncomingMessage, res: ServerRespo
       return true;
     }
 
+    if (pathname === '/api/phase-x/monthly-report' && req.method === 'GET') {
+      const urlObj = new URL(req.url || '/', 'http://localhost');
+      const yearMonth = urlObj.searchParams.get('yearMonth') || urlObj.searchParams.get('month') || 'ALL';
+      const report = generateMonthlyPerformanceReport(yearMonth);
+      res.statusCode = 200;
+      res.end(JSON.stringify({ success: true, report }));
+      return true;
+    }
+
     if (pathname === '/api/phase-x/verify-phase5' || pathname === '/api/phase-x/verify') {
       if (!isAuthorizedAdmin(req)) {
         res.statusCode = 401;
@@ -409,8 +421,31 @@ export async function handlePhaseXRequest(req: IncomingMessage, res: ServerRespo
     if (pathname === '/api/phase-x/telegram-admins' && req.method === 'GET') {
       const admins = getAdminRecipients();
       const settings = getAdminSettings();
+      const newsGuard = getNewsGuardStatus();
       res.statusCode = 200;
-      res.end(JSON.stringify({ success: true, admins, settings }));
+      res.end(JSON.stringify({ success: true, admins, settings, newsGuard }));
+      return true;
+    }
+
+    if (pathname === '/api/phase-x/telegram-broadcast' && req.method === 'POST') {
+      let body = (req as any).body;
+      if (!body || typeof body !== 'object' || Object.keys(body).length === 0) {
+        let bodyStr = '';
+        req.on('data', chunk => { bodyStr += chunk; });
+        await new Promise(r => { req.on('end', r); setTimeout(r, 300); });
+        if (bodyStr) { try { body = JSON.parse(bodyStr); } catch {} }
+      }
+      body = body || {};
+      const { message, senderName } = body;
+      if (!message || !message.trim()) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ success: false, error: 'Message text required for broadcast.' }));
+        return true;
+      }
+
+      const result = await broadcastToAllRecipients(message, senderName || 'Admin Web Control');
+      res.statusCode = result.success ? 200 : 400;
+      res.end(JSON.stringify(result));
       return true;
     }
 
@@ -423,8 +458,8 @@ export async function handlePhaseXRequest(req: IncomingMessage, res: ServerRespo
         if (bodyStr) { try { body = JSON.parse(bodyStr); } catch {} }
       }
       body = body || {};
-      const { chatId, name, username, role } = body;
-      const result = addAdminRecipient(chatId, name, username, role);
+      const { chatId, name, username, role, duration, accessPlan } = body;
+      const result = addAdminRecipient(chatId, name, username, role || 'SUBSCRIBER', duration || accessPlan || 'lifetime');
       res.statusCode = result.success ? 200 : 400;
       res.end(JSON.stringify(result));
       return true;
