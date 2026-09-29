@@ -248,13 +248,13 @@ export const PhaseXView: React.FC = () => {
   useEffect(() => {
     const token = telegramSettings?.botToken?.trim();
     const chat = telegramSettings?.chatId?.trim() || telegramSettings?.channelTag?.trim();
-    if (token || chat) {
+    if (token && chat) {
       fetch('/api/phase-x/telegram-config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          botToken: token || '',
-          chatId: chat || ''
+          botToken: token,
+          chatId: chat
         })
       })
         .then(res => res.json())

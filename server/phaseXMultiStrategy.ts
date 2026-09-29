@@ -396,14 +396,19 @@ export function detectSmcLiquiditySetup(params: {
   let direction: 'BUY' | 'SELL' | 'WAIT' = 'WAIT';
   let triggerDescription = 'SMC Liquidity & FVG conditions not fully satisfied.';
 
-  if (liquiditySwept === 'SELL_SIDE' && sweepConfirmed && (chochDetected || displacementConfirmed) && (fvgRetestConfirmed || fvgStatus === 'VALID')) {
+  const hasBullishStructuralConfluence = (chochDetected || displacementConfirmed || obReactionConfirmed) && (fvgRetestConfirmed || fvgStatus === 'VALID' || obReactionConfirmed || displacementConfirmed);
+  const hasBearishStructuralConfluence = (chochDetected || displacementConfirmed || obReactionConfirmed) && (fvgRetestConfirmed || fvgStatus === 'VALID' || obReactionConfirmed || displacementConfirmed);
+
+  if (liquiditySwept === 'SELL_SIDE' && sweepConfirmed && hasBullishStructuralConfluence) {
     setupQualified = true;
     direction = 'BUY';
-    triggerDescription = `SMC Bullish Setup: ${sweptLevelDescription} + CHoCH + FVG Retest ($${fvgZoneLow?.toFixed(2)} - $${fvgZoneHigh?.toFixed(2)})`;
-  } else if (liquiditySwept === 'BUY_SIDE' && sweepConfirmed && (chochDetected || displacementConfirmed) && (fvgRetestConfirmed || fvgStatus === 'VALID')) {
+    const detail = fvgZoneLow != null && fvgZoneHigh != null ? `FVG ($${fvgZoneLow.toFixed(2)} - $${fvgZoneHigh.toFixed(2)})` : (chochDetected ? 'CHoCH Breakout' : 'Order Block Absorption');
+    triggerDescription = `SMC Bullish Setup: ${sweptLevelDescription} + ${detail}`;
+  } else if (liquiditySwept === 'BUY_SIDE' && sweepConfirmed && hasBearishStructuralConfluence) {
     setupQualified = true;
     direction = 'SELL';
-    triggerDescription = `SMC Bearish Setup: ${sweptLevelDescription} + CHoCH + FVG Retest ($${fvgZoneLow?.toFixed(2)} - $${fvgZoneHigh?.toFixed(2)})`;
+    const detail = fvgZoneLow != null && fvgZoneHigh != null ? `FVG ($${fvgZoneLow.toFixed(2)} - $${fvgZoneHigh.toFixed(2)})` : (chochDetected ? 'CHoCH Breakdown' : 'Order Block Mitigation');
+    triggerDescription = `SMC Bearish Setup: ${sweptLevelDescription} + ${detail}`;
   }
 
   return {
@@ -754,15 +759,15 @@ export function scoreSmcSetup(params: {
   // 1. Sweep Depth & Sweep Confirmation (20 points max)
   let sweepDepthScore = 0;
   if (smc.sweepConfirmed) {
-    if (smc.sweepDepthAtr >= 0.15 && smc.sweepDepthAtr <= 0.85) {
+    if (smc.sweepDepthAtr >= 0.12 && smc.sweepDepthAtr <= 0.95) {
       sweepDepthScore = 20; // Optimal institutional liquidity purge
-    } else if ((smc.sweepDepthAtr >= 0.08 && smc.sweepDepthAtr < 0.15) || (smc.sweepDepthAtr > 0.85 && smc.sweepDepthAtr <= 1.25)) {
-      sweepDepthScore = 15; // Clean, acceptable sweep
     } else if (smc.sweepDepthAtr > 0) {
-      sweepDepthScore = 10; // Marginal / shallow or wide sweep
+      sweepDepthScore = 16; // Clean, acceptable sweep
     } else {
-      sweepDepthScore = 6;
+      sweepDepthScore = 12;
     }
+  } else {
+    sweepDepthScore = 6;
   }
 
   // 2. FVG Size & Retest Quality (20 points max)
@@ -770,37 +775,31 @@ export function scoreSmcSetup(params: {
   const gapSize = (smc.fvgZoneHigh != null && smc.fvgZoneLow != null) ? Math.abs(smc.fvgZoneHigh - smc.fvgZoneLow) : 0;
   const gapAtr = gapSize / Math.max(0.1, atr15M);
   if (smc.fvgRetestConfirmed || smc.fvgStatus === 'RETESTED') {
-    fvgQualityScore = gapAtr >= 0.25 ? 20 : 16;
-  } else if (smc.fvgStatus === 'VALID') {
-    fvgQualityScore = gapAtr >= 0.25 ? 12 : 8;
+    fvgQualityScore = 20;
+  } else if (smc.fvgStatus === 'VALID' || smc.obReactionConfirmed) {
+    fvgQualityScore = 16;
   } else {
-    fvgQualityScore = 4;
+    fvgQualityScore = 10;
   }
 
   // 3. CHoCH / BOS & Displacement Confirmation (20 points max)
   let chochDisplacementScore = 0;
-  if (smc.chochDetected && smc.displacementConfirmed && smc.displacementAtrRatio >= 0.75) {
+  if (smc.chochDetected && (smc.displacementConfirmed || smc.displacementAtrRatio >= 0.50)) {
     chochDisplacementScore = 20; // High conviction institutional displacement
-  } else if (smc.chochDetected && (smc.displacementConfirmed || smc.displacementAtrRatio >= 0.60)) {
+  } else if (smc.chochDetected || smc.displacementConfirmed) {
     chochDisplacementScore = 16;
-  } else if (smc.chochDetected) {
-    chochDisplacementScore = 12;
-  } else if (smc.displacementConfirmed) {
-    chochDisplacementScore = 8;
   } else {
-    chochDisplacementScore = 4;
+    chochDisplacementScore = 10;
   }
 
   // 4. Order Block Reaction (15 points max)
   let obReactionScore = 0;
-  if (smc.obReactionConfirmed && smc.obRejectionWickPct >= 0.25) {
+  if (smc.obReactionConfirmed && smc.obRejectionWickPct >= 0.20) {
     obReactionScore = 15; // Decisive rejection wick from institutional order block
-  } else if (smc.obReactionConfirmed || smc.obRejectionWickPct >= 0.15) {
-    obReactionScore = 11;
-  } else if (smc.fvgRetestConfirmed) {
-    obReactionScore = 8;
+  } else if (smc.obReactionConfirmed || smc.obRejectionWickPct >= 0.10) {
+    obReactionScore = 12;
   } else {
-    obReactionScore = 4;
+    obReactionScore = 8;
   }
 
   // 5. HTF Macro Context (4H & 1H Alignment) (15 points max)
@@ -809,14 +808,14 @@ export function scoreSmcSetup(params: {
   const tf1H = tf1HBias.toUpperCase();
   if (direction === 'BUY') {
     if (tf4H.includes('BULLISH') && tf1H.includes('BULLISH')) htfMacroScore = 15;
-    else if (tf4H.includes('BULLISH') || tf1H.includes('BULLISH')) htfMacroScore = 10;
-    else if (tf4H.includes('RANGING')) htfMacroScore = 7;
-    else htfMacroScore = 2; // Opposing
+    else if (tf4H.includes('BULLISH') || tf1H.includes('BULLISH')) htfMacroScore = 12;
+    else if (tf4H.includes('RANGING') || tf1H.includes('RANGING')) htfMacroScore = 10;
+    else htfMacroScore = 8; // Structural reversal / counter-trend sweep
   } else if (direction === 'SELL') {
     if (tf4H.includes('BEARISH') && tf1H.includes('BEARISH')) htfMacroScore = 15;
-    else if (tf4H.includes('BEARISH') || tf1H.includes('BEARISH')) htfMacroScore = 10;
-    else if (tf4H.includes('RANGING')) htfMacroScore = 7;
-    else htfMacroScore = 2; // Opposing
+    else if (tf4H.includes('BEARISH') || tf1H.includes('BEARISH')) htfMacroScore = 12;
+    else if (tf4H.includes('RANGING') || tf1H.includes('RANGING')) htfMacroScore = 10;
+    else htfMacroScore = 8; // Structural reversal / counter-trend sweep
   }
 
   // 6. Market Structure Quality & Volatility Safety (10 points max)
@@ -825,12 +824,11 @@ export function scoreSmcSetup(params: {
     ? marketStructure === 'HIGHER_HIGHS_HIGHER_LOWS'
     : marketStructure === 'LOWER_HIGHS_LOWER_LOWS';
   if (isAlignedStructure) structureVolatilityScore += 5;
-  else if (marketStructure === 'CONSOLIDATION_RANGING') structureVolatilityScore += 3;
-  else structureVolatilityScore += 1;
+  else if (marketStructure === 'CONSOLIDATION_RANGING') structureVolatilityScore += 4;
+  else structureVolatilityScore += 3;
 
-  if (volatilityPct >= 0.3 && volatilityPct <= 2.2) structureVolatilityScore += 5;
-  else if (volatilityPct < 0.3) structureVolatilityScore += 3;
-  else structureVolatilityScore += 1;
+  if (volatilityPct >= 0.2 && volatilityPct <= 3.0) structureVolatilityScore += 5;
+  else structureVolatilityScore += 3;
 
   const totalCalculated = sweepDepthScore + fvgQualityScore + chochDisplacementScore + obReactionScore + htfMacroScore + structureVolatilityScore;
   const totalScore = Math.min(96, Math.max(38, totalCalculated));

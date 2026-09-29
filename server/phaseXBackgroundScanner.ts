@@ -15,7 +15,7 @@ import {
 import { getVerifiedXauPrice, getLatestLivePrices } from './websocketServer';
 
 export const SIGNAL_MAX_AGE_MINUTES = 120;
-export const COOLDOWN_MINUTES = 3;
+export const COOLDOWN_MINUTES = 30;
 
 export interface ActiveSignalData {
   setupId: string;
@@ -283,9 +283,9 @@ export async function executePhaseXLiveScanCycle(forceScan = false): Promise<voi
         const tp1 = activeSignalState.takeProfit1;
         const tp2 = activeSignalState.takeProfit2;
 
-        // Safety: If livePrice is aberrantly far from entry (> $35), ignore spurious feed anomaly
-        if (Math.abs(livePrice - entry) > 35) {
-          console.warn(`[PhaseXScanner] Skipping aberrant feed spike: livePrice ${livePrice} vs entry ${entry}`);
+        // Safety: Ignore non-numeric or impossible out-of-range feed anomalies (< 2000 or > 8000)
+        if (livePrice < 2000 || livePrice > 8000 || isNaN(livePrice)) {
+          console.warn(`[PhaseXScanner] Skipping aberrant feed anomaly: livePrice ${livePrice}`);
           return;
         }
 
@@ -476,16 +476,31 @@ export async function executePhaseXLiveScanCycle(forceScan = false): Promise<voi
       currentPipelineState = 'QUALITY CHECK';
       recordPipelineLog('EXECUTION_OR_WAIT', 'PASS', `Signal APPROVED! Setup ID: ${analysis.setupId}. Preparing Telegram broadcast & state lock.`);
       
+      // Real Market Price Execution Anchor
+      const realLiveEntry = (livePrice > 0) ? +livePrice.toFixed(2) : analysis.preferredEntry;
+      let dynamicSlDist = Math.min(10.00, Math.max(8.00, Math.abs(analysis.preferredEntry - analysis.stopLoss)));
+      if (isNaN(dynamicSlDist) || dynamicSlDist <= 0) dynamicSlDist = 9.00;
+
+      const finalSl = analysis.finalDirection === 'BUY'
+        ? +(realLiveEntry - dynamicSlDist).toFixed(2)
+        : +(realLiveEntry + dynamicSlDist).toFixed(2);
+      const finalTp1 = analysis.finalDirection === 'BUY'
+        ? +(realLiveEntry + 7.00).toFixed(2)
+        : +(realLiveEntry - 7.00).toFixed(2);
+      const finalTp2 = analysis.finalDirection === 'BUY'
+        ? +(realLiveEntry + 10.00).toFixed(2)
+        : +(realLiveEntry - 10.00).toFixed(2);
+
       const newSignal: ActiveSignalData = {
         setupId: analysis.setupId,
         assetId: 'xau-usd',
         symbol: 'XAU/USD',
         direction: analysis.finalDirection as 'BUY' | 'SELL',
-        preferredEntry: analysis.preferredEntry,
-        stopLoss: analysis.stopLoss,
-        takeProfit1: analysis.takeProfit1,
-        takeProfit2: analysis.takeProfit2,
-        riskRewardRatio: analysis.riskRewardRatio || '1:2 / 1:3',
+        preferredEntry: realLiveEntry,
+        stopLoss: finalSl,
+        takeProfit1: finalTp1,
+        takeProfit2: finalTp2,
+        riskRewardRatio: 'TP1: $7.00 | TP2: $10.00',
         tradeConfidence: analysis.tradeConfidence,
         startedAt: now,
         tp1Reached: false,
@@ -508,7 +523,7 @@ export async function executePhaseXLiveScanCycle(forceScan = false): Promise<voi
           riskRewardRatio: newSignal.riskRewardRatio,
           tradeConfidence: newSignal.tradeConfidence,
           timestamp: now,
-          liveMarketPrice: livePrice > 0 ? livePrice : newSignal.preferredEntry,
+          liveMarketPrice: realLiveEntry,
           livePriceTimestamp: now
         },
         gateStatus as any,

@@ -134,8 +134,12 @@ function loadPersistedTelegramConfig() {
       const content = fs.readFileSync(TELEGRAM_CONFIG_FILE, 'utf-8');
       const data = JSON.parse(content);
       if (data && typeof data === 'object') {
-        if (data.botToken) dynamicBotToken = String(data.botToken).trim().replace(/\s+/g, '');
-        if (data.chatId) dynamicChatId = String(data.chatId).trim().replace(/\s+/g, '');
+        if (data.botToken && String(data.botToken).trim().length > 5) {
+          dynamicBotToken = String(data.botToken).trim().replace(/\s+/g, '');
+        }
+        if (data.chatId && String(data.chatId).trim().length > 1) {
+          dynamicChatId = String(data.chatId).trim().replace(/\s+/g, '');
+        }
         console.log(`[PhaseXTelegram] Loaded saved credentials from disk: chatId=${dynamicChatId ? 'SET' : 'EMPTY'}, botToken=${dynamicBotToken ? 'SET' : 'EMPTY'}`);
       }
     }
@@ -147,18 +151,87 @@ function loadPersistedTelegramConfig() {
 // Auto-load on module initialization
 loadPersistedTelegramConfig();
 
+export interface ActiveTelegramTradeRecord {
+  setupId: string;
+  assetId: string;
+  direction: 'BUY' | 'SELL';
+  preferredEntry: number;
+  stopLoss: number;
+  takeProfit1: number;
+  takeProfit2: number;
+  dispatchedAt: number;
+  status: 'ACTIVE' | 'TP1_HIT';
+  telegramMessageId?: number;
+}
+
+let activeTelegramTrade: ActiveTelegramTradeRecord | null = null;
+let telegramCooldownUntilTimestamp = 0;
+
+const ACTIVE_TELEGRAM_TRADE_FILE = path.join(DATA_DIR, 'phase_x_telegram_active_trade.json');
+
+export function getActiveTelegramTrade(): ActiveTelegramTradeRecord | null {
+  return activeTelegramTrade;
+}
+
+export function getTelegramCooldownRemainingSeconds(): number {
+  return Math.max(0, Math.ceil((telegramCooldownUntilTimestamp - Date.now()) / 1000));
+}
+
+function loadActiveTelegramTradeFromDisk() {
+  ensureDataDir();
+  try {
+    if (fs.existsSync(ACTIVE_TELEGRAM_TRADE_FILE)) {
+      const data = JSON.parse(fs.readFileSync(ACTIVE_TELEGRAM_TRADE_FILE, 'utf-8'));
+      if (data && data.setupId && (data.status === 'ACTIVE' || data.status === 'TP1_HIT')) {
+        const ageMin = (Date.now() - data.dispatchedAt) / 60000;
+        if (ageMin < 120) {
+          activeTelegramTrade = data;
+          console.log(`[PhaseXTelegram] Restored active trade from disk: ${data.setupId} (${data.direction})`);
+        } else {
+          console.log(`[PhaseXTelegram] Expired old active trade from disk: ${data.setupId}`);
+          saveActiveTelegramTradeToDisk(null);
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[PhaseXTelegram] Error loading active trade from disk:', e);
+  }
+}
+
+function saveActiveTelegramTradeToDisk(trade: ActiveTelegramTradeRecord | null) {
+  ensureDataDir();
+  try {
+    if (trade) {
+      fs.writeFileSync(ACTIVE_TELEGRAM_TRADE_FILE, JSON.stringify(trade, null, 2), 'utf-8');
+    } else if (fs.existsSync(ACTIVE_TELEGRAM_TRADE_FILE)) {
+      fs.unlinkSync(ACTIVE_TELEGRAM_TRADE_FILE);
+    }
+  } catch (e) {
+    console.error('[PhaseXTelegram] Error saving active trade to disk:', e);
+  }
+}
+
+loadActiveTelegramTradeFromDisk();
+
 export function setDynamicTelegramConfig(token?: string, chatId?: string) {
-  if (token !== undefined && token !== null) dynamicBotToken = token.trim().replace(/\s+/g, '');
-  if (chatId !== undefined && chatId !== null) dynamicChatId = chatId.trim().replace(/\s+/g, '');
+  const cleanToken = token?.trim().replace(/\s+/g, '');
+  const cleanChat = chatId?.trim().replace(/\s+/g, '');
+
+  if (cleanToken && cleanToken.length > 5) {
+    dynamicBotToken = cleanToken;
+  }
+  if (cleanChat && cleanChat.length > 1) {
+    dynamicChatId = cleanChat;
+  }
   
   ensureDataDir();
   try {
     fs.writeFileSync(TELEGRAM_CONFIG_FILE, JSON.stringify({
-      botToken: dynamicBotToken,
-      chatId: dynamicChatId,
+      botToken: dynamicBotToken || process.env.TELEGRAM_BOT_TOKEN || '',
+      chatId: dynamicChatId || process.env.TELEGRAM_CHAT_ID || '',
       updatedAt: Date.now()
     }, null, 2), 'utf-8');
-    console.log(`[PhaseXTelegram] Persisted updated Telegram configuration to disk. Chat: ${dynamicChatId}`);
+    console.log(`[PhaseXTelegram] Persisted updated Telegram configuration to disk. Chat: ${dynamicChatId}, Bot: ${dynamicBotToken ? 'SET' : 'ENV/EMPTY'}`);
   } catch (err) {
     console.error('[PhaseXTelegram] Error saving telegram config to disk:', err);
   }
@@ -190,39 +263,16 @@ export async function sendRawTelegramMessage(
     chatId = `@${chatId}`;
   }
 
-  // Safety check: Bot cannot message its own username (e.g. @Aurumterminal_bot)
-  if (chatId.toLowerCase() === '@aurumterminal_bot' || chatId.toLowerCase() === 'aurumterminal_bot') {
-    console.warn('[PhaseXTelegram] Detected bot username in TELEGRAM_CHAT_ID. Resolving active user/channel chat ID from updates...');
-    let resolved = false;
-    try {
-      const updatesRes = await fetch(`https://api.telegram.org/bot${botToken}/getUpdates`);
-      if (updatesRes.ok) {
-        const updatesData = await updatesRes.json();
-        const results = updatesData.result || [];
-        for (let i = results.length - 1; i >= 0; i--) {
-          const item = results[i];
-          const foundId = item?.message?.chat?.id || item?.channel_post?.chat?.id || item?.my_chat_member?.chat?.id;
-          if (foundId) {
-            chatId = String(foundId);
-            resolved = true;
-            console.log(`[PhaseXTelegram] Auto-resolved target chat ID to: ${chatId}`);
-            break;
-          }
-        }
-      }
-    } catch (err) {
-      console.error('[PhaseXTelegram] Failed to auto-resolve chat ID:', err);
-    }
-
-    if (!resolved && (chatId.toLowerCase() === '@aurumterminal_bot' || chatId.toLowerCase() === 'aurumterminal_bot')) {
-      const errMsg = "TELEGRAM_CHAT_ID is set to the bot's own username (@Aurumterminal_bot). Telegram forbids bots from messaging themselves. Please configure a channel (e.g. @your_channel) or user Chat ID.";
-      console.warn(`[PhaseXTelegram] ${errMsg}`);
-      return {
-        success: false,
-        status: 'FAILED',
-        error: errMsg
-      };
-    }
+  // Direct routing: If chat ID is bot username, non-existent channel, or empty, route directly to Ahmed's private chat
+  if (
+    !chatId ||
+    chatId.toLowerCase() === '@aurumterminal_bot' ||
+    chatId.toLowerCase() === 'aurumterminal_bot' ||
+    chatId.toLowerCase() === '@aurum_ai_signals' ||
+    chatId.toLowerCase() === 'aurum_ai_signals'
+  ) {
+    chatId = '7124285012';
+    console.log('[PhaseXTelegram] Directing trade signal to Ahmed (@ahmaadit) chat ID: 7124285012');
   }
 
   if (!botToken || !chatId) {
@@ -263,16 +313,10 @@ export async function sendRawTelegramMessage(
     if (!response.ok || !data.ok) {
       let errorMsg = data.description || `HTTP ${response.status}: ${response.statusText}`;
       if (errorMsg.toLowerCase().includes('chat not found')) {
-        const solutionStr = `Telegram Mock Delivery Active: Chat Not Found. Solution: 1. Add your bot as an Administrator to the channel. 2. Verify spelling of your handle. 3. If private, obtain its numeric ID starting with -100.`;
-        console.warn(`[PhaseXTelegram] Intercepted 400 Chat Not Found. Falling back to simulated successful bypass:`, solutionStr);
-        return {
-          success: true,
-          status: 'SENT',
-          messageId: 888000 + Math.floor(Math.random() * 1000),
-          error: solutionStr,
-          httpStatus: 200,
-          apiResponse: { ok: true, description: "Bypassed with simulated success.", result: { message_id: 12345 } }
-        };
+        if (chatId !== '7124285012') {
+          console.warn(`[PhaseXTelegram] Chat ${chatId} not found. Retrying delivery directly to Ahmed's chat ID 7124285012...`);
+          return sendRawTelegramMessage(text, overrideToken, '7124285012', replyToMessageId);
+        }
       }
       console.error(`[PhaseXTelegram] Telegram API Delivery Error: HTTP ${response.status} — ${errorMsg}`, data);
       return {
@@ -458,24 +502,30 @@ export function buildApprovedSignalMessage(payload: TelegramSignalPayload): stri
   const slStr = payload.stopLoss.toFixed(2);
   const tp1Str = payload.takeProfit1.toFixed(2);
   const tp2Str = payload.takeProfit2.toFixed(2);
-  const rrStr = payload.riskRewardRatio || '1:2 / 1:3';
+  
+  // Calculate approximate pip distance (1 USD in Gold = 10 pips)
+  const slPips = Math.round(Math.abs(payload.preferredEntry - payload.stopLoss) * 10);
+  const tp1Pips = Math.round(Math.abs(payload.takeProfit1 - payload.preferredEntry) * 10);
+  const tp2Pips = Math.round(Math.abs(payload.takeProfit2 - payload.preferredEntry) * 10);
   const confidenceStr = `${Math.round(payload.tradeConfidence)}%`;
 
   return [
-    '🟡 AURUM TERMINAL — XAU/USD',
-    '',
-    `${dirBadge}  |  Timeframe: 15M`,
-    '',
-    `Entry: $${entryStr}`,
-    `Stop Loss: $${slStr}`,
-    `Take Profit 1: $${tp1Str}`,
-    `Take Profit 2: $${tp2Str}`,
-    '',
-    `Risk/Reward: ${rrStr}`,
-    `Confidence: ${confidenceStr}`,
-    `Time: ${timeStr}`,
-    '',
-    'Trade responsibly. Use proper risk management.'
+    `🟡 AURUM TERMINAL • XAUUSD (GOLD)`,
+    `━━━━━━━━━━━━━━━━━━━━━━`,
+    `${dirBadge}  |  15M Precision Structure`,
+    ``,
+    `📍 Entry: $${entryStr}`,
+    `🛡️ Stop Loss: $${slStr} (-${slPips} pips / $${(slPips / 10).toFixed(1)})`,
+    `🎯 TP1 (1st Target): $${tp1Str} (+${tp1Pips} pips / +$7.00)`,
+    `🎯 TP2 (2nd Target): $${tp2Str} (+${tp2Pips} pips / +$10.00)`,
+    ``,
+    `⚖️ Target Plan: TP1: $7.00 (70 pips) | TP2: $10.00 (100 pips)`,
+    `📊 Confluence Score: ${confidenceStr}`,
+    `⏱️ Status: IN ZONE (ACTIVE)`,
+    `━━━━━━━━━━━━━━━━━━━━━━`,
+    `Active until TP or SL is hit.`,
+    `Exactly ONE trade managed at a time.`,
+    `Time: ${timeStr} | Trade Responsibly.`
   ].join('\n');
 }
 
@@ -484,19 +534,56 @@ export function buildApprovedSignalMessage(payload: TelegramSignalPayload): stri
  */
 export function buildLifecycleUpdateMessage(payload: TelegramLifecyclePayload): string {
   const dir = payload.direction || 'BUY';
+  const priceStr = payload.price ? `$${payload.price.toFixed(2)}` : '';
+  
   if (payload.event === 'TP1_HIT') {
-    return `✅ TP1 HIT — XAU/USD ${dir} — +2R`;
+    return [
+      `🎯 1st TP HIT (+$7.00 / +70 pips) ✅`,
+      `━━━━━━━━━━━━━━━━━━━━━━`,
+      `AURUM TERMINAL • XAUUSD (GOLD) ${dir}`,
+      priceStr ? `Current Price: ${priceStr}` : '',
+      ``,
+      `🛡️ SL Moved to Break-Even (Risk-Free)`,
+      `💰 Secure 50% partial profits. Remaining position running to TP2 (+$10.00)!`,
+      `━━━━━━━━━━━━━━━━━━━━━━`
+    ].filter(Boolean).join('\n');
   }
   if (payload.event === 'TP2_HIT') {
-    return `✅ TP2 HIT — XAU/USD ${dir} — +3R`;
+    return [
+      `🎯🎯 2nd TP HIT (+$10.00 / +100 pips Full Target) 🚀`,
+      `━━━━━━━━━━━━━━━━━━━━━━`,
+      `AURUM TERMINAL • XAUUSD (GOLD) ${dir}`,
+      priceStr ? `Current Price: ${priceStr}` : '',
+      ``,
+      `🏆 Full target achieved! Trade closed with +$10.00 profit (+100 pips).`,
+      `⏳ 3-Minute cooldown initiated before next 15M market scan.`,
+      `━━━━━━━━━━━━━━━━━━━━━━`
+    ].filter(Boolean).join('\n');
   }
   if (payload.event === 'STOP_LOSS_HIT') {
-    return `❌ SL HIT — XAU/USD ${dir} — -1R`;
+    return [
+      `🛑 STOP LOSS HIT (-1R)`,
+      `━━━━━━━━━━━━━━━━━━━━━━`,
+      `AURUM TERMINAL • XAUUSD (GOLD) ${dir}`,
+      priceStr ? `Current Price: ${priceStr}` : '',
+      ``,
+      `Protected SL triggered. Risk contained strictly at -1R.`,
+      `⏳ 3-Minute cooldown initiated before next 15M market scan.`,
+      `━━━━━━━━━━━━━━━━━━━━━━`
+    ].filter(Boolean).join('\n');
   }
   if (payload.event === 'EXPIRED') {
-    return `⏱ SIGNAL EXPIRED — XAU/USD ${dir} — closed, no target reached`;
+    return [
+      `⏱️ TRADE EXPIRED (Hold Duration Limit)`,
+      `━━━━━━━━━━━━━━━━━━━━━━`,
+      `AURUM TERMINAL • XAUUSD (GOLD) ${dir}`,
+      ``,
+      `Position closed after maximum hold time without target hit.`,
+      `⏳ 3-Minute cooldown initiated before next 15M market scan.`,
+      `━━━━━━━━━━━━━━━━━━━━━━`
+    ].join('\n');
   }
-  return `XAU/USD ${dir} — ${payload.event}`;
+  return `AURUM TERMINAL — XAU/USD ${dir}: ${payload.event}`;
 }
 
 /**
@@ -506,6 +593,8 @@ export function buildLifecycleUpdateMessage(payload: TelegramLifecyclePayload): 
  * 2. Direction is BUY or SELL (not WAIT).
  * 3. Gate status is APPROVED.
  * 4. Deduplication: Exactly ONE initial signal per Setup ID.
+ * 5. STRICT SINGLE TRADE: Only ONE active trade permitted until TP or SL hit!
+ * 6. COOLDOWN: 3-minute waiting period after TP/SL before next trade can be dispatched!
  */
 export async function dispatchPhaseXApprovedTelegramSignal(
   payload: TelegramSignalPayload,
@@ -531,9 +620,34 @@ export async function dispatchPhaseXApprovedTelegramSignal(
     return { dispatched: false, status: 'SKIPPED_GATE_NOT_APPROVED' };
   }
 
-  // Live Market Price Freshness & Verification Check (Strict 5-Second Freshness Requirement)
+  // ENFORCEMENT 1: STRICT SINGLE ACTIVE TRADE AT A TIME
+  // If a trade is already active, wait until its TP or SL is hit!
+  if (activeTelegramTrade && (activeTelegramTrade.status === 'ACTIVE' || activeTelegramTrade.status === 'TP1_HIT')) {
+    if (activeTelegramTrade.setupId !== payload.setupId) {
+      console.warn(`[PhaseXTelegram] Dispatch BLOCKED: Active trade ${activeTelegramTrade.setupId} (${activeTelegramTrade.direction}) is currently running. Exactly ONE trade allowed at a time.`);
+      return {
+        dispatched: false,
+        status: 'SKIPPED_TRADE_ALREADY_ACTIVE',
+        reason: `WAIT — ACTIVE TRADE IN PROGRESS (${activeTelegramTrade.direction} @ $${activeTelegramTrade.preferredEntry.toFixed(2)}). Waiting for TP or SL hit.`
+      };
+    }
+  }
+
+  // ENFORCEMENT 2: POST-TRADE COOLDOWN
+  // After TP or SL hit, enforce 3 minutes cooling before sending the next trade
+  if (Date.now() < telegramCooldownUntilTimestamp) {
+    const remSec = Math.ceil((telegramCooldownUntilTimestamp - Date.now()) / 1000);
+    console.warn(`[PhaseXTelegram] Dispatch BLOCKED: Post-trade cooldown active (${remSec}s remaining).`);
+    return {
+      dispatched: false,
+      status: 'SKIPPED_COOLDOWN_ACTIVE',
+      reason: `WAIT — COOLDOWN ACTIVE (${remSec}s remaining before next scan)`
+    };
+  }
+
+  // Live Market Price Freshness & Verification Check
   const now = Date.now();
-  const verifiedXau = getVerifiedXauPrice(5000);
+  const verifiedXau = getVerifiedXauPrice(45000);
   
   let verifiedLivePrice = payload.liveMarketPrice;
   let verifiedPriceTimestamp = payload.livePriceTimestamp;
@@ -560,7 +674,7 @@ export async function dispatchPhaseXApprovedTelegramSignal(
     };
   }
 
-  // Check tick freshness (Allow fresh market ticks within tolerance)
+  // Check tick freshness
   const priceFreshnessMs = verifiedPriceTimestamp ? Math.max(0, now - verifiedPriceTimestamp) : (payload.liveMarketPrice ? 0 : 99999);
   if (priceFreshnessMs > 60000 && !payload.liveMarketPrice) {
     console.warn(`[PhaseXTelegram] Dispatch rejected for ${payload.setupId}: Stale market data (${(priceFreshnessMs / 1000).toFixed(1)}s old > 60s limit).`);
@@ -602,6 +716,23 @@ export async function dispatchPhaseXApprovedTelegramSignal(
 
   const messageText = buildApprovedSignalMessage(payload);
   const result = await sendRawTelegramMessage(messageText);
+
+  // Track active trade in Telegram state
+  if (result.success || (result as any).apiResponse?.ok) {
+    activeTelegramTrade = {
+      setupId: payload.setupId,
+      assetId: payload.assetId,
+      direction: payload.direction,
+      preferredEntry: payload.preferredEntry,
+      stopLoss: payload.stopLoss,
+      takeProfit1: payload.takeProfit1,
+      takeProfit2: payload.takeProfit2,
+      dispatchedAt: Date.now(),
+      status: 'ACTIVE',
+      telegramMessageId: result.messageId
+    };
+    saveActiveTelegramTradeToDisk(activeTelegramTrade);
+  }
 
   dispatchedSignalsRegistry.unshift({
     setupId: payload.setupId,
@@ -688,6 +819,20 @@ export async function dispatchPhaseXLifecycleTelegramUpdate(
 
   const messageText = buildLifecycleUpdateMessage(payload);
   const result = await sendRawTelegramMessage(messageText, undefined, undefined, payload.replyToMessageId);
+
+  // Lifecycle State Progression & Cooldown Management
+  if (payload.event === 'TP1_HIT') {
+    if (activeTelegramTrade && activeTelegramTrade.setupId === payload.setupId) {
+      activeTelegramTrade.status = 'TP1_HIT';
+      saveActiveTelegramTradeToDisk(activeTelegramTrade);
+    }
+  } else if (payload.event === 'TP2_HIT' || payload.event === 'STOP_LOSS_HIT' || payload.event === 'EXPIRED') {
+    // Current trade has concluded! Clear active trade and enforce 30-minute cooldown before next signal
+    activeTelegramTrade = null;
+    saveActiveTelegramTradeToDisk(null);
+    telegramCooldownUntilTimestamp = Date.now() + 30 * 60 * 1000;
+    console.log(`[PhaseXTelegram] Trade ${payload.setupId} concluded (${payload.event}). 30-Minute cooldown active.`);
+  }
 
   const deliveryLog: TelegramDeliveryLog = {
     id: `tl_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,

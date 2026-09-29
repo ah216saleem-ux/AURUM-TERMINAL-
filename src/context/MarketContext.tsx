@@ -1013,28 +1013,35 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (!parsed.history) {
           parsed.history = [];
         }
+        if (!parsed.botToken || parsed.botToken.length < 5 || parsed.chatId === '@aurum_ai_signals') {
+          parsed.botToken = '8740618511:AAGwDMH8kAJsgqP1hgUv1_rvcs97MoSedmE';
+          parsed.chatId = '7124285012';
+          parsed.channelTag = '@Aurumterminal_bot';
+          parsed.isConnected = true;
+          parsed.enabled = true;
+        }
         return parsed;
       }
     } catch (e) {
       console.warn('Error loading telegram settings from localStorage:', e);
     }
     return {
-      botToken: '',
-      chatId: '',
-      channelTag: '@aurum_ai_signals',
+      botToken: '8740618511:AAGwDMH8kAJsgqP1hgUv1_rvcs97MoSedmE',
+      chatId: '7124285012',
+      channelTag: '@Aurumterminal_bot',
       autoBroadcast: true,
-      minConfidence: 85,
-      isConnected: false,
-      enabled: false,
+      minConfidence: 80,
+      isConnected: true,
+      enabled: true,
       sentCountToday: 0,
       sentKeys: [],
       history: [
         {
           id: 'tel-1',
-          timestamp: '1h ago',
+          timestamp: 'Just now',
           signalSymbol: 'XAU/USD',
-          signalType: 'BUY',
-          messagePreview: '🟡 AURUM AI SIGNAL\n\nPair:\nXAU/USD\n\nSignal:\nBUY\n\nEntry:\n$2,638.00 - $2,644.00\n\nStop Loss:\n$2,624.00\n\nTake Profit:\nTP1: $2,685.00\nTP2: $2,710.00\n\nTimeframe:\nH1\n\nConfidence:\n92%\n\nSetup Grade:\nA+',
+          signalType: 'SELL',
+          messagePreview: '🟡 AURUM TERMINAL • XAUUSD (GOLD)\n\nSELL @ $4137.50\nSL: $4156.26\nTP1: $4099.98 (+375 pips)\nTP2: $4081.22 (+563 pips)',
           status: 'DELIVERED'
         }
       ]
@@ -1912,13 +1919,13 @@ ${statusLabel}`;
       // Instantly sync credentials to backend Phase X autonomous delivery engine
       const tokenToSync = updated.botToken?.trim();
       const chatToSync = updated.chatId?.trim() || updated.channelTag?.trim();
-      if (tokenToSync || chatToSync) {
+      if (tokenToSync && chatToSync) {
         fetch('/api/phase-x/telegram-config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            botToken: tokenToSync || '',
-            chatId: chatToSync || ''
+            botToken: tokenToSync,
+            chatId: chatToSync
           })
         }).catch(err => console.warn('[MarketContext] Error syncing telegram settings to backend:', err));
       }
@@ -1926,17 +1933,17 @@ ${statusLabel}`;
     });
   };
 
-  // Sync telegram config to server on boot
+  // Sync telegram config to server on boot if credentials exist
   useEffect(() => {
     const token = telegramSettings.botToken?.trim();
     const chat = telegramSettings.chatId?.trim() || telegramSettings.channelTag?.trim();
-    if (token || chat) {
+    if (token && chat) {
       fetch('/api/phase-x/telegram-config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          botToken: token || '',
-          chatId: chat || ''
+          botToken: token,
+          chatId: chat
         })
       }).catch(() => {});
     }

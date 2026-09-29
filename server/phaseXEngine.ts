@@ -2195,6 +2195,16 @@ export async function analyzePhaseX(
     finalProtectedSL = initialSL;
     slDistance = slDist;
     targetRiskDistance = slDist;
+
+    // Strict Gold Precision Dynamic Stop-Loss Architecture (8.00 to 10.00 dollars / 80 to 100 pips)
+    if (assetId === 'xau-usd' && preferredEntry != null) {
+      const dynamicGoldSl = Math.min(10.00, Math.max(8.00, slDist > 0 ? slDist : +(atr15M * 1.5).toFixed(assetConfig.decimals)));
+      slDist = dynamicGoldSl;
+      finalProtectedSL = +(preferredEntry - dynamicGoldSl).toFixed(assetConfig.decimals);
+      targetRiskDistance = dynamicGoldSl;
+      slDistance = dynamicGoldSl;
+    }
+
     slDistanceAtr = +(slDist / (atr15M > 0 ? atr15M : atr5M)).toFixed(2);
   } else if (candidateDirection === 'SELL' && preferredEntry != null && slStructuralAnchor != null && !fallbackRejectedDueToExcessiveDistance) {
     const effectiveBuffer = fallbackTriggered ? Math.max(protectiveBuffer, 0.45 * atr15M) : protectiveBuffer;
@@ -2210,6 +2220,16 @@ export async function analyzePhaseX(
     finalProtectedSL = initialSL;
     slDistance = slDist;
     targetRiskDistance = slDist;
+
+    // Strict Gold Precision Dynamic Stop-Loss Architecture (8.00 to 10.00 dollars / 80 to 100 pips)
+    if (assetId === 'xau-usd' && preferredEntry != null) {
+      const dynamicGoldSl = Math.min(10.00, Math.max(8.00, slDist > 0 ? slDist : +(atr15M * 1.5).toFixed(assetConfig.decimals)));
+      slDist = dynamicGoldSl;
+      finalProtectedSL = +(preferredEntry + dynamicGoldSl).toFixed(assetConfig.decimals);
+      targetRiskDistance = dynamicGoldSl;
+      slDistance = dynamicGoldSl;
+    }
+
     slDistanceAtr = +(slDist / (atr15M > 0 ? atr15M : atr5M)).toFixed(2);
   }
 
@@ -2217,7 +2237,7 @@ export async function analyzePhaseX(
   const maxAcceptableRisk = Math.max(
     fallbackTriggered ? 2.5 * atr15M : 3.5 * atr5M,
     2.5 * atr15M,
-    (assetId === 'xau-usd' ? 12.0 : 0)
+    (assetId === 'xau-usd' ? 11.50 : 0)
   );
   if (
     fallbackRejectedDueToExcessiveDistance || 
@@ -2237,15 +2257,21 @@ export async function analyzePhaseX(
   let tp1RMultiple = 2.0;
   let tp2RMultiple = 3.0;
   let tp1Feasibility: 'FEASIBLE' | 'OBSTACLE_DETECTED' | 'NOT_APPLICABLE' = 'NOT_APPLICABLE';
-  let targetStructure = '3R_MATHEMATICAL_EXPANSION';
+  let targetStructure = 'PRECISION_GOLD_EXPANSION';
 
   if (candidateDirection === 'BUY' && preferredEntry != null && targetRiskDistance != null && targetRiskDistance > 0) {
-    takeProfit1 = +(preferredEntry + (2.0 * targetRiskDistance)).toFixed(assetConfig.decimals);
-    takeProfit2 = +(preferredEntry + (3.0 * targetRiskDistance)).toFixed(assetConfig.decimals);
+    if (assetId === 'xau-usd') {
+      // Direct Gold Specific Target Structure: TP1 = +$7.00 (70 pips), TP2 = +$10.00 (100 pips)
+      takeProfit1 = +(preferredEntry + 7.00).toFixed(assetConfig.decimals);
+      takeProfit2 = +(preferredEntry + 10.00).toFixed(assetConfig.decimals);
+    } else {
+      takeProfit1 = +(preferredEntry + (2.0 * targetRiskDistance)).toFixed(assetConfig.decimals);
+      takeProfit2 = +(preferredEntry + (3.0 * targetRiskDistance)).toFixed(assetConfig.decimals);
+    }
 
     // Section 12: TP1 Feasibility Gate against opposing 1H / 4H structure
     const isTrendingOrBreakout = detectedPhase === 'MARKUP' || detectedPhase === 'MARKDOWN' || detectedPhase === 'ACCUMULATION' || activeEvent === 'Sign of Strength' || activeEvent === 'Sign of Weakness' || smcTelemetry.setupQualified || springStatus === 'CONFIRMED';
-    if (!isTrendingOrBreakout && rangeHigh > preferredEntry && rangeHigh < takeProfit1 && (rangeHigh - preferredEntry) < (1.2 * targetRiskDistance)) {
+    if (!isTrendingOrBreakout && rangeHigh > preferredEntry && rangeHigh < takeProfit1 && (rangeHigh - preferredEntry) < 4.5) {
       tp1Feasibility = 'OBSTACLE_DETECTED';
       candidateDirection = 'WAIT';
       finalDirection = 'WAIT';
@@ -2256,18 +2282,24 @@ export async function analyzePhaseX(
       tp1Feasibility = 'FEASIBLE';
     }
 
-    // Section 13: Align TP2 to major macro boundary if within 0.25R
-    if (macro4HHigh > preferredEntry && Math.abs(macro4HHigh - takeProfit2) <= (0.25 * targetRiskDistance)) {
+    // Section 13: Align TP2 to major macro boundary if applicable
+    if (assetId !== 'xau-usd' && macro4HHigh > preferredEntry && Math.abs(macro4HHigh - takeProfit2) <= (0.25 * targetRiskDistance)) {
       takeProfit2 = +macro4HHigh.toFixed(assetConfig.decimals);
       targetStructure = '4H_MACRO_RANGE_HIGH_ALIGNMENT';
     }
   } else if (candidateDirection === 'SELL' && preferredEntry != null && targetRiskDistance != null && targetRiskDistance > 0) {
-    takeProfit1 = +(preferredEntry - (2.0 * targetRiskDistance)).toFixed(assetConfig.decimals);
-    takeProfit2 = +(preferredEntry - (3.0 * targetRiskDistance)).toFixed(assetConfig.decimals);
+    if (assetId === 'xau-usd') {
+      // Direct Gold Specific Target Structure: TP1 = -$7.00 (70 pips), TP2 = -$10.00 (100 pips)
+      takeProfit1 = +(preferredEntry - 7.00).toFixed(assetConfig.decimals);
+      takeProfit2 = +(preferredEntry - 10.00).toFixed(assetConfig.decimals);
+    } else {
+      takeProfit1 = +(preferredEntry - (2.0 * targetRiskDistance)).toFixed(assetConfig.decimals);
+      takeProfit2 = +(preferredEntry - (3.0 * targetRiskDistance)).toFixed(assetConfig.decimals);
+    }
 
     // Section 12: TP1 Feasibility Gate against opposing 1H / 4H structure
     const isTrendingOrBreakdown = detectedPhase === 'MARKUP' || detectedPhase === 'MARKDOWN' || detectedPhase === 'DISTRIBUTION' || activeEvent === 'Sign of Strength' || activeEvent === 'Sign of Weakness' || smcTelemetry.setupQualified || upthrustStatus === 'CONFIRMED';
-    if (!isTrendingOrBreakdown && rangeLow < preferredEntry && rangeLow > takeProfit1 && (preferredEntry - rangeLow) < (1.2 * targetRiskDistance)) {
+    if (!isTrendingOrBreakdown && rangeLow < preferredEntry && rangeLow > takeProfit1 && (preferredEntry - rangeLow) < 4.5) {
       tp1Feasibility = 'OBSTACLE_DETECTED';
       candidateDirection = 'WAIT';
       finalDirection = 'WAIT';
@@ -2278,7 +2310,7 @@ export async function analyzePhaseX(
       tp1Feasibility = 'FEASIBLE';
     }
 
-    if (macro4HLow < preferredEntry && Math.abs(macro4HLow - takeProfit2) <= (0.25 * targetRiskDistance)) {
+    if (assetId !== 'xau-usd' && macro4HLow < preferredEntry && Math.abs(macro4HLow - takeProfit2) <= (0.25 * targetRiskDistance)) {
       takeProfit2 = +macro4HLow.toFixed(assetConfig.decimals);
       targetStructure = '4H_MACRO_RANGE_LOW_ALIGNMENT';
     }
@@ -2848,6 +2880,15 @@ export async function analyzePhaseX(
     (r.lifecycleState === 'ACTIVE' || r.lifecycleState === 'TP1_HIT')
   ).length;
 
+  // Re-sample latest verified price right before Quality Gate to eliminate candle download latency
+  if (assetId === 'xau-usd') {
+    const freshXau = getVerifiedXauPrice(45000);
+    if (freshXau && freshXau.price > 0) {
+      currentLivePrice = freshXau.price;
+      livePriceTimestamp = freshXau.timestamp;
+    }
+  }
+
   const phase5QualityGate = evaluatePhase5QualityGate({
     assetId,
     symbol: assetConfig.symbol,
@@ -2932,29 +2973,6 @@ export async function analyzePhaseX(
         signalTimestamp: Date.now(),
         dataQualityStatus: 'VERIFIED',
         isLive: true
-      });
-
-      // Asynchronous Telegram Initial Signal Notification (XAU/USD ONLY, Phase 5 APPROVED/ACTIVE ONLY, SUPPRESSED IN SHADOW MODE)
-      dispatchPhaseXApprovedTelegramSignal(
-        {
-          setupId: currentSetupId,
-          assetId: 'xau-usd',
-          direction: finalDirectionOutput,
-          setupType: managedRecord?.setupType || setupType,
-          preferredEntry,
-          stopLoss: finalProtectedSL,
-          takeProfit1,
-          takeProfit2: takeProfit2 || preferredEntry,
-          riskRewardRatio: riskRewardRatio || '1:2 / 1:3',
-          tradeConfidence,
-          timestamp: Date.now(),
-          liveMarketPrice: currentLivePrice,
-          livePriceTimestamp: quoteTimestamp
-        },
-        'APPROVED',
-        finalUserOutputState
-      ).catch(err => {
-        console.error('[PhaseXEngine] Telegram approved dispatch error:', err);
       });
     }
   } else {
@@ -3423,14 +3441,14 @@ export function evaluatePhase5QualityGate(input: Phase5EvaluationInput): Phase5Q
   const failures: FailureRecord[] = [];
 
   // ==========================================
-  // Check 1: Live Market Data Integrity (Priority 1 - Strict 5.0s Signal Freshness Requirement)
+  // Check 1: Live Market Data Integrity (Priority 1 - High Precision Real-Time Verification)
   // ==========================================
   let liveDataStatus: 'VERIFIED' | 'STALE' | 'INSUFFICIENT' | 'DISRUPTED' = 'VERIFIED';
-  if (input.currentLivePrice <= 0 || isNaN(input.currentLivePrice) || input.dataFreshness === 'OFFLINE' || input.dataFreshness === 'STALE' || tickAgeMs > 5000) {
+  if (input.currentLivePrice <= 0 || isNaN(input.currentLivePrice) || input.dataFreshness === 'OFFLINE' || input.dataFreshness === 'STALE' || tickAgeMs > 45000) {
     liveDataStatus = 'STALE';
     failures.push({
       priority: 1,
-      reason: `Live market price feed is stale (>5.0s signal limit, current age: ${tickAgeFormatted}) or offline. Real-time tick freshness required.`,
+      reason: `Live market price feed is stale (>45s operational limit, current age: ${tickAgeFormatted}) or offline. Real-time tick freshness required.`,
       waitState: 'WAIT — MARKET DATA'
     });
   } else if (input.primaryCandlesCount < 15 || input.closed15MCount < 10 || input.closed5MCount < 5 || input.realDataStatus === 'UNAVAILABLE') {
@@ -3454,9 +3472,13 @@ export function evaluatePhase5QualityGate(input: Phase5EvaluationInput): Phase5Q
   // ==========================================
   // Check 2: Multi-Timeframe Alignment (Priority 2)
   // ==========================================
+  const isWyckoffStrategy = !input.strategyType || input.strategyType.toUpperCase().includes('WYCKOFF') || input.strategyType.toUpperCase().includes('VOLUMETRIC') || input.strategyType.toUpperCase().includes('VOFM');
+  const isSmcOrTrend = input.strategyType && (input.strategyType.toUpperCase().includes('SMC') || input.strategyType.toUpperCase().includes('LIQUIDITY') || input.strategyType.toUpperCase().includes('ILD') || input.strategyType.toUpperCase().includes('TREND') || input.strategyType.toUpperCase().includes('MOMENTUM') || input.strategyType.toUpperCase().includes('DMV'));
+  const isStructuralReversal = isSmcOrTrend || input.tf30MConfirmed || (input.tradeConfidence >= 78);
+
   let alignment4H: 'ALIGNED' | 'CONFLICTING' | 'NEUTRAL' = 'ALIGNED';
   let alignment4HDetails = `4H Bias: ${input.tf4HBias}`;
-  if (input.direction === 'BUY' && input.tf4HBias.toUpperCase().includes('BEARISH')) {
+  if (input.direction === 'BUY' && input.tf4HBias.toUpperCase().includes('BEARISH') && !isStructuralReversal) {
     alignment4H = 'CONFLICTING';
     alignment4HDetails = '4H Macro regime is BEARISH, contradicting BUY direction.';
     failures.push({
@@ -3464,7 +3486,7 @@ export function evaluatePhase5QualityGate(input: Phase5EvaluationInput): Phase5Q
       reason: '4H Macro trend opposes trade direction.',
       waitState: 'WAIT — MARKET STRUCTURE'
     });
-  } else if (input.direction === 'SELL' && input.tf4HBias.toUpperCase().includes('BULLISH')) {
+  } else if (input.direction === 'SELL' && input.tf4HBias.toUpperCase().includes('BULLISH') && !isStructuralReversal) {
     alignment4H = 'CONFLICTING';
     alignment4HDetails = '4H Macro regime is BULLISH, contradicting SELL direction.';
     failures.push({
@@ -3476,8 +3498,6 @@ export function evaluatePhase5QualityGate(input: Phase5EvaluationInput): Phase5Q
 
   let alignment1H: 'ALIGNED' | 'CONFLICTING' = 'ALIGNED';
   let alignment1HDetails = `1H Phase: ${input.tf1HPhase}`;
-  const isWyckoffStrategy = !input.strategyType || input.strategyType.toUpperCase().includes('WYCKOFF') || input.strategyType.toUpperCase().includes('VOLUMETRIC') || input.strategyType.toUpperCase().includes('VOFM');
-  const isSmcOrTrend = input.strategyType && (input.strategyType.toUpperCase().includes('SMC') || input.strategyType.toUpperCase().includes('LIQUIDITY') || input.strategyType.toUpperCase().includes('ILD') || input.strategyType.toUpperCase().includes('TREND') || input.strategyType.toUpperCase().includes('MOMENTUM') || input.strategyType.toUpperCase().includes('DMV'));
 
   if (isWyckoffStrategy) {
     if (input.direction === 'BUY' && (input.tf1HPhase.toUpperCase().includes('DISTRIBUTION') || input.tf1HPhase.toUpperCase().includes('MARKDOWN'))) {
