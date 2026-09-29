@@ -43,9 +43,11 @@ export const PhaseXAdminTelegramControls: React.FC = () => {
     slMax: 10.00
   });
 
+  const [n8nWebhookUrl, setN8nWebhookUrl] = useState('');
   const [newChatId, setNewChatId] = useState('');
   const [newName, setNewName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isTestingN8n, setIsTestingN8n] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const fetchAdminData = async () => {
@@ -57,10 +59,59 @@ export const PhaseXAdminTelegramControls: React.FC = () => {
         if (data.admins) setAdmins(data.admins);
         if (data.settings) setSettings(data.settings);
       }
+
+      const statusRes = await fetch('/api/phase-x/telegram-status');
+      const statusData = await statusRes.json();
+      if (statusData.n8nWebhookUrlPreview) {
+        setN8nWebhookUrl(statusData.n8nWebhookUrlPreview.replace('...', ''));
+      }
     } catch {
       console.warn('Error fetching admin telegram data');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSaveN8nWebhook = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setFeedbackMsg(null);
+    try {
+      const res = await fetch('/api/phase-x/telegram-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ n8nWebhookUrl: n8nWebhookUrl.trim() })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setFeedbackMsg({ type: 'success', text: 'N8N Webhook URL updated successfully!' });
+      } else {
+        setFeedbackMsg({ type: 'error', text: 'Failed to update N8N Webhook URL.' });
+      }
+    } catch {
+      setFeedbackMsg({ type: 'error', text: 'Error connecting to server.' });
+    } finally {
+      setIsLoading(false);
+      setTimeout(() => setFeedbackMsg(null), 5000);
+    }
+  };
+
+  const handleTestN8nWebhook = async () => {
+    setIsTestingN8n(true);
+    setFeedbackMsg(null);
+    try {
+      const res = await fetch('/api/phase-x/test-n8n-webhook', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        setFeedbackMsg({ type: 'success', text: `Test signal successfully accepted by n8n Webhook (HTTP ${data.status || 200})!` });
+      } else {
+        setFeedbackMsg({ type: 'error', text: `N8N Test Failed: ${data.error || 'Check webhook URL'}` });
+      }
+    } catch {
+      setFeedbackMsg({ type: 'error', text: 'Failed to dispatch test payload to N8N webhook.' });
+    } finally {
+      setIsTestingN8n(false);
+      setTimeout(() => setFeedbackMsg(null), 6000);
     }
   };
 
@@ -396,6 +447,52 @@ export const PhaseXAdminTelegramControls: React.FC = () => {
             <UserPlus className="w-3.5 h-3.5" />
             <span>Add Admin</span>
           </button>
+        </form>
+      </div>
+
+      {/* N8N Webhook Workflow Integration */}
+      <div className="bg-[#12161C] border border-[#1E252E] rounded-2xl p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-white font-bold text-xs uppercase tracking-wider">
+            <Radio className="w-4 h-4 text-[#D4AF37]" />
+            <span>n8n AI Analysis & Webhook Integration</span>
+          </div>
+          <span className="px-2 py-0.5 rounded text-[10px] bg-[#D4AF37]/15 text-[#D4AF37] border border-[#D4AF37]/30 font-bold">
+            Railway → n8n → Telegram
+          </span>
+        </div>
+        <p className="text-xs text-zinc-400">
+          When configured, each approved trading signal and lifecycle update JSON payload is forwarded directly to your n8n Webhook workflow (for AI analysis, validation, CRM, or custom routing).
+        </p>
+
+        <form onSubmit={handleSaveN8nWebhook} className="space-y-3">
+          <div className="flex flex-col sm:flex-row items-center gap-2.5">
+            <input
+              type="url"
+              placeholder="https://your-n8n.com/webhook/aurum-signal (or set N8N_WEBHOOK_URL env)"
+              value={n8nWebhookUrl}
+              onChange={e => setN8nWebhookUrl(e.target.value)}
+              className="w-full bg-[#161C24] border border-[#1E252E] rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-500 font-mono"
+            />
+            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full sm:w-auto px-4 py-2 rounded-lg bg-[#D4AF37] hover:bg-[#B89628] text-black font-bold text-xs transition-all disabled:opacity-50"
+              >
+                Save URL
+              </button>
+              <button
+                type="button"
+                onClick={handleTestN8nWebhook}
+                disabled={isTestingN8n || !n8nWebhookUrl.trim()}
+                className="w-full sm:w-auto px-4 py-2 rounded-lg bg-[#1E252E] hover:bg-[#2A3441] text-zinc-200 border border-[#2A3441] font-bold text-xs flex items-center justify-center gap-1.5 transition-all disabled:opacity-50"
+              >
+                <Zap className={`w-3.5 h-3.5 text-amber-400 ${isTestingN8n ? 'animate-spin' : ''}`} />
+                <span>Test Webhook</span>
+              </button>
+            </div>
+          </div>
         </form>
       </div>
 

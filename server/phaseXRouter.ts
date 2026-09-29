@@ -11,7 +11,10 @@ import {
   addAdminRecipient,
   removeAdminRecipient,
   getAdminSettings,
-  updateAdminSettings
+  updateAdminSettings,
+  getN8nWebhookUrl,
+  setDynamicN8nWebhookUrl,
+  sendN8nWebhookPayload
 } from './phaseXTelegramService';
 import {
   getPersistentPhaseXLiveHistory,
@@ -344,11 +347,11 @@ export async function handlePhaseXRequest(req: IncomingMessage, res: ServerRespo
         if (bodyStr) { try { body = JSON.parse(bodyStr); } catch {} }
       }
       body = body || {};
-      const { botToken, chatId } = body;
-      setDynamicTelegramConfig(botToken, chatId);
+      const { botToken, chatId, n8nWebhookUrl } = body;
+      setDynamicTelegramConfig(botToken, chatId, n8nWebhookUrl);
       const status = getTelegramServiceStatus();
       res.statusCode = 200;
-      res.end(JSON.stringify({ success: true, message: 'Telegram configuration updated', status }));
+      res.end(JSON.stringify({ success: true, message: 'Telegram and n8n webhook configuration updated', status }));
       return true;
     }
 
@@ -356,6 +359,36 @@ export async function handlePhaseXRequest(req: IncomingMessage, res: ServerRespo
       const status = getTelegramServiceStatus();
       res.statusCode = 200;
       res.end(JSON.stringify(status));
+      return true;
+    }
+
+    if (pathname === '/api/phase-x/test-n8n-webhook' && req.method === 'POST') {
+      const testPayload = {
+        event: 'TEST_SIGNAL_PREVIEW',
+        setupId: `TEST-N8N-${Date.now()}`,
+        assetId: 'xau-usd',
+        symbol: 'XAU/USD',
+        direction: 'BUY',
+        setupType: 'N8N_INTEGRATION_TEST',
+        preferredEntry: 4145.50,
+        stopLoss: 4136.50,
+        takeProfit1: 4152.50,
+        takeProfit2: 4155.50,
+        riskRewardRatio: 'TP1: $7.00 | TP2: $10.00',
+        tradeConfidence: 92,
+        timestamp: Date.now(),
+        liveMarketPrice: 4145.50,
+        note: 'This is a test signal payload sent from Aurum Terminal to verify n8n Webhook connection.'
+      };
+      const result = await sendN8nWebhookPayload(testPayload);
+      res.statusCode = result.success ? 200 : 400;
+      res.end(JSON.stringify({
+        success: result.success,
+        status: result.status,
+        error: result.error,
+        webhookUrl: getN8nWebhookUrl(),
+        payload: testPayload
+      }));
       return true;
     }
 

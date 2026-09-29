@@ -1,0 +1,17 @@
+{
+  "setupId": "xau-usd_SELL_INSTITUTIONAL_LIQUIDITY_DISPLACEMENT__ILD__1790706600000_1790707500000",
+  "assetId": "xau-usd",
+  "symbol": "XAU/USD",
+  "direction": "SELL",
+  "preferredEntry": 4137.5,
+  "stopLoss": 4147.5,
+  "takeProfit1": 4130.5,
+  "takeProfit2": 4127.5,
+  "riskRewardRatio": "TP1: $7.00 | TP2: $10.00",
+  "tradeConfidence": 77,
+  "startedAt": 1790708556074,
+  "tp1Reached": false,
+  "tp2Reached": false,
+  "slReached": false,
+  "status": "ACTIVE"
+}

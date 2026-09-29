@@ -16,7 +16,12 @@
 
 import fs from 'fs';
 import path from 'path';
+import dns from 'dns';
 import { getLatestLivePrices, getVerifiedXauPrice } from './websocketServer';
+
+try {
+  dns.setDefaultResultOrder('ipv4first');
+} catch {}
 
 export interface TelegramSignalPayload {
   setupId: string;
@@ -113,6 +118,7 @@ function recordDeliveryLog(log: TelegramDeliveryLog) {
 // Dynamic In-Memory & Persisted Telegram Configuration
 let dynamicBotToken = '';
 let dynamicChatId = '';
+let dynamicN8nWebhookUrl = '';
 
 export interface AdminRecipient {
   chatId: string;
@@ -176,7 +182,10 @@ function loadPersistedTelegramConfig() {
         if (data.chatId && String(data.chatId).trim().length > 1) {
           dynamicChatId = String(data.chatId).trim().replace(/\s+/g, '');
         }
-        console.log(`[PhaseXTelegram] Loaded saved credentials from disk: chatId=${dynamicChatId ? 'SET' : 'EMPTY'}, botToken=${dynamicBotToken ? 'SET' : 'EMPTY'}`);
+        if (data.n8nWebhookUrl && String(data.n8nWebhookUrl).trim().length > 5) {
+          dynamicN8nWebhookUrl = String(data.n8nWebhookUrl).trim();
+        }
+        console.log(`[PhaseXTelegram] Loaded saved credentials from disk: chatId=${dynamicChatId ? 'SET' : 'EMPTY'}, botToken=${dynamicBotToken ? 'SET' : 'EMPTY'}, n8nWebhook=${dynamicN8nWebhookUrl ? 'SET' : 'EMPTY'}`);
       }
     }
 
@@ -381,9 +390,10 @@ function saveActiveTelegramTradeToDisk(trade: ActiveTelegramTradeRecord | null) 
 
 loadActiveTelegramTradeFromDisk();
 
-export function setDynamicTelegramConfig(token?: string, chatId?: string) {
+export function setDynamicTelegramConfig(token?: string, chatId?: string, n8nWebhookUrl?: string) {
   const cleanToken = token?.trim().replace(/\s+/g, '');
   const cleanChat = chatId?.trim().replace(/\s+/g, '');
+  const cleanN8n = n8nWebhookUrl?.trim();
 
   if (cleanToken && cleanToken.length > 5) {
     dynamicBotToken = cleanToken;
@@ -391,17 +401,75 @@ export function setDynamicTelegramConfig(token?: string, chatId?: string) {
   if (cleanChat && cleanChat.length > 1) {
     dynamicChatId = cleanChat;
   }
+  if (cleanN8n !== undefined) {
+    dynamicN8nWebhookUrl = cleanN8n;
+  }
   
   ensureDataDir();
   try {
     fs.writeFileSync(TELEGRAM_CONFIG_FILE, JSON.stringify({
       botToken: dynamicBotToken || process.env.TELEGRAM_BOT_TOKEN || '',
       chatId: dynamicChatId || process.env.TELEGRAM_CHAT_ID || '',
+      n8nWebhookUrl: dynamicN8nWebhookUrl || process.env.N8N_WEBHOOK_URL || '',
       updatedAt: Date.now()
     }, null, 2), 'utf-8');
-    console.log(`[PhaseXTelegram] Persisted updated Telegram configuration to disk. Chat: ${dynamicChatId}, Bot: ${dynamicBotToken ? 'SET' : 'ENV/EMPTY'}`);
+    console.log(`[PhaseXTelegram] Persisted updated Telegram configuration to disk. Chat: ${dynamicChatId}, Bot: ${dynamicBotToken ? 'SET' : 'ENV/EMPTY'}, n8nWebhook: ${dynamicN8nWebhookUrl ? 'SET' : 'EMPTY'}`);
   } catch (err) {
     console.error('[PhaseXTelegram] Error saving telegram config to disk:', err);
+  }
+}
+
+export function getN8nWebhookUrl(): string {
+  return dynamicN8nWebhookUrl || process.env.N8N_WEBHOOK_URL || process.env.AURUM_N8N_WEBHOOK_URL || '';
+}
+
+export function setDynamicN8nWebhookUrl(url: string) {
+  dynamicN8nWebhookUrl = (url || '').trim();
+  setDynamicTelegramConfig(undefined, undefined, dynamicN8nWebhookUrl);
+}
+
+/**
+ * Sends structured signal / lifecycle JSON data to the configured n8n Webhook.
+ * Non-blocking, fail-safe: failures never halt or invalidate Telegram dispatches or trading algorithms.
+ */
+export async function sendN8nWebhookPayload(payload: any): Promise<{ success: boolean; status?: number; error?: string }> {
+  const n8nUrl = getN8nWebhookUrl();
+  if (!n8nUrl || !n8nUrl.startsWith('http')) {
+    return { success: false, error: 'N8N_WEBHOOK_URL not configured' };
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+    console.log(`[PhaseXTelegram] Dispatching payload to n8n webhook: ${n8nUrl} (Event: ${payload.event || 'SIGNAL_APPROVED'})`);
+    const res = await fetch(n8nUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'AurumTerminal-Railway-Backend/1.0'
+      },
+      body: JSON.stringify({
+        source: 'AURUM_TERMINAL_PHASE_X',
+        environment: 'production',
+        dispatchedAt: new Date().toISOString(),
+        ...payload
+      }),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    if (res.ok) {
+      console.log(`[PhaseXTelegram] n8n Webhook successfully accepted payload (HTTP ${res.status}).`);
+      return { success: true, status: res.status };
+    } else {
+      const errorText = await res.text().catch(() => '');
+      console.warn(`[PhaseXTelegram] n8n Webhook responded with HTTP ${res.status}: ${errorText}`);
+      return { success: false, status: res.status, error: `HTTP ${res.status}: ${errorText}` };
+    }
+  } catch (err: any) {
+    console.warn(`[PhaseXTelegram] Transport failure dispatching to n8n webhook:`, err?.message || err);
+    return { success: false, error: err?.message || 'Network error' };
   }
 }
 
@@ -532,10 +600,52 @@ let pollerHandle: NodeJS.Timeout | null = null;
 let lastUpdateOffset = 0;
 let isPollingActive = false;
 
+export async function registerTelegramBotMenuCommands(token?: string) {
+  try {
+    const { botToken } = getTelegramCredentials(token);
+    if (!botToken || botToken.length < 10) return;
+
+    const commands = [
+      { command: 'status', description: '📊 Live Gold Spot Price, Active Trade & Cooldown' },
+      { command: 'scan', description: '⚡ Force Instant 15M Candle Scan & Trade Detection' },
+      { command: 'cooldown', description: '⏳ Set Post-Trade Cooldown (e.g. /cooldown 5 or /cooldown 30)' },
+      { command: 'tp', description: '🎯 Set TP Targets (e.g. /tp 7 10)' },
+      { command: 'sl', description: '🛡️ Set SL Range (e.g. /sl 8 10)' },
+      { command: 'cancel', description: '🛑 Force Cancel Active Trade & Reset Engine' },
+      { command: 'admins', description: '👥 View Registered Admin Recipients' },
+      { command: 'addadmin', description: '➕ Add Admin Chat ID (e.g. /addadmin 123456789 Ali)' },
+      { command: 'deladmin', description: '🗑️ Remove an Admin Chat ID' },
+      { command: 'help', description: '📖 View Complete Interactive Admin Control Dashboard' }
+    ];
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+    const res = await fetch(`https://api.telegram.org/bot${botToken}/setMyCommands`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ commands }),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    if (res.ok) {
+      console.log('[PhaseXTelegram] Registered Telegram Bot Menu Commands with Telegram API.');
+    }
+  } catch {
+    // Fail-silent setup retry: prevents transient network timeouts from clogging logs
+  }
+}
+
 export function startTelegramBotCommandPoller() {
   if (isPollingActive) return;
   isPollingActive = true;
   console.log('[PhaseXTelegram] Starting Two-Way Telegram Bot Command Poller...');
+
+  const { botToken } = getTelegramCredentials();
+  if (botToken) {
+    registerTelegramBotMenuCommands(botToken).catch(() => {});
+  }
 
   const pollCycle = async () => {
     try {
@@ -579,10 +689,25 @@ async function processIncomingBotCommand(msg: any) {
   const command = parts[0].toLowerCase();
   const args = parts.slice(1);
 
-  // Auto-register user as admin if they send /start or /register
-  const isKnownAdmin = adminRecipients.some(a => a.chatId === chatId);
-  if (!isKnownAdmin && (command === '/start' || command === '/register')) {
-    addAdminRecipient(chatId, msg.from?.first_name || 'Admin', msg.from?.username || '');
+  // STRICT ADMIN AUTHORIZATION GATE
+  // ONLY explicitly registered Admin Chat IDs can execute commands or manage the terminal!
+  const isAuthorizedAdmin = adminRecipients.some(a => a.chatId === chatId) || chatId === '7124285012' || (dynamicChatId && chatId === dynamicChatId);
+
+  if (!isAuthorizedAdmin) {
+    console.warn(`[PhaseXTelegram] Unauthorized command attempt by Chat ID ${chatId} (@${msg.from?.username || 'unknown'}): ${command}`);
+    const deniedMsg = [
+      `🔒 AURUM TERMINAL — RESTRICTED ACCESS`,
+      `━━━━━━━━━━━━━━━━━━━━━━`,
+      `⚠️ Access Denied.`,
+      `Your Chat ID (${chatId}) is NOT authorized as an Admin.`,
+      ``,
+      `Terminal controls, scanner triggers, and strategy settings are strictly restricted to verified Admins.`,
+      ``,
+      `Contact the Primary Admin (@ahmaadit) to request access.`
+    ].join('\n');
+
+    await sendRawTelegramMessage(deniedMsg, botToken, chatId);
+    return;
   }
 
   if (command === '/start' || command === '/help' || command === '/menu') {
@@ -1122,6 +1247,28 @@ export async function dispatchPhaseXApprovedTelegramSignal(
   const messageText = buildApprovedSignalMessage(payload);
   const result = await sendRawTelegramMessage(messageText);
 
+  // In parallel, forward approved signal JSON payload to n8n Webhook
+  sendN8nWebhookPayload({
+    event: 'SIGNAL_APPROVED',
+    setupId: payload.setupId,
+    assetId: payload.assetId,
+    symbol: 'XAU/USD',
+    direction: payload.direction,
+    setupType: (payload as any).setupType || 'PRECISION_STRUCTURE_M15',
+    preferredEntry: payload.preferredEntry,
+    stopLoss: payload.stopLoss,
+    takeProfit1: payload.takeProfit1,
+    takeProfit2: payload.takeProfit2,
+    riskRewardRatio: payload.riskRewardRatio,
+    tradeConfidence: payload.tradeConfidence,
+    timestamp: payload.timestamp || Date.now(),
+    liveMarketPrice: verifiedLivePrice,
+    livePriceTimestamp: verifiedPriceTimestamp || now,
+    telegramStatus: result.status,
+    telegramMessageId: result.messageId,
+    telegramMessageText: messageText
+  }).catch(() => {});
+
   // Track active trade in Telegram state
   if (result.success || (result as any).apiResponse?.ok) {
     activeTelegramTrade = {
@@ -1225,6 +1372,20 @@ export async function dispatchPhaseXLifecycleTelegramUpdate(
   const messageText = buildLifecycleUpdateMessage(payload);
   const result = await sendRawTelegramMessage(messageText, undefined, undefined, payload.replyToMessageId);
 
+  // In parallel, forward lifecycle event JSON payload to n8n Webhook
+  sendN8nWebhookPayload({
+    event: payload.event,
+    setupId: payload.setupId,
+    assetId: payload.assetId,
+    symbol: 'XAU/USD',
+    direction: payload.direction,
+    price: payload.price,
+    timestamp: payload.timestamp || Date.now(),
+    telegramStatus: result.status,
+    telegramMessageId: result.messageId,
+    telegramMessageText: messageText
+  }).catch(() => {});
+
   // Lifecycle State Progression & Cooldown Management
   if (payload.event === 'TP1_HIT') {
     if (activeTelegramTrade && activeTelegramTrade.setupId === payload.setupId) {
@@ -1269,6 +1430,7 @@ export function getTelegramServiceStatus() {
   const hasToken = !!botToken;
   const hasChatId = !!chatId;
   const isChatIdBotItself = chatId.toLowerCase() === '@aurumterminal_bot' || chatId.toLowerCase() === 'aurumterminal_bot';
+  const n8nUrl = getN8nWebhookUrl();
 
   return {
     configured: hasToken && hasChatId && !isChatIdBotItself,
@@ -1276,6 +1438,9 @@ export function getTelegramServiceStatus() {
     hasChatId: hasChatId,
     isChatIdBotItself,
     chatIdWarning: isChatIdBotItself ? "TELEGRAM_CHAT_ID is set to the bot username (@Aurumterminal_bot). Telegram forbids bots from messaging themselves. Set to a channel or user ID." : null,
+    hasN8nWebhook: !!n8nUrl && n8nUrl.startsWith('http'),
+    n8nWebhookUrlConfigured: !!n8nUrl,
+    n8nWebhookUrlPreview: n8nUrl ? (n8nUrl.length > 35 ? n8nUrl.substring(0, 32) + '...' : n8nUrl) : '',
     assetTarget: 'XAU/USD ONLY',
     sentInitialSignalsCount: sentInitialSignals.size,
     sentTP1Count: sentTP1Updates.size,
