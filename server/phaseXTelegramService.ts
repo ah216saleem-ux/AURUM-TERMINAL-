@@ -669,8 +669,12 @@ export async function sendN8nWebhookPayload(payload: any): Promise<{ success: bo
       return { success: true, status: res.status };
     } else {
       const errorText = await res.text().catch(() => '');
+      let parsedError = `HTTP ${res.status}: ${errorText}`;
+      if (res.status === 404 || errorText.includes('Token') || errorText.includes('not found')) {
+        parsedError = `n8n Webhook Endpoint or Token Not Found (HTTP ${res.status}). Please verify your active n8n production Webhook URL.`;
+      }
       console.warn(`[PhaseXTelegram] n8n Webhook responded with HTTP ${res.status}: ${errorText}`);
-      return { success: false, status: res.status, error: `HTTP ${res.status}: ${errorText}` };
+      return { success: false, status: res.status, error: parsedError };
     }
   } catch (err: any) {
     console.warn(`[PhaseXTelegram] Transport failure dispatching to n8n webhook:`, err?.message || err);
