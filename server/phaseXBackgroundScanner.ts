@@ -462,12 +462,13 @@ export async function executePhaseXLiveScanCycle(forceScan = false): Promise<voi
       return;
     }
 
-    // 15-Minute Closed Candle Scan Execution
+    // 15-Minute Closed Candle or 15-Second Continuous Automated Scan Execution
     const currentCandleBoundary = Math.floor(now / CANDLE_INTERVAL_MS) * CANDLE_INTERVAL_MS;
     const isNewClosedCandle = (currentCandleBoundary > lastClosedCandleScannedMs);
+    const isIntervalDue = (now - lastScanStartTime) >= 15000;
 
-    if (!forceScan && !isNewClosedCandle) {
-      // Waiting between 15M candle closes
+    if (!forceScan && !isNewClosedCandle && !isIntervalDue) {
+      // Waiting between automated scan cycles
       currentPipelineState = 'WAITING FOR SETUP';
       return;
     }

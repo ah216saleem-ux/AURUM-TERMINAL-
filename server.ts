@@ -16,10 +16,14 @@ import { handleScenarioLabRequest } from './server/scenarioSimulationRouter';
 import { handleStrategyMemoryRequest } from './server/strategyMemoryRouter';
 import { handleGoldDataIntegrityRequest } from './server/goldDataIntegrityRouter';
 import { handleGoldNewsIntelligenceRequest } from './server/goldNewsEngine';
+import { startPhaseXBackgroundScanner } from './server/phaseXBackgroundScanner';
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
+
+  // Boot Phase X Continuous Automated Background Scanner
+  startPhaseXBackgroundScanner();
 
   // Initialize Execution Intelligence Module Data Store
   initExecutionIntelligence();
