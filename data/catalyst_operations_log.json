@@ -1,5 +1,41 @@
 [
   {
+    "id": "ops_1790804707098_emb6i",
+    "timestamp": 1790804707098,
+    "timeFormatted": "2026-09-30T21:45:07.098Z",
+    "eventType": "SERVER_RESTART",
+    "severity": "INFO",
+    "reason": "Server process initialized. Restoring persistent Catalyst operations & risk state.",
+    "actionTaken": "Restored active operations safely."
+  },
+  {
+    "id": "ops_1790804592304_h1xec",
+    "timestamp": 1790804592304,
+    "timeFormatted": "2026-09-30T21:43:12.304Z",
+    "eventType": "SERVER_RESTART",
+    "severity": "INFO",
+    "reason": "Server process initialized. Restoring persistent Catalyst operations & risk state.",
+    "actionTaken": "Restored active operations safely."
+  },
+  {
+    "id": "ops_1790804538489_k3e8o",
+    "timestamp": 1790804538489,
+    "timeFormatted": "2026-09-30T21:42:18.489Z",
+    "eventType": "SERVER_RESTART",
+    "severity": "INFO",
+    "reason": "Server process initialized. Restoring persistent Catalyst operations & risk state.",
+    "actionTaken": "Restored active operations safely."
+  },
+  {
+    "id": "ops_1790803629182_ywvfr",
+    "timestamp": 1790803629182,
+    "timeFormatted": "2026-09-30T21:27:09.182Z",
+    "eventType": "SERVER_RESTART",
+    "severity": "INFO",
+    "reason": "Server process initialized. Restoring persistent Catalyst operations & risk state.",
+    "actionTaken": "Restored active operations safely."
+  },
+  {
     "id": "ops_1790803610937_oqr46",
     "timestamp": 1790803610937,
     "timeFormatted": "2026-09-30T21:26:50.937Z",

@@ -20,6 +20,7 @@ import { startPhaseXBackgroundScanner } from './server/phaseXBackgroundScanner';
 import { handleCatalystRequest } from './server/catalystRouter';
 import { startCatalystBackgroundScanner } from './server/catalystBackgroundScanner';
 import { startTelegramBotPolling } from './server/telegramBotCommandsService';
+import { handleAiAgentRequest } from './server/aiAgentRouter';
 
 async function startServer() {
   const app = express();
@@ -40,6 +41,14 @@ async function startServer() {
 
   // Body parser is already mounted
   app.use(express.json());
+
+  // Gemini Institutional AI Agent Router
+  app.all('/api/ai-agent*', async (req, res) => {
+    const handled = await handleAiAgentRequest(req, res);
+    if (!handled) {
+      res.status(404).json({ error: 'AI Agent route not found' });
+    }
+  });
 
   // Admin Security & Protected Module Routes
   app.all(['/api/auth/admin*', '/api/admin*'], async (req, res) => {

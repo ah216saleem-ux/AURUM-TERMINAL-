@@ -27,6 +27,7 @@ import { PhaseXLiveDiagnosticsPanel } from './PhaseXLiveDiagnosticsPanel';
 import { PhaseXLivePerformanceAndHistory } from './PhaseXLivePerformanceAndHistory';
 import { PhaseXHistoryAndVerification } from './PhaseXHistoryAndVerification';
 import { PhaseXAdminTelegramControls } from './PhaseXAdminTelegramControls';
+import { GeminiAiCouncilCard } from '../GeminiAiCouncilCard';
 
 interface LiveStateData {
   livePrice: number;
@@ -751,6 +752,9 @@ export const PhaseXView: React.FC = () => {
             })}
           </div>
         </section>
+
+        {/* Gemini Institutional AI Council Market Briefing */}
+        <GeminiAiCouncilCard />
 
         {/* 5. MAIN CARD: ACTIVE SIGNAL vs WAITING CARD */}
         {activeSig && activeSig.status === 'ACTIVE' ? (

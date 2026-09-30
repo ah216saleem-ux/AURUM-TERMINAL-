@@ -20,6 +20,7 @@ import {
   Lock,
   History
 } from 'lucide-react';
+import { GeminiAiCouncilCard } from './GeminiAiCouncilCard';
 import { useMarket } from '../context/MarketContext';
 import { GoldNewsEngineState, EconomicNewsEvent, VerifiedGoldNewsWire, SourceHealthStatus } from '../../server/goldNewsEngine';
 
@@ -247,6 +248,9 @@ export const NewsIntelligenceView: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Gemini AI Multi-Agent Council Briefing Card */}
+        <GeminiAiCouncilCard />
       </div>
 
       {/* ========================================================================= */}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { GeminiAiCouncilCard } from '../GeminiAiCouncilCard';
 import { 
   Sparkles, 
   RotateCw, 
@@ -320,6 +321,9 @@ export const AurumCatalystView: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Institutional AI Council Breakdown */}
+      <GeminiAiCouncilCard />
 
       {/* 4. Telegram Status Footer */}
       <div className="rounded-2xl bg-[#0b0d13] border border-zinc-800/80 p-4 flex items-center justify-between">
