@@ -855,11 +855,11 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
 
     signalHistory.forEach(item => {
-      const isWin = item.result === 'TP HIT' || item.result?.includes('TP') || item.pnlR?.includes('+');
+      const isWin = item.result === 'TP HIT' || (item.result && String(item.result).includes('TP')) || (item.pnlR != null && String(item.pnlR).includes('+'));
       
       // Determine Strategy from reason or metadata
       let strat = item.strategy || 'SMC';
-      const rLower = item.reason.toLowerCase();
+      const rLower = (item.reason || '').toLowerCase();
       if (rLower.includes('smc') || rLower.includes('order block') || rLower.includes('ob') || rLower.includes('supply') || rLower.includes('demand')) {
         strat = 'SMC';
       } else if (rLower.includes('ema') || rLower.includes('trend') || rLower.includes('continuation')) {

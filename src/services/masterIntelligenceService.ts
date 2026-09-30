@@ -93,7 +93,7 @@ class MasterIntelligenceService {
       timeframe: string
     ): EnginePerformanceMetric => {
       const closedTrades = trades.filter(t => t.result !== 'ACTIVE');
-      const wins = closedTrades.filter(t => t.result.includes('TP') || (t.pnlR && t.pnlR > 0));
+      const wins = closedTrades.filter(t => (t.result || '').includes('TP') || (typeof t.pnlR === 'number' && t.pnlR > 0));
       const losses = closedTrades.filter(t => t.result === 'SL HIT' || (t.pnlR && t.pnlR < 0));
 
       const winCount = wins.length;
@@ -756,7 +756,7 @@ class MasterIntelligenceService {
    */
   public extractTradeMemoryPatterns(paperTrades: PaperTradeRecord[]): MemoryPatternCluster[] {
     const closed = paperTrades.filter(t => t.result !== 'ACTIVE' && t.result !== 'CANCELLED');
-    const wins = closed.filter(t => t.result.includes('TP') || (t.pnlR && t.pnlR > 0));
+    const wins = closed.filter(t => (t.result || '').includes('TP') || (typeof t.pnlR === 'number' && t.pnlR > 0));
     const losses = closed.filter(t => t.result === 'SL HIT' || (t.pnlR && t.pnlR < 0));
 
     const total = closed.length || 1;

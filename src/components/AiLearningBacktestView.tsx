@@ -43,7 +43,7 @@ export const AiLearningBacktestView: React.FC = () => {
 
     const liveWinRate = strategyLearning.winRatesByStrategy[key];
     const liveTotal = signalHistory.filter(h => {
-      const rLower = h.reason.toLowerCase();
+      const rLower = (h.reason || '').toLowerCase();
       if (key === 'SMC') return rLower.includes('smc') || rLower.includes('order block') || rLower.includes('ob') || rLower.includes('supply') || rLower.includes('demand');
       if (key === 'TREND') return rLower.includes('ema') || rLower.includes('trend') || rLower.includes('continuation');
       if (key === 'BREAKOUT') return rLower.includes('breakout') || rLower.includes('retest') || rLower.includes('resistance') || rLower.includes('support');

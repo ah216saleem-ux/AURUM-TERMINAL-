@@ -1814,10 +1814,10 @@ export const computeTradeSetupStrength = (signal: AiTradeSignal): TradeSetupStre
   let momLabel = 'Neutral Momentum';
   const rsi = signal.technicals.rsi;
   const isBullish = signal.direction === 'LONG';
-  if (isBullish && rsi >= 50 && rsi <= 68 && signal.technicals.macd.status.includes('Bullish')) {
+  if (isBullish && rsi >= 50 && rsi <= 68 && (signal.technicals?.macd?.status || '').includes('Bullish')) {
     momScore = 92;
     momLabel = `Bullish Momentum (RSI ${rsi.toFixed(1)} + MACD Expansion)`;
-  } else if (!isBullish && signal.direction === 'SHORT' && rsi <= 48 && signal.technicals.macd.status.includes('Bearish')) {
+  } else if (!isBullish && signal.direction === 'SHORT' && rsi <= 48 && (signal.technicals?.macd?.status || '').includes('Bearish')) {
     momScore = 90;
     momLabel = `Bearish Momentum (RSI ${rsi.toFixed(1)} + MACD Breakdown)`;
   } else if (signal.direction === 'WAIT') {
