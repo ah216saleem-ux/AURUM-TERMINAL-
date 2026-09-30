@@ -608,6 +608,8 @@ export function arbitrateStrategyConfluence(params: {
   trendResult: TrendPullbackTelemetry;
   confirmation30mTs: number;
   trigger15mTs: number;
+  htfBias?: 'BULLISH' | 'BEARISH' | 'RANGING';
+  marketPhase?: string;
 }): {
   finalDirection: 'BUY' | 'SELL' | 'WAIT';
   agreementStatus: 'UNANIMOUS' | 'CONFLUENT' | 'SINGLE_STRATEGY' | 'CONFLICTING' | 'NONE';
@@ -617,9 +619,9 @@ export function arbitrateStrategyConfluence(params: {
   conflictDetails: string | null;
   combinedTriggerDescription: string;
 } {
-  const { assetId, wyckoffResult, smcResult, trendResult, confirmation30mTs, trigger15mTs } = params;
+  const { assetId, wyckoffResult, smcResult, trendResult, confirmation30mTs, trigger15mTs, htfBias, marketPhase } = params;
 
-  const activeStrategies: Array<{ name: string; direction: 'BUY' | 'SELL'; desc: string }> = [];
+  let activeStrategies: Array<{ name: string; direction: 'BUY' | 'SELL'; desc: string }> = [];
 
   if (wyckoffResult.setupQualified && wyckoffResult.direction !== 'WAIT') {
     activeStrategies.push({ name: 'VOLUMETRIC ORDER-FLOW (VOFM)', direction: wyckoffResult.direction, desc: wyckoffResult.triggerDescription });
@@ -632,28 +634,48 @@ export function arbitrateStrategyConfluence(params: {
   }
 
   // Check for conflicts
-  const buyCount = activeStrategies.filter(s => s.direction === 'BUY').length;
-  const sellCount = activeStrategies.filter(s => s.direction === 'SELL').length;
+  let buyCount = activeStrategies.filter(s => s.direction === 'BUY').length;
+  let sellCount = activeStrategies.filter(s => s.direction === 'SELL').length;
 
   if (buyCount > 0 && sellCount > 0) {
-    // Conflict detected: One strategy says BUY and another says SELL!
-    const conflictDesc = `Material Strategy Conflict: ${buyCount} engine(s) BUY vs ${sellCount} engine(s) SELL`;
-    return {
-      finalDirection: 'WAIT',
-      agreementStatus: 'CONFLICTING',
-      confluenceTelemetry: {
-        detectedStrategies: activeStrategies.map(s => s.name),
-        confluenceCount: activeStrategies.length,
+    // Intelligent Multi-Timeframe Arbitration:
+    // Rule 1: H1 Institutional Direction determines the valid trade (counter-trend setup rejected)
+    if (htfBias === 'BEARISH' && sellCount > 0) {
+      activeStrategies = activeStrategies.filter(s => s.direction === 'SELL');
+    } else if (htfBias === 'BULLISH' && buyCount > 0) {
+      activeStrategies = activeStrategies.filter(s => s.direction === 'BUY');
+    } 
+    // Rule 2: Wyckoff Market Phase Tie-Breaker
+    else if (marketPhase && (marketPhase === 'MARKDOWN' || marketPhase === 'DISTRIBUTION') && sellCount > 0) {
+      activeStrategies = activeStrategies.filter(s => s.direction === 'SELL');
+    } else if (marketPhase && (marketPhase === 'MARKUP' || marketPhase === 'ACCUMULATION') && buyCount > 0) {
+      activeStrategies = activeStrategies.filter(s => s.direction === 'BUY');
+    }
+    // Rule 3: Majority Consensus (2 vs 1)
+    else if (sellCount > buyCount) {
+      activeStrategies = activeStrategies.filter(s => s.direction === 'SELL');
+    } else if (buyCount > sellCount) {
+      activeStrategies = activeStrategies.filter(s => s.direction === 'BUY');
+    } else {
+      // Unresolvable deadlock: Both equal, H1 neutral and phase neutral
+      const conflictDesc = `Material Strategy Conflict: ${buyCount} engine(s) BUY vs ${sellCount} engine(s) SELL`;
+      return {
+        finalDirection: 'WAIT',
         agreementStatus: 'CONFLICTING',
+        confluenceTelemetry: {
+          detectedStrategies: activeStrategies.map(s => s.name),
+          confluenceCount: activeStrategies.length,
+          agreementStatus: 'CONFLICTING',
+          conflictDetails: conflictDesc,
+          selectedSetupType: 'NONE',
+          mergedSetupId: `${assetId}_WAIT_CONFLICT_${confirmation30mTs}_${trigger15mTs}`
+        },
+        setupTypeLabel: 'STRATEGY CONFLICT',
+        setupId: `${assetId}_WAIT_CONFLICT_${confirmation30mTs}_${trigger15mTs}`,
         conflictDetails: conflictDesc,
-        selectedSetupType: 'NONE',
-        mergedSetupId: `${assetId}_WAIT_CONFLICT_${confirmation30mTs}_${trigger15mTs}`
-      },
-      setupTypeLabel: 'STRATEGY CONFLICT',
-      setupId: `${assetId}_WAIT_CONFLICT_${confirmation30mTs}_${trigger15mTs}`,
-      conflictDetails: conflictDesc,
-      combinedTriggerDescription: 'Conflicting strategy signals detected. Capital protection priority: WAIT.'
-    };
+        combinedTriggerDescription: 'Conflicting strategy signals detected. Capital protection priority: WAIT.'
+      };
+    }
   }
 
   if (activeStrategies.length === 0) {

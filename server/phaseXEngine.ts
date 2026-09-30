@@ -1753,7 +1753,9 @@ export async function analyzePhaseX(
     smcResult: smcTelemetry,
     trendResult: trendTelemetry,
     confirmation30mTs: confirmation30mTimestamp,
-    trigger15mTs: trigger15mTimestamp
+    trigger15mTs: trigger15mTimestamp,
+    htfBias: tf1H.bias,
+    marketPhase: detectedPhase
   });
 
   const setupType = confluenceResult.setupTypeLabel;
@@ -1845,6 +1847,7 @@ export async function analyzePhaseX(
   else if (activeEvent === 'Sign of Strength' || activeEvent === 'Sign of Weakness') wyckoffEventQualityScore = 13;
   else if (springStatus === 'POTENTIAL' || upthrustStatus === 'POTENTIAL') wyckoffEventQualityScore = 10;
   else if (activeEvent !== 'NO CONFIRMED EVENT') wyckoffEventQualityScore = 8;
+  else if ((candidateDirection === 'SELL' && (is15MLowerHigh || is15MBreakdown)) || (candidateDirection === 'BUY' && (is15MHigherLow || is15MBreakout))) wyckoffEventQualityScore = 12;
   else wyckoffEventQualityScore = 4;
 
   let setupConfirmation30MScore = 0;
@@ -1873,6 +1876,7 @@ export async function analyzePhaseX(
 
   let structureQualityScore = 0;
   if (marketStructure === 'HIGHER_HIGHS_HIGHER_LOWS' || marketStructure === 'LOWER_HIGHS_LOWER_LOWS') structureQualityScore = 10;
+  else if ((candidateDirection === 'BUY' && is15MHigherLow) || (candidateDirection === 'SELL' && is15MLowerHigh)) structureQualityScore = 10;
   else if (marketStructure === 'CONSOLIDATION_RANGING') structureQualityScore = 7;
   else structureQualityScore = 4;
 

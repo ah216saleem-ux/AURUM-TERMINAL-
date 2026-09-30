@@ -17,6 +17,9 @@ import { handleStrategyMemoryRequest } from './server/strategyMemoryRouter';
 import { handleGoldDataIntegrityRequest } from './server/goldDataIntegrityRouter';
 import { handleGoldNewsIntelligenceRequest } from './server/goldNewsEngine';
 import { startPhaseXBackgroundScanner } from './server/phaseXBackgroundScanner';
+import { handleCatalystRequest } from './server/catalystRouter';
+import { startCatalystBackgroundScanner } from './server/catalystBackgroundScanner';
+import { startTelegramBotPolling } from './server/telegramBotCommandsService';
 
 async function startServer() {
   const app = express();
@@ -24,6 +27,12 @@ async function startServer() {
 
   // Boot Phase X Continuous Automated Background Scanner
   startPhaseXBackgroundScanner();
+
+  // Boot Aurum Catalyst Continuous Automated Background Scanner
+  startCatalystBackgroundScanner();
+
+  // Boot 2-Way Interactive Telegram Bot Command Listener
+  startTelegramBotPolling();
 
   // Initialize Execution Intelligence Module Data Store
   initExecutionIntelligence();
@@ -90,6 +99,14 @@ async function startServer() {
     const handled = await handlePhaseXRequest(req, res);
     if (!handled) {
       res.status(404).json({ error: 'Phase X route not found' });
+    }
+  });
+
+  // AURUM CATALYST — STRATEGY MODULE API routes
+  app.all('/api/catalyst*', async (req, res) => {
+    const handled = await handleCatalystRequest(req, res);
+    if (!handled) {
+      res.status(404).json({ error: 'Catalyst route not found' });
     }
   });
 

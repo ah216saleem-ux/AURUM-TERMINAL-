@@ -1,0 +1,28 @@
+[
+  {
+    "timestamp": 1790802090496,
+    "overallStatus": "PASS",
+    "totalSignalsAudited": 0,
+    "totalCompletedTradesAudited": 0,
+    "missingFieldsCount": 0,
+    "impossibleStateCount": 0,
+    "duplicateSignalIdCount": 0,
+    "duplicateCandleCount": 0,
+    "analyticsMismatchCount": 0,
+    "auditTrailReconciled": true,
+    "issues": []
+  },
+  {
+    "timestamp": 1790802090474,
+    "overallStatus": "PASS",
+    "totalSignalsAudited": 0,
+    "totalCompletedTradesAudited": 0,
+    "missingFieldsCount": 0,
+    "impossibleStateCount": 0,
+    "duplicateSignalIdCount": 0,
+    "duplicateCandleCount": 0,
+    "analyticsMismatchCount": 0,
+    "auditTrailReconciled": true,
+    "issues": []
+  }
+]

@@ -1,0 +1,7 @@
+{
+  "maxDailySignals": 5,
+  "maxDailySlTrades": 3,
+  "maxConsecutiveLosses": 3,
+  "signalExpiryMinutes": 30,
+  "autoResetUtcHour": 0
+}

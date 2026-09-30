@@ -1,0 +1,82 @@
+[
+  {
+    "id": "ops_1790803610937_oqr46",
+    "timestamp": 1790803610937,
+    "timeFormatted": "2026-09-30T21:26:50.937Z",
+    "eventType": "SERVER_RESTART",
+    "severity": "INFO",
+    "reason": "Server process initialized. Restoring persistent Catalyst operations & risk state.",
+    "actionTaken": "Restored active operations safely."
+  },
+  {
+    "id": "ops_1790803601112_1kykm",
+    "timestamp": 1790803601112,
+    "timeFormatted": "2026-09-30T21:26:41.112Z",
+    "eventType": "SERVER_RESTART",
+    "severity": "INFO",
+    "reason": "Server process initialized. Restoring persistent Catalyst operations & risk state.",
+    "actionTaken": "Restored active operations safely."
+  },
+  {
+    "id": "ops_1790802371868_v1cku",
+    "timestamp": 1790802371868,
+    "timeFormatted": "2026-09-30T21:06:11.868Z",
+    "eventType": "SERVER_RESTART",
+    "severity": "INFO",
+    "reason": "Server process initialized. Restoring persistent Catalyst operations & risk state.",
+    "actionTaken": "Restored active operations safely."
+  },
+  {
+    "id": "ops_1790802362515_nneno",
+    "timestamp": 1790802362515,
+    "timeFormatted": "2026-09-30T21:06:02.515Z",
+    "eventType": "EMERGENCY_RESUME",
+    "severity": "INFO",
+    "previousState": "PAUSED",
+    "newState": "PAUSED",
+    "reason": "Admin resumed operations after safety verification.",
+    "actionTaken": "Signal scanning and master safety gate reactivated."
+  },
+  {
+    "id": "ops_1790802362511_io9i5",
+    "timestamp": 1790802362511,
+    "timeFormatted": "2026-09-30T21:06:02.511Z",
+    "eventType": "MAINTENANCE_OFF",
+    "severity": "WARN",
+    "previousState": "PAUSED",
+    "newState": "HEALTHY",
+    "reason": "Maintenance mode deactivated by admin.",
+    "actionTaken": "Normal scanning restored."
+  },
+  {
+    "id": "ops_1790802362505_znnsb",
+    "timestamp": 1790802362505,
+    "timeFormatted": "2026-09-30T21:06:02.505Z",
+    "eventType": "MAINTENANCE_ON",
+    "severity": "WARN",
+    "previousState": "HEALTHY",
+    "newState": "PAUSED",
+    "reason": "Verification Test Maintenance",
+    "actionTaken": "Signal creation paused for maintenance."
+  },
+  {
+    "id": "ops_1790802362497_36xw8",
+    "timestamp": 1790802362497,
+    "timeFormatted": "2026-09-30T21:06:02.497Z",
+    "eventType": "EMERGENCY_PAUSE",
+    "severity": "CRITICAL",
+    "previousState": "HEALTHY",
+    "newState": "PAUSED",
+    "reason": "Verification Test Emergency Pause",
+    "actionTaken": "All new signal generation halted immediately. Active trade monitoring continues."
+  },
+  {
+    "id": "ops_1790802358393_99bur",
+    "timestamp": 1790802358393,
+    "timeFormatted": "2026-09-30T21:05:58.393Z",
+    "eventType": "SERVER_RESTART",
+    "severity": "INFO",
+    "reason": "Server process initialized. Restoring persistent Catalyst operations & risk state.",
+    "actionTaken": "Restored active operations safely."
+  }
+]

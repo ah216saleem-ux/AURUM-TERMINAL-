@@ -19,7 +19,7 @@ import {
 import { getVerifiedXauPrice, getLatestLivePrices } from './websocketServer';
 
 export const SIGNAL_MAX_AGE_MINUTES = 120;
-export const COOLDOWN_MINUTES = 30;
+export const COOLDOWN_MINUTES = 3;
 
 export interface ActiveSignalData {
   setupId: string;
@@ -581,7 +581,7 @@ export async function executePhaseXLiveScanCycle(forceScan = false): Promise<voi
           livePriceTimestamp: now
         },
         gateStatus as any,
-        `🟢 ${newSignal.direction} — READY`
+        newSignal.direction === 'BUY' ? '🟢 BUY — READY' : '🔴 SELL — READY'
       );
 
       if (tgRes.log && (tgRes as any).log?.messageId) {

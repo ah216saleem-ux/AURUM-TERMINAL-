@@ -1,6 +1,105 @@
 [
   {
-    "event_id": "evt-cpi-us",
+    "event_id": "api-sc-0-2026-09-27",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-1-2026-09-27",
+    "gold_bias": "NEUTRAL",
+    "usd_bias": "NEUTRAL",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-2-2026-09-28",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-3-2026-09-28",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-4-2026-09-28",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-5-2026-09-28",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-6-2026-09-28",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-7-2026-09-28",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-8-2026-09-29",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-9-2026-09-29",
     "gold_bias": "BULLISH",
     "usd_bias": "BEARISH",
     "risk_score": 88,
@@ -11,7 +110,7 @@
     }
   },
   {
-    "event_id": "evt-fomc-fed",
+    "event_id": "api-sc-10-2026-09-29",
     "gold_bias": "BULLISH",
     "usd_bias": "BEARISH",
     "risk_score": 88,
@@ -22,7 +121,612 @@
     }
   },
   {
-    "event_id": "evt-nfp-jobs",
+    "event_id": "api-sc-11-2026-09-29",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-12-2026-09-29",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-13-2026-09-29",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-14-2026-09-29",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-15-2026-09-29",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-16-2026-09-29",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-17-2026-09-29",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-18-2026-09-29",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-19-2026-09-29",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-20-2026-09-29",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-21-2026-09-29",
+    "gold_bias": "NEUTRAL",
+    "usd_bias": "NEUTRAL",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-22-2026-09-29",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-23-2026-09-29",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-24-2026-09-29",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-25-2026-09-29",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-26-2026-09-29",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-27-2026-09-29",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-28-2026-09-29",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-29-2026-09-29",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-30-2026-09-29",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-31-2026-09-29",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-32-2026-09-29",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-33-2026-09-29",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-34-2026-09-29",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-35-2026-09-29",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-36-2026-09-29",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-37-2026-09-29",
+    "gold_bias": "NEUTRAL",
+    "usd_bias": "NEUTRAL",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-38-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-39-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 88,
+    "confidence": 78,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-40-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 88,
+    "confidence": 78,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-41-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 88,
+    "confidence": 78,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-42-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-43-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-44-2026-09-30",
+    "gold_bias": "NEUTRAL",
+    "usd_bias": "NEUTRAL",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-45-2026-09-30",
+    "gold_bias": "NEUTRAL",
+    "usd_bias": "NEUTRAL",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-46-2026-09-30",
+    "gold_bias": "NEUTRAL",
+    "usd_bias": "NEUTRAL",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-47-2026-09-30",
+    "gold_bias": "NEUTRAL",
+    "usd_bias": "NEUTRAL",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-48-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-49-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-50-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-51-2026-09-30",
+    "gold_bias": "NEUTRAL",
+    "usd_bias": "NEUTRAL",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-52-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-53-2026-09-30",
+    "gold_bias": "NEUTRAL",
+    "usd_bias": "NEUTRAL",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-54-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-55-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-56-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-57-2026-09-30",
+    "gold_bias": "NEUTRAL",
+    "usd_bias": "NEUTRAL",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-58-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-59-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-60-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-61-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-62-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-63-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-64-2026-09-30",
+    "gold_bias": "NEUTRAL",
+    "usd_bias": "NEUTRAL",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-65-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 88,
+    "confidence": 78,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-66-2026-09-30",
     "gold_bias": "NEUTRAL",
     "usd_bias": "NEUTRAL",
     "risk_score": 88,
@@ -33,7 +737,755 @@
     }
   },
   {
-    "event_id": "evt-ecb-rates",
+    "event_id": "api-sc-67-2026-09-30",
+    "gold_bias": "NEUTRAL",
+    "usd_bias": "NEUTRAL",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-68-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-69-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-70-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-71-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-72-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-73-2026-09-30",
+    "gold_bias": "NEUTRAL",
+    "usd_bias": "NEUTRAL",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-74-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-75-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-76-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-77-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-78-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-79-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-80-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-81-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-82-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-83-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-84-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-85-2026-09-30",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-86-2026-10-01",
+    "gold_bias": "NEUTRAL",
+    "usd_bias": "NEUTRAL",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-87-2026-10-01",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-88-2026-10-01",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-89-2026-10-01",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-90-2026-10-01",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-91-2026-10-01",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-92-2026-10-01",
+    "gold_bias": "NEUTRAL",
+    "usd_bias": "NEUTRAL",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-93-2026-10-01",
+    "gold_bias": "NEUTRAL",
+    "usd_bias": "NEUTRAL",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-94-2026-10-01",
+    "gold_bias": "NEUTRAL",
+    "usd_bias": "NEUTRAL",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-95-2026-10-01",
+    "gold_bias": "NEUTRAL",
+    "usd_bias": "NEUTRAL",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-96-2026-10-01",
+    "gold_bias": "NEUTRAL",
+    "usd_bias": "NEUTRAL",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-97-2026-10-01",
+    "gold_bias": "NEUTRAL",
+    "usd_bias": "NEUTRAL",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-98-2026-10-01",
+    "gold_bias": "NEUTRAL",
+    "usd_bias": "NEUTRAL",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-99-2026-10-01",
+    "gold_bias": "NEUTRAL",
+    "usd_bias": "NEUTRAL",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-100-2026-10-01",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-101-2026-10-01",
+    "gold_bias": "NEUTRAL",
+    "usd_bias": "NEUTRAL",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-102-2026-10-01",
+    "gold_bias": "NEUTRAL",
+    "usd_bias": "NEUTRAL",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-103-2026-10-01",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-104-2026-10-01",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-105-2026-10-01",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-106-2026-10-01",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-107-2026-10-01",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-108-2026-10-01",
+    "gold_bias": "NEUTRAL",
+    "usd_bias": "NEUTRAL",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-109-2026-10-01",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-110-2026-10-01",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-111-2026-10-01",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-112-2026-10-01",
+    "gold_bias": "NEUTRAL",
+    "usd_bias": "NEUTRAL",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-113-2026-10-01",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-114-2026-10-01",
+    "gold_bias": "NEUTRAL",
+    "usd_bias": "NEUTRAL",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-115-2026-10-01",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-116-2026-10-01",
+    "gold_bias": "NEUTRAL",
+    "usd_bias": "NEUTRAL",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-117-2026-10-01",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-118-2026-10-01",
+    "gold_bias": "NEUTRAL",
+    "usd_bias": "NEUTRAL",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-119-2026-10-01",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-120-2026-10-01",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-121-2026-10-01",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-122-2026-10-01",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-123-2026-10-01",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-124-2026-10-01",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-125-2026-10-01",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-126-2026-10-01",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-127-2026-10-01",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-128-2026-10-01",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-129-2026-10-01",
+    "gold_bias": "NEUTRAL",
+    "usd_bias": "NEUTRAL",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-130-2026-10-01",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-131-2026-10-02",
+    "gold_bias": "NEUTRAL",
+    "usd_bias": "NEUTRAL",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-132-2026-10-02",
+    "gold_bias": "NEUTRAL",
+    "usd_bias": "NEUTRAL",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-133-2026-10-02",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-134-2026-10-02",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-135-2026-10-02",
     "gold_bias": "BULLISH",
     "usd_bias": "BEARISH",
     "risk_score": 88,
@@ -44,11 +1496,66 @@
     }
   },
   {
-    "event_id": "evt-us-gdp",
+    "event_id": "api-sc-136-2026-10-02",
     "gold_bias": "NEUTRAL",
     "usd_bias": "NEUTRAL",
     "risk_score": 88,
     "confidence": 78,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-137-2026-10-02",
+    "gold_bias": "NEUTRAL",
+    "usd_bias": "NEUTRAL",
+    "risk_score": 88,
+    "confidence": 78,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-138-2026-10-02",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-139-2026-10-02",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-140-2026-10-02",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
+    "scenario": {
+      "hawkish": "Gold Bearish, USD Bullish",
+      "dovish": "Gold Bullish, USD Bearish"
+    }
+  },
+  {
+    "event_id": "api-sc-141-2026-10-03",
+    "gold_bias": "BULLISH",
+    "usd_bias": "BEARISH",
+    "risk_score": 45,
+    "confidence": 65,
     "scenario": {
       "hawkish": "Gold Bearish, USD Bullish",
       "dovish": "Gold Bullish, USD Bearish"

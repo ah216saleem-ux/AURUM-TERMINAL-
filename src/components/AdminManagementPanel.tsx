@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Users, 
   ShieldCheck, 
+  Shield,
   Activity, 
   Database, 
   FileText, 
@@ -41,7 +42,7 @@ interface AdminManagementPanelProps {
   onClose: () => void;
 }
 
-type AdminTab = 'HEALTH' | 'USERS' | 'SESSIONS' | 'MONITORING' | 'LOGS' | 'BACKUP';
+type AdminTab = 'HEALTH' | 'USERS' | 'SESSIONS' | 'MONITORING' | 'CATALYST' | 'LOGS' | 'BACKUP';
 
 export const AdminManagementPanel: React.FC<AdminManagementPanelProps> = ({ isOpen, onClose }) => {
   const [activeTab, setActiveTab] = useState<AdminTab>('HEALTH');
@@ -56,9 +57,134 @@ export const AdminManagementPanel: React.FC<AdminManagementPanelProps> = ({ isOp
   const [restoreJsonInput, setRestoreJsonInput] = useState('');
   const [isRestoring, setIsRestoring] = useState(false);
   const [logFilter, setLogFilter] = useState<'ALL' | 'AUTH' | 'API' | 'WEBSOCKET' | 'AI' | 'SYSTEM'>('ALL');
+  
+  // Catalyst Performance & Risk State (Admin)
+  const [catalystStats, setCatalystStats] = useState<any>(null);
+  const [catalystAnalytics, setCatalystAnalytics] = useState<any>(null);
+  const [catalystHealth, setCatalystHealth] = useState<any>(null);
+  const [catalystOperations, setCatalystOperations] = useState<any>(null);
+  const [catalystTradesList, setCatalystTradesList] = useState<any[]>([]);
+  const [isResettingRisk, setIsResettingRisk] = useState(false);
+  const [isPerformingOpsAction, setIsPerformingOpsAction] = useState(false);
+  const [opsActionNotice, setOpsActionNotice] = useState<string | null>(null);
+  const [expandedAnalyticsSection, setExpandedAnalyticsSection] = useState<'NONE' | 'DIRECTION' | 'QUALITY' | 'MARKET' | 'TIME' | 'WEEKLY'>('DIRECTION');
 
   const currentUser = userService.getUser();
   const isAdmin = currentUser?.role === 'ADMIN';
+
+  const fetchCatalystData = async () => {
+    try {
+      const [perfRes, analyticsRes, healthRes, opsRes, tradesRes] = await Promise.all([
+        fetch('/api/catalyst/performance'),
+        fetch('/api/catalyst/analytics'),
+        fetch('/api/catalyst/health'),
+        fetch('/api/catalyst/operations'),
+        fetch('/api/catalyst/trades')
+      ]);
+      if (perfRes.ok) {
+        const pData = await perfRes.json();
+        setCatalystStats(pData);
+      }
+      if (analyticsRes.ok) {
+        const aData = await analyticsRes.json();
+        setCatalystAnalytics(aData);
+      }
+      if (healthRes.ok) {
+        const hData = await healthRes.json();
+        setCatalystHealth(hData);
+      }
+      if (opsRes.ok) {
+        const oData = await opsRes.json();
+        setCatalystOperations(oData);
+      }
+      if (tradesRes.ok) {
+        const tData = await tradesRes.json();
+        setCatalystTradesList(tData.trades || []);
+      }
+    } catch (e) {
+      console.error('[AdminPanel] Error fetching Catalyst admin metrics:', e);
+    }
+  };
+
+  const handlePauseCatalyst = async () => {
+    setIsPerformingOpsAction(true);
+    setOpsActionNotice(null);
+    try {
+      const res = await fetch('/api/catalyst/pause', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'Admin Emergency Pause Activated' })
+      });
+      if (res.ok) {
+        setOpsActionNotice('Catalyst Emergency Pause Activated. New signals blocked.');
+        await fetchCatalystData();
+      }
+    } catch (err) {
+      console.error('[AdminPanel] Failed to pause Catalyst:', err);
+    } finally {
+      setIsPerformingOpsAction(false);
+    }
+  };
+
+  const handleResumeCatalyst = async () => {
+    setIsPerformingOpsAction(true);
+    setOpsActionNotice(null);
+    try {
+      const res = await fetch('/api/catalyst/resume', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setOpsActionNotice('Catalyst Operations Resumed Successfully.');
+        await fetchCatalystData();
+      } else {
+        setOpsActionNotice(`Cannot Resume: ${data.message || 'Safety checks failed.'}`);
+      }
+    } catch (err) {
+      console.error('[AdminPanel] Failed to resume Catalyst:', err);
+    } finally {
+      setIsPerformingOpsAction(false);
+    }
+  };
+
+  const handleToggleMaintenance = async (enable: boolean) => {
+    setIsPerformingOpsAction(true);
+    setOpsActionNotice(null);
+    try {
+      const res = await fetch('/api/catalyst/maintenance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: enable, reason: 'Admin Maintenance Window' })
+      });
+      if (res.ok) {
+        setOpsActionNotice(`Maintenance Mode ${enable ? 'ENABLED' : 'DISABLED'}.`);
+        await fetchCatalystData();
+      }
+    } catch (err) {
+      console.error('[AdminPanel] Failed to toggle maintenance mode:', err);
+    } finally {
+      setIsPerformingOpsAction(false);
+    }
+  };
+
+  const handleResetCatalystRisk = async (resetType: 'ALL' | 'RISK_PAUSE' | 'DAILY_LOCK' = 'ALL') => {
+    setIsResettingRisk(true);
+    try {
+      const res = await fetch('/api/catalyst/admin/reset-risk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resetType })
+      });
+      if (res.ok) {
+        await fetchCatalystData();
+      }
+    } catch (err) {
+      console.error('[AdminPanel] Failed to reset Catalyst risk:', err);
+    } finally {
+      setIsResettingRisk(false);
+    }
+  };
 
   useEffect(() => {
     const updateData = () => {
@@ -71,13 +197,21 @@ export const AdminManagementPanel: React.FC<AdminManagementPanelProps> = ({ isOp
     };
 
     updateData();
+    if (activeTab === 'CATALYST') {
+      fetchCatalystData();
+    }
     const unsub = productionDbService.subscribe(updateData);
-    const interval = setInterval(updateData, 3000);
+    const interval = setInterval(() => {
+      updateData();
+      if (activeTab === 'CATALYST') {
+        fetchCatalystData();
+      }
+    }, 3000);
     return () => {
       unsub();
       clearInterval(interval);
     };
-  }, []);
+  }, [activeTab]);
 
   if (!isOpen) return null;
 
@@ -157,6 +291,7 @@ export const AdminManagementPanel: React.FC<AdminManagementPanelProps> = ({ isOp
         <div className="flex items-center gap-1.5 px-5 py-2.5 bg-[#0b0e1a] border-b border-zinc-800/80 overflow-x-auto scrollbar-none text-xs font-mono">
           {[
             { id: 'HEALTH', label: 'Production Health', icon: Activity },
+            { id: 'CATALYST', label: 'Catalyst Forward-Validation', icon: Sparkles },
             { id: 'USERS', label: 'User Management', icon: Users },
             { id: 'SESSIONS', label: 'Active Sessions', icon: Clock },
             { id: 'MONITORING', label: 'System Monitoring', icon: Cpu },
@@ -447,6 +582,541 @@ export const AdminManagementPanel: React.FC<AdminManagementPanelProps> = ({ isOp
                     </div>
                   );
                 })}
+              </div>
+            </div>
+          )}
+
+          {/* TAB: AURUM CATALYST FORWARD-VALIDATION & RISK CONTROL (PHASE 4) */}
+          {activeTab === 'CATALYST' && (
+            <div className="space-y-4 font-mono">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 pb-3">
+                <div>
+                  <h3 className="text-sm font-bold text-white uppercase flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-amber-400" />
+                    AURUM CATALYST — FORWARD-VALIDATION & RISK CONTROL
+                  </h3>
+                  <p className="text-xs text-zinc-400">
+                    Real-Market live performance tracking, daily risk caps, and consecutive-loss circuit breakers.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {catalystOperations?.isEmergencyPaused ? (
+                    <button
+                      onClick={handleResumeCatalyst}
+                      disabled={isPerformingOpsAction}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold transition cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      RESUME CATALYST
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handlePauseCatalyst}
+                      disabled={isPerformingOpsAction}
+                      className="px-3 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/40 text-xs font-bold transition cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                    >
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      PAUSE CATALYST
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => handleToggleMaintenance(!catalystOperations?.isMaintenanceMode)}
+                    disabled={isPerformingOpsAction}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer disabled:opacity-50 flex items-center gap-1 ${
+                      catalystOperations?.isMaintenanceMode
+                        ? 'bg-amber-500 text-black border-amber-400'
+                        : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border-zinc-700'
+                    }`}
+                  >
+                    <Sliders className="w-3.5 h-3.5" />
+                    {catalystOperations?.isMaintenanceMode ? 'MAINTENANCE ON' : 'MAINTENANCE OFF'}
+                  </button>
+
+                  <button
+                    onClick={() => handleResetCatalystRisk('ALL')}
+                    disabled={isResettingRisk}
+                    className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold border border-zinc-700 transition cursor-pointer disabled:opacity-50"
+                  >
+                    Reset Risk Lock
+                  </button>
+                  <button
+                    onClick={() => fetchCatalystData()}
+                    className="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-bold border border-amber-500/30 transition cursor-pointer flex items-center gap-1.5"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    Refresh
+                  </button>
+                </div>
+              </div>
+
+              {/* Operational Action Notice */}
+              {opsActionNotice && (
+                <div className="p-3 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-bold flex items-center justify-between">
+                  <span>{opsActionNotice}</span>
+                  <button onClick={() => setOpsActionNotice(null)} className="text-zinc-400 hover:text-white cursor-pointer text-xs">✕</button>
+                </div>
+              )}
+
+              {/* Requirement 18: System Health Status Grid (Phase 6) */}
+              <div className="p-3 rounded-xl bg-[#090b14] border border-amber-500/25 space-y-2">
+                <div className="flex items-center justify-between border-b border-zinc-800 pb-1.5 text-[11px]">
+                  <span className="font-bold text-amber-300 uppercase tracking-wide flex items-center gap-1.5">
+                    <Activity className="w-3.5 h-3.5 text-amber-400" />
+                    AURUM CATALYST — SYSTEM HEALTH & VALIDATION STATUS
+                  </span>
+                  <span className="text-zinc-400">
+                    Validation: <span className="text-emerald-400 font-bold">ACTIVE (Day {catalystHealth?.validationSession?.validationDays ?? 1})</span>
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 text-center text-[10px]">
+                  <div className="p-1.5 rounded bg-[#101424] border border-zinc-800">
+                    <div className="text-zinc-400">Feed</div>
+                    <div className={`font-bold mt-0.5 ${catalystHealth?.feed?.status === 'LIVE' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      {catalystHealth?.feed?.status || 'LIVE'}
+                    </div>
+                  </div>
+                  <div className="p-1.5 rounded bg-[#101424] border border-zinc-800">
+                    <div className="text-zinc-400">Engine</div>
+                    <div className={`font-bold mt-0.5 ${catalystHealth?.engine?.status === 'HEALTHY' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      {catalystHealth?.engine?.status || 'HEALTHY'}
+                    </div>
+                  </div>
+                  <div className="p-1.5 rounded bg-[#101424] border border-zinc-800">
+                    <div className="text-zinc-400">Scanner</div>
+                    <div className="font-bold text-emerald-400 mt-0.5">
+                      {catalystHealth?.engine?.scannerStatus || 'RUNNING'}
+                    </div>
+                  </div>
+                  <div className="p-1.5 rounded bg-[#101424] border border-zinc-800">
+                    <div className="text-zinc-400">Telegram</div>
+                    <div className={`font-bold mt-0.5 ${catalystHealth?.telegram?.status === 'CONNECTED' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {catalystHealth?.telegram?.status || 'CONNECTED'}
+                    </div>
+                  </div>
+                  <div className="p-1.5 rounded bg-[#101424] border border-zinc-800">
+                    <div className="text-zinc-400">Database</div>
+                    <div className="font-bold text-emerald-400 mt-0.5">
+                      {catalystHealth?.database?.status || 'HEALTHY'}
+                    </div>
+                  </div>
+                  <div className="p-1.5 rounded bg-[#101424] border border-zinc-800">
+                    <div className="text-zinc-400">Risk State</div>
+                    <div className={`font-bold mt-0.5 ${catalystHealth?.risk?.status === 'NORMAL' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {catalystHealth?.risk?.status || 'NORMAL'}
+                    </div>
+                  </div>
+                  <div className="p-1.5 rounded bg-[#101424] border border-zinc-800">
+                    <div className="text-zinc-400">Signals / Done</div>
+                    <div className="font-bold text-white mt-0.5">
+                      {catalystHealth?.validationSession?.totalSignals ?? 0} / {catalystHealth?.validationSession?.completedTrades ?? 0}
+                    </div>
+                  </div>
+                  <div className="p-1.5 rounded bg-[#101424] border border-zinc-800">
+                    <div className="text-zinc-400">Integrity</div>
+                    <div className={`font-bold mt-0.5 ${catalystHealth?.dataIntegrity?.status === 'PASS' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      {catalystHealth?.dataIntegrity?.status || 'PASS'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Requirement 16 Core Section: Today, Risk, Consecutive SL, Feed */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {/* 1. Feed Status */}
+                <div className="p-4 rounded-xl bg-[#101424] border border-zinc-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-zinc-400 uppercase">Feed Status</span>
+                    <span className={`w-2.5 h-2.5 rounded-full ${
+                      catalystStats?.feedHealth?.status === 'LIVE' ? 'bg-emerald-400 animate-pulse' :
+                      catalystStats?.feedHealth?.status === 'STALE' ? 'bg-amber-400 animate-ping' : 'bg-rose-400'
+                    }`} />
+                  </div>
+                  <div className={`text-lg font-black ${
+                    catalystStats?.feedHealth?.status === 'LIVE' ? 'text-emerald-400' :
+                    catalystStats?.feedHealth?.status === 'STALE' ? 'text-amber-400' : 'text-rose-400'
+                  }`}>
+                    {catalystStats?.feedHealth?.status || 'LIVE'}
+                  </div>
+                  <div className="text-[11px] text-zinc-400">
+                    Tick Age: <span className="text-zinc-200">{catalystStats?.feedHealth?.tickAgeSeconds ?? 0}s</span>
+                  </div>
+                </div>
+
+                {/* 2. Risk Status */}
+                <div className="p-4 rounded-xl bg-[#101424] border border-zinc-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-zinc-400 uppercase">Risk Status</span>
+                    <Shield className="w-4 h-4 text-amber-400" />
+                  </div>
+                  <div className={`text-lg font-black ${
+                    catalystStats?.dailyStats?.riskStatus === 'NORMAL' ? 'text-emerald-400' :
+                    catalystStats?.dailyStats?.riskStatus === 'RISK_PAUSE' ? 'text-amber-400' : 'text-rose-400'
+                  }`}>
+                    {catalystStats?.dailyStats?.riskStatus || 'NORMAL'}
+                  </div>
+                  <div className="text-[11px] text-zinc-400">
+                    Auto-Lock: <span className="text-zinc-200">Max 5 Sig / 3 SL</span>
+                  </div>
+                </div>
+
+                {/* 3. Consecutive SL */}
+                <div className="p-4 rounded-xl bg-[#101424] border border-zinc-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-zinc-400 uppercase">Consecutive SL</span>
+                    <AlertTriangle className="w-4 h-4 text-rose-400" />
+                  </div>
+                  <div className={`text-lg font-black ${
+                    (catalystStats?.dailyStats?.consecutiveSlCount || 0) > 0 ? 'text-rose-400' : 'text-zinc-200'
+                  }`}>
+                    {catalystStats?.dailyStats?.consecutiveSlCount ?? 0} / 3 Max
+                  </div>
+                  <div className="text-[11px] text-zinc-400">
+                    Pause after 3 SL: <span className="text-zinc-200">Strict Circuit</span>
+                  </div>
+                </div>
+
+                {/* 4. Win Rate */}
+                <div className="p-4 rounded-xl bg-[#101424] border border-zinc-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-zinc-400 uppercase">Forward Win Rate</span>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  </div>
+                  <div className="text-lg font-black text-amber-300">
+                    {catalystStats?.winRate ?? 0}%
+                  </div>
+                  <div className="text-[11px] text-zinc-400">
+                    Resolved: <span className="text-zinc-200">{catalystStats?.totalCompletedTrades ?? 0} trades</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Today's Counters Box (Requirement 16) */}
+              <div className="p-4 rounded-xl bg-[#0e1222] border border-amber-500/20 space-y-3">
+                <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
+                  <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">
+                    Today's Activity ({catalystStats?.dailyStats?.dateStr || 'UTC'})
+                  </span>
+                  <span className="text-[11px] text-zinc-400">
+                    Reset: 00:00 UTC
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-center">
+                  <div className="p-2.5 rounded-lg bg-[#14182b] border border-zinc-800">
+                    <div className="text-xs text-zinc-400">Signals</div>
+                    <div className="text-base font-bold text-white mt-1">
+                      {catalystStats?.dailyStats?.signalsCreatedToday ?? 0} / {catalystStats?.riskConfig?.maxDailySignals ?? 5}
+                    </div>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-[#14182b] border border-zinc-800">
+                    <div className="text-xs text-cyan-400">TP1 Hits</div>
+                    <div className="text-base font-bold text-cyan-300 mt-1">
+                      {catalystStats?.dailyStats?.tp1HitsToday ?? 0}
+                    </div>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-[#14182b] border border-zinc-800">
+                    <div className="text-xs text-emerald-400">TP2 Hits</div>
+                    <div className="text-base font-bold text-emerald-300 mt-1">
+                      {catalystStats?.dailyStats?.tp2HitsToday ?? 0}
+                    </div>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-[#14182b] border border-zinc-800">
+                    <div className="text-xs text-rose-400">SL Hits</div>
+                    <div className="text-base font-bold text-rose-300 mt-1">
+                      {catalystStats?.dailyStats?.slHitsToday ?? 0} / {catalystStats?.riskConfig?.maxDailySlTrades ?? 3}
+                    </div>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-[#14182b] border border-zinc-800">
+                    <div className="text-xs text-amber-400">Missed</div>
+                    <div className="text-base font-bold text-amber-300 mt-1">
+                      {catalystStats?.dailyStats?.missedEntriesToday ?? 0}
+                    </div>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-[#14182b] border border-zinc-800">
+                    <div className="text-xs text-zinc-400">Expired</div>
+                    <div className="text-base font-bold text-zinc-300 mt-1">
+                      {catalystStats?.expiredSetups ?? 0}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sample Size Warning Banner (Requirement 16) */}
+              <div className="p-3.5 rounded-xl bg-[#101424] border border-amber-500/30 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                    catalystAnalytics?.sampleWarning === 'SUFFICIENT SAMPLE'
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                      : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                  }`}>
+                    {catalystAnalytics?.sampleWarning || 'INSUFFICIENT SAMPLE'}
+                  </span>
+                  <span className="text-xs text-zinc-300 font-bold">
+                    Sample Size: {catalystAnalytics?.sampleSize ?? 0} Recorded Signals
+                  </span>
+                </div>
+                <span className="text-[11px] text-zinc-400 hidden sm:inline">
+                  {catalystAnalytics?.sampleWarningMessage || 'Collecting real-market forward samples'}
+                </span>
+              </div>
+
+              {/* Requirement 18: Expandable Multi-Dimensional Analytics Navigation */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
+                  <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">
+                    Forward-Validation Analytical Dimensions
+                  </span>
+                  <div className="flex flex-wrap gap-1">
+                    {(['DIRECTION', 'QUALITY', 'MARKET', 'TIME', 'WEEKLY'] as const).map(sec => (
+                      <button
+                        key={sec}
+                        onClick={() => setExpandedAnalyticsSection(sec)}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition cursor-pointer ${
+                          expandedAnalyticsSection === sec
+                            ? 'bg-amber-500 text-black'
+                            : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                        }`}
+                      >
+                        {sec === 'DIRECTION' ? 'BUY vs SELL' :
+                         sec === 'QUALITY' ? 'Score Bands' :
+                         sec === 'MARKET' ? 'H4 / H1 Structure' :
+                         sec === 'TIME' ? 'Time of Day' : 'Weekly Aggregation'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Dimension 1: BUY vs SELL */}
+                {expandedAnalyticsSection === 'DIRECTION' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="p-3.5 rounded-xl bg-[#0f1325] border border-emerald-500/30 space-y-2">
+                      <div className="flex items-center justify-between border-b border-zinc-800 pb-1.5">
+                        <span className="text-xs font-bold text-emerald-400">BUY (Long Setups)</span>
+                        <span className="text-[10px] text-zinc-400">{catalystAnalytics?.directionAnalytics?.buy?.sampleStatus || 'INSUFFICIENT SAMPLE'}</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                        <div className="p-2 rounded bg-black/40 border border-zinc-800">
+                          <div className="text-[10px] text-zinc-400">Total</div>
+                          <div className="font-bold text-white mt-0.5">{catalystAnalytics?.directionAnalytics?.buy?.totalSignals ?? 0}</div>
+                        </div>
+                        <div className="p-2 rounded bg-black/40 border border-zinc-800">
+                          <div className="text-[10px] text-emerald-400">Win Rate</div>
+                          <div className="font-bold text-emerald-300 mt-0.5">{catalystAnalytics?.directionAnalytics?.buy?.winRate ?? 0}%</div>
+                        </div>
+                        <div className="p-2 rounded bg-black/40 border border-zinc-800">
+                          <div className="text-[10px] text-rose-400">SL Rate</div>
+                          <div className="font-bold text-rose-300 mt-0.5">{catalystAnalytics?.directionAnalytics?.buy?.slRate ?? 0}%</div>
+                        </div>
+                      </div>
+                      <div className="text-[11px] text-zinc-400 flex justify-between pt-1">
+                        <span>TP2: {catalystAnalytics?.directionAnalytics?.buy?.tp2Count ?? 0} | TP1+BE: {catalystAnalytics?.directionAnalytics?.buy?.tp1BreakEvenCount ?? 0}</span>
+                        <span>SL: {catalystAnalytics?.directionAnalytics?.buy?.slCount ?? 0}</span>
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 rounded-xl bg-[#0f1325] border border-rose-500/30 space-y-2">
+                      <div className="flex items-center justify-between border-b border-zinc-800 pb-1.5">
+                        <span className="text-xs font-bold text-rose-400">SELL (Short Setups)</span>
+                        <span className="text-[10px] text-zinc-400">{catalystAnalytics?.directionAnalytics?.sell?.sampleStatus || 'INSUFFICIENT SAMPLE'}</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                        <div className="p-2 rounded bg-black/40 border border-zinc-800">
+                          <div className="text-[10px] text-zinc-400">Total</div>
+                          <div className="font-bold text-white mt-0.5">{catalystAnalytics?.directionAnalytics?.sell?.totalSignals ?? 0}</div>
+                        </div>
+                        <div className="p-2 rounded bg-black/40 border border-zinc-800">
+                          <div className="text-[10px] text-emerald-400">Win Rate</div>
+                          <div className="font-bold text-emerald-300 mt-0.5">{catalystAnalytics?.directionAnalytics?.sell?.winRate ?? 0}%</div>
+                        </div>
+                        <div className="p-2 rounded bg-black/40 border border-zinc-800">
+                          <div className="text-[10px] text-rose-400">SL Rate</div>
+                          <div className="font-bold text-rose-300 mt-0.5">{catalystAnalytics?.directionAnalytics?.sell?.slRate ?? 0}%</div>
+                        </div>
+                      </div>
+                      <div className="text-[11px] text-zinc-400 flex justify-between pt-1">
+                        <span>TP2: {catalystAnalytics?.directionAnalytics?.sell?.tp2Count ?? 0} | TP1+BE: {catalystAnalytics?.directionAnalytics?.sell?.tp1BreakEvenCount ?? 0}</span>
+                        <span>SL: {catalystAnalytics?.directionAnalytics?.sell?.slCount ?? 0}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Dimension 2: Quality Score Bands */}
+                {expandedAnalyticsSection === 'QUALITY' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {Object.entries(catalystAnalytics?.qualityBandAnalytics?.bands || {
+                      '75-80 (Acceptance)': { totalSignals: 0, winRate: 0, slRate: 0, tp2Count: 0, slCount: 0 },
+                      '81-90 (High Quality)': { totalSignals: 0, winRate: 0, slRate: 0, tp2Count: 0, slCount: 0 },
+                      '91-100 (Prime Institutional)': { totalSignals: 0, winRate: 0, slRate: 0, tp2Count: 0, slCount: 0 }
+                    }).map(([bandName, data]: [string, any]) => (
+                      <div key={bandName} className="p-3.5 rounded-xl bg-[#0f1325] border border-zinc-800 space-y-2">
+                        <div className="text-xs font-bold text-amber-300 border-b border-zinc-800 pb-1">{bandName}</div>
+                        <div className="text-[11px] text-zinc-300 space-y-1">
+                          <div className="flex justify-between"><span>Signals:</span> <span className="text-white font-bold">{data.totalSignals ?? 0}</span></div>
+                          <div className="flex justify-between"><span>Win Rate:</span> <span className="text-emerald-400 font-bold">{data.winRate ?? 0}%</span></div>
+                          <div className="flex justify-between"><span>SL Rate:</span> <span className="text-rose-400 font-bold">{data.slRate ?? 0}%</span></div>
+                          <div className="flex justify-between"><span>TP2 Wins:</span> <span className="text-zinc-200">{data.tp2Count ?? 0}</span></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Dimension 3: Market Condition */}
+                {expandedAnalyticsSection === 'MARKET' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="p-3.5 rounded-xl bg-[#0f1325] border border-zinc-800 space-y-1.5">
+                      <div className="text-xs font-bold text-emerald-400 border-b border-zinc-800 pb-1">H4 Bullish Market</div>
+                      <div className="text-[11px] text-zinc-300 flex justify-between"><span>Signals:</span> <span className="font-bold">{catalystAnalytics?.marketConditionAnalytics?.h4Bullish?.totalSignals ?? 0}</span></div>
+                      <div className="text-[11px] text-zinc-300 flex justify-between"><span>Win Rate:</span> <span className="font-bold text-emerald-400">{catalystAnalytics?.marketConditionAnalytics?.h4Bullish?.winRate ?? 0}%</span></div>
+                      <div className="text-[11px] text-zinc-300 flex justify-between"><span>SL Rate:</span> <span className="font-bold text-rose-400">{catalystAnalytics?.marketConditionAnalytics?.h4Bullish?.slRate ?? 0}%</span></div>
+                    </div>
+                    <div className="p-3.5 rounded-xl bg-[#0f1325] border border-zinc-800 space-y-1.5">
+                      <div className="text-xs font-bold text-rose-400 border-b border-zinc-800 pb-1">H4 Bearish Market</div>
+                      <div className="text-[11px] text-zinc-300 flex justify-between"><span>Signals:</span> <span className="font-bold">{catalystAnalytics?.marketConditionAnalytics?.h4Bearish?.totalSignals ?? 0}</span></div>
+                      <div className="text-[11px] text-zinc-300 flex justify-between"><span>Win Rate:</span> <span className="font-bold text-emerald-400">{catalystAnalytics?.marketConditionAnalytics?.h4Bearish?.winRate ?? 0}%</span></div>
+                      <div className="text-[11px] text-zinc-300 flex justify-between"><span>SL Rate:</span> <span className="font-bold text-rose-400">{catalystAnalytics?.marketConditionAnalytics?.h4Bearish?.slRate ?? 0}%</span></div>
+                    </div>
+                    <div className="p-3.5 rounded-xl bg-[#0f1325] border border-zinc-800 space-y-1.5">
+                      <div className="text-xs font-bold text-zinc-400 border-b border-zinc-800 pb-1">H4 Neutral Range</div>
+                      <div className="text-[11px] text-zinc-300 flex justify-between"><span>Signals:</span> <span className="font-bold">{catalystAnalytics?.marketConditionAnalytics?.h4Neutral?.totalSignals ?? 0}</span></div>
+                      <div className="text-[11px] text-zinc-300 flex justify-between"><span>Win Rate:</span> <span className="font-bold text-emerald-400">{catalystAnalytics?.marketConditionAnalytics?.h4Neutral?.winRate ?? 0}%</span></div>
+                      <div className="text-[11px] text-zinc-300 flex justify-between"><span>SL Rate:</span> <span className="font-bold text-rose-400">{catalystAnalytics?.marketConditionAnalytics?.h4Neutral?.slRate ?? 0}%</span></div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Dimension 4: Time of Day */}
+                {expandedAnalyticsSection === 'TIME' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {Object.entries(catalystAnalytics?.timeOfDayAnalytics?.timeBuckets || {}).map(([bName, bData]: [string, any]) => (
+                      <div key={bName} className="p-3 rounded-xl bg-[#0f1325] border border-zinc-800 space-y-1.5">
+                        <div className="text-[11px] font-bold text-amber-300 border-b border-zinc-800 pb-1">{bName}</div>
+                        <div className="text-[11px] text-zinc-300 flex justify-between"><span>Signals:</span> <span className="font-bold">{bData.totalSignals ?? 0}</span></div>
+                        <div className="text-[11px] text-zinc-300 flex justify-between"><span>Win Rate:</span> <span className="font-bold text-emerald-400">{bData.winRate ?? 0}%</span></div>
+                        <div className="text-[11px] text-zinc-300 flex justify-between"><span>TP2 / SL:</span> <span>{bData.tp2Count ?? 0} / {bData.slCount ?? 0}</span></div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Dimension 5: Weekly Aggregation */}
+                {expandedAnalyticsSection === 'WEEKLY' && (
+                  <div className="space-y-2">
+                    <div className="overflow-x-auto rounded-xl border border-zinc-800 bg-[#0d101c] max-h-48 overflow-y-auto">
+                      <table className="w-full text-left text-xs font-mono">
+                        <thead className="bg-[#121629] text-zinc-400 border-b border-zinc-800 uppercase text-[10px] sticky top-0">
+                          <tr>
+                            <th className="p-2">Week</th>
+                            <th className="p-2">Signals</th>
+                            <th className="p-2">TP2</th>
+                            <th className="p-2">TP1+BE</th>
+                            <th className="p-2">SL</th>
+                            <th className="p-2">Win Rate</th>
+                            <th className="p-2">Risk Locks</th>
+                            <th className="p-2">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-800/60 text-[11px]">
+                          {(!catalystAnalytics?.weeklyPerformance || catalystAnalytics?.weeklyPerformance?.length === 0) ? (
+                            <tr><td colSpan={8} className="p-3 text-center text-zinc-500">No weekly history accumulated yet.</td></tr>
+                          ) : (
+                            catalystAnalytics.weeklyPerformance.map((w: any) => (
+                              <tr key={w.weekIdentifier}>
+                                <td className="p-2 font-bold text-white">{w.weekIdentifier}</td>
+                                <td className="p-2">{w.totalSignals}</td>
+                                <td className="p-2 text-emerald-400 font-bold">{w.tp2Count}</td>
+                                <td className="p-2 text-cyan-400">{w.tp1BreakEvenCount}</td>
+                                <td className="p-2 text-rose-400 font-bold">{w.slCount}</td>
+                                <td className="p-2 font-bold text-amber-300">{w.winRate}%</td>
+                                <td className="p-2 text-zinc-400">{w.riskLockEvents}</td>
+                                <td className="p-2 text-[10px] text-zinc-400">{w.sampleStatus}</td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Forward-Validation Completed Trades Log */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-zinc-300 uppercase">
+                    Recent Real Forward Trades ({catalystTradesList.length})
+                  </h4>
+                  <span className="text-[11px] text-zinc-500">
+                    Strict Real Market Execution Only
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto rounded-xl border border-zinc-800 bg-[#0d101c] max-h-64 overflow-y-auto">
+                  <table className="w-full text-left text-xs font-mono">
+                    <thead className="bg-[#121629] text-zinc-400 border-b border-zinc-800 uppercase text-[10px] sticky top-0">
+                      <tr>
+                        <th className="p-2.5">Signal ID</th>
+                        <th className="p-2.5">Side</th>
+                        <th className="p-2.5">Entry</th>
+                        <th className="p-2.5">SL / TP1 / TP2</th>
+                        <th className="p-2.5">Outcome</th>
+                        <th className="p-2.5">PnL Dist</th>
+                        <th className="p-2.5">Duration</th>
+                        <th className="p-2.5">Time</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-800/60 text-[11px]">
+                      {catalystTradesList.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="p-4 text-center text-zinc-500">
+                            No forward-validation trades completed yet. Waiting for market setups.
+                          </td>
+                        </tr>
+                      ) : (
+                        catalystTradesList.map((t: any) => (
+                          <tr key={t.signalId} className="hover:bg-zinc-900/50 transition">
+                            <td className="p-2.5 text-zinc-300 font-mono text-[10px]">
+                              {t.signalId.substring(0, 18)}...
+                            </td>
+                            <td className="p-2.5">
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                t.direction === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
+                              }`}>
+                                {t.direction}
+                              </span>
+                            </td>
+                            <td className="p-2.5 text-zinc-200 font-bold">${t.entry?.toFixed(2)}</td>
+                            <td className="p-2.5 text-zinc-400 text-[10px]">
+                              SL: ${t.sl?.toFixed(2)} | TP1: ${t.tp1?.toFixed(2)} | TP2: ${t.tp2?.toFixed(2)}
+                            </td>
+                            <td className="p-2.5">
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                t.finalOutcome === 'TP2_HIT' ? 'bg-emerald-500/20 text-emerald-300' :
+                                t.finalOutcome === 'TP1_CLOSED' ? 'bg-cyan-500/20 text-cyan-300' :
+                                t.finalOutcome === 'SL_HIT' ? 'bg-rose-500/20 text-rose-300' :
+                                'bg-zinc-800 text-zinc-400'
+                              }`}>
+                                {t.finalOutcome}
+                              </span>
+                            </td>
+                            <td className="p-2.5 font-bold">
+                              <span className={t.pnlDistance > 0 ? 'text-emerald-400' : t.pnlDistance < 0 ? 'text-rose-400' : 'text-zinc-400'}>
+                                {t.pnlDistance > 0 ? `+${t.pnlDistance?.toFixed(2)}` : t.pnlDistance?.toFixed(2)}
+                              </span>
+                            </td>
+                            <td className="p-2.5 text-zinc-400">
+                              {t.totalDurationMs ? `${Math.round(t.totalDurationMs / 60000)}m` : '-'}
+                            </td>
+                            <td className="p-2.5 text-zinc-500 text-[10px]">
+                              {new Date(t.timestamp).toLocaleTimeString()}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}

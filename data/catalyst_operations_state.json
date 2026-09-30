@@ -1,0 +1,33 @@
+{
+  "productionStatus": "PAUSED",
+  "isEmergencyPaused": false,
+  "isMaintenanceMode": false,
+  "lastSafetyGateCheckTimestamp": 1790802362515,
+  "lastSafetyGateResult": "BLOCKED",
+  "activeAlerts": [
+    {
+      "id": "ops_1790802362511_io9i5",
+      "type": "MAINTENANCE_OFF",
+      "severity": "WARN",
+      "message": "Maintenance mode deactivated by admin.",
+      "timestamp": 1790802362511
+    },
+    {
+      "id": "ops_1790802362505_znnsb",
+      "type": "MAINTENANCE_ON",
+      "severity": "WARN",
+      "message": "Verification Test Maintenance",
+      "timestamp": 1790802362505
+    },
+    {
+      "id": "ops_1790802362497_36xw8",
+      "type": "EMERGENCY_PAUSE",
+      "severity": "CRITICAL",
+      "message": "Verification Test Emergency Pause",
+      "timestamp": 1790802362497
+    }
+  ],
+  "serverRestartTimestamp": 1790803610937,
+  "lastUpdated": 1790803610937,
+  "safetyGateBlockReason": "Verification Test Emergency Pause"
+}

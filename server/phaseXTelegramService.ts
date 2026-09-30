@@ -271,7 +271,10 @@ function loadPersistedTelegramConfig() {
           dynamicChatId = String(data.chatId).trim().replace(/\s+/g, '');
         }
         if (data.n8nWebhookUrl && String(data.n8nWebhookUrl).trim().length > 5) {
-          dynamicN8nWebhookUrl = String(data.n8nWebhookUrl).trim();
+          const rawUrl = String(data.n8nWebhookUrl).trim();
+          if (!rawUrl.includes('test-aurum-n8n') && !rawUrl.includes('example.com')) {
+            dynamicN8nWebhookUrl = rawUrl;
+          }
         }
         console.log(`[PhaseXTelegram] Loaded saved credentials from disk: chatId=${dynamicChatId ? 'SET' : 'EMPTY'}, botToken=${dynamicBotToken ? 'SET' : 'EMPTY'}, n8nWebhook=${dynamicN8nWebhookUrl ? 'SET' : 'EMPTY'}`);
       }
@@ -530,7 +533,7 @@ export function updateAdminSettings(partial: Partial<DynamicTelegramSettings>): 
 }
 
 export function getEffectiveCooldownMinutes(): number {
-  return dynamicSettings.cooldownMinutes || 30;
+  return dynamicSettings.cooldownMinutes || 3;
 }
 
 export interface ActiveTelegramTradeRecord {
@@ -625,7 +628,11 @@ export function setDynamicTelegramConfig(token?: string, chatId?: string, n8nWeb
 }
 
 export function getN8nWebhookUrl(): string {
-  return dynamicN8nWebhookUrl || process.env.N8N_WEBHOOK_URL || process.env.AURUM_N8N_WEBHOOK_URL || '';
+  const url = dynamicN8nWebhookUrl || process.env.N8N_WEBHOOK_URL || process.env.AURUM_N8N_WEBHOOK_URL || '';
+  if (!url || url.includes('test-aurum-n8n') || url.includes('example.com')) {
+    return '';
+  }
+  return url;
 }
 
 export function setDynamicN8nWebhookUrl(url: string) {
@@ -647,7 +654,6 @@ export async function sendN8nWebhookPayload(payload: any): Promise<{ success: bo
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-    console.log(`[PhaseXTelegram] Dispatching payload to n8n webhook: ${n8nUrl} (Event: ${payload.event || 'SIGNAL_APPROVED'})`);
     const res = await fetch(n8nUrl, {
       method: 'POST',
       headers: {
@@ -671,13 +677,15 @@ export async function sendN8nWebhookPayload(payload: any): Promise<{ success: bo
       const errorText = await res.text().catch(() => '');
       let parsedError = `HTTP ${res.status}: ${errorText}`;
       if (res.status === 404 || errorText.includes('Token') || errorText.includes('not found')) {
-        parsedError = `n8n Webhook Endpoint or Token Not Found (HTTP ${res.status}). Please verify your active n8n production Webhook URL.`;
+        parsedError = `n8n Webhook Endpoint Inactive (HTTP ${res.status}). Payload skipped without affecting terminal execution.`;
+        console.log(`[PhaseXTelegram] n8n Webhook inactive or unconfigured (HTTP ${res.status}); payload skipped gracefully.`);
+      } else {
+        console.warn(`[PhaseXTelegram] n8n Webhook responded with HTTP ${res.status}: ${errorText}`);
       }
-      console.warn(`[PhaseXTelegram] n8n Webhook responded with HTTP ${res.status}: ${errorText}`);
       return { success: false, status: res.status, error: parsedError };
     }
   } catch (err: any) {
-    console.warn(`[PhaseXTelegram] Transport failure dispatching to n8n webhook:`, err?.message || err);
+    console.log(`[PhaseXTelegram] n8n webhook unreachable: ${err?.message || 'Network error'} (ignored)`);
     return { success: false, error: err?.message || 'Network error' };
   }
 }
@@ -1741,11 +1749,12 @@ export async function dispatchPhaseXLifecycleTelegramUpdate(
       saveActiveTelegramTradeToDisk(activeTelegramTrade);
     }
   } else if (payload.event === 'TP2_HIT' || payload.event === 'STOP_LOSS_HIT' || payload.event === 'EXPIRED') {
-    // Current trade has concluded! Clear active trade and enforce 30-minute cooldown before next signal
+    // Current trade has concluded! Clear active trade and enforce cooldown before next signal
     activeTelegramTrade = null;
     saveActiveTelegramTradeToDisk(null);
-    telegramCooldownUntilTimestamp = Date.now() + 30 * 60 * 1000;
-    console.log(`[PhaseXTelegram] Trade ${payload.setupId} concluded (${payload.event}). 30-Minute cooldown active.`);
+    const coolMin = getEffectiveCooldownMinutes();
+    telegramCooldownUntilTimestamp = Date.now() + coolMin * 60 * 1000;
+    console.log(`[PhaseXTelegram] Trade ${payload.setupId} concluded (${payload.event}). ${coolMin}-Minute cooldown active.`);
   }
 
   const deliveryLog: TelegramDeliveryLog = {
