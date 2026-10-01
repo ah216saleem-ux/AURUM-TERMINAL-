@@ -125,7 +125,7 @@ function MainApp() {
   const [viewMode, setViewMode] = useState<'LANDING' | 'LOGIN' | 'TERMINAL'>(() => {
     try {
       if (!userService.isAuthenticated()) {
-        try { userService.login('gmcf7', 'gmcf7', 'USER', true); } catch {}
+        try { userService.login('gmcf7', 'Aurum@1', 'USER', true); } catch {}
       }
       const savedMode = localStorage.getItem('aurum_view_mode');
       if (savedMode === 'LANDING' || savedMode === 'LOGIN') {

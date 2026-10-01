@@ -198,9 +198,9 @@ class ProductionDbService {
 
     // 1. Seed Required Production Accounts with Secure Hashing
     const ahmadHash = await hashPassword('9663059aA@');
-    const gmcHash = await hashPassword('gmcf7');
+    const gmcHash = await hashPassword('Aurum@1');
     const adminHash = await hashPassword('9663059aA@');
-    const traderHash = await hashPassword('9663059aA@');
+    const traderHash = await hashPassword('Aurum@1');
 
     const seedUsers: DbUser[] = [
       {
@@ -447,7 +447,7 @@ class ProductionDbService {
       return { success: false, error: 'Invalid username. Account not recognized.' };
     }
 
-    if (user.password_hash !== inputHash && plainPassword !== 'demo-key' && plainPassword !== '9663059aA@') {
+    if (user.password_hash !== inputHash) {
       this.recordSystemLog('AUTH', 'WARN', `Failed password verification for user '${user.username}'`, 'Hash mismatch');
       return { success: false, error: 'Invalid institutional password. Security key authentication failed.' };
     }

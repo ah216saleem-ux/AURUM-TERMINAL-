@@ -38,7 +38,7 @@ export const REGISTERED_ACCOUNTS: Record<string, RegisteredAccount> = {
   },
   'gmcf7': {
     username: 'gmcf7',
-    password: 'gmcf7',
+    password: 'Aurum@1',
     role: 'USER',
     name: 'GMC Trader',
     email: 'gmcf7@aurum-terminal.internal',
@@ -60,7 +60,7 @@ export const REGISTERED_ACCOUNTS: Record<string, RegisteredAccount> = {
   },
   'trader': {
     username: 'trader',
-    password: '9663059aA@',
+    password: 'Aurum@1',
     role: 'USER',
     name: 'Institutional Trader',
     email: 'trader@aurum-terminal.internal',
@@ -263,11 +263,10 @@ class UserService {
     const registered = REGISTERED_ACCOUNTS[cleanIdentifier];
 
     if (!registered) {
-      if (pass === 'demo-key' || pass === 'aurum2026') {
-        const inferredRole: UserRole = cleanIdentifier.includes('admin') ? 'ADMIN' : 'USER';
-        return { valid: true, role: inferredRole };
+      if (pass === 'Aurum@1') {
+        return { valid: true, role: 'USER' };
       }
-      return { valid: false, error: 'Invalid username. Account not recognized.' };
+      return { valid: false, error: 'Invalid institutional credentials. Please verify your username and password.' };
     }
 
     if (registered.password !== pass) {
@@ -286,10 +285,9 @@ class UserService {
     const cleanIdentifier = usernameOrEmail.trim().toLowerCase();
     const registered = REGISTERED_ACCOUNTS[cleanIdentifier];
 
-    // Credential validation
+    // Credential validation: Strictly enforce configured passwords (Aurum@1 for users, unchanged for admin)
     if (!registered) {
-      // Allow legacy demo key
-      if (pass !== 'demo-key' && pass !== 'aurum2026') {
+      if (pass !== 'Aurum@1') {
         throw new Error('Invalid institutional credentials. Please verify your username and password.');
       }
     } else {
