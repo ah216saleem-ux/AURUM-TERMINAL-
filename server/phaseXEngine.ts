@@ -2,10 +2,6 @@ import { fetchYahooCandles, fetchYahooQuote, fetchBiquoteQuote, ASSET_CONFIGS, f
 import { getLatestLivePrices, getVerifiedXauPrice } from './websocketServer';
 import { getLiveEconomicEvents, EconomicEvent } from './newsRouter';
 import {
-  dispatchPhaseXApprovedTelegramSignal,
-  dispatchPhaseXLifecycleTelegramUpdate
-} from './phaseXTelegramService';
-import {
   recordNewApprovedLiveSignal,
   updateLiveSignalLifecycle
 } from './phaseXLiveHistoryService';
@@ -2484,17 +2480,6 @@ export async function analyzePhaseX(
           managedRecord.finalR = -1.0;
           recordCompletedTrade(managedRecord, bidAskAvailability);
           executionStatus = 'NONE';
-
-          // Asynchronous Telegram Lifecycle Notification (XAU/USD only)
-          if (assetId === 'xau-usd') {
-            dispatchPhaseXLifecycleTelegramUpdate({
-              setupId: managedRecord.setupId,
-              assetId: 'xau-usd',
-              event: 'STOP_LOSS_HIT',
-              price: execExitPrice,
-              timestamp: Date.now()
-            }).catch(err => console.error('[PhaseXEngine] Telegram SL notify error:', err));
-          }
         } else {
           // Check TP1 Hit (Section 5)
           const isTP1Hit = managedRecord.direction === 'BUY'
@@ -2506,17 +2491,6 @@ export async function analyzePhaseX(
             managedRecord.tp1Timestamp = Date.now();
             managedRecord.tp1Reached = true;
             // Original SL remains locked (no automatic breakeven move in Phase 4)
-
-            // Asynchronous Telegram Lifecycle Notification (XAU/USD only)
-            if (assetId === 'xau-usd') {
-              dispatchPhaseXLifecycleTelegramUpdate({
-                setupId: managedRecord.setupId,
-                assetId: 'xau-usd',
-                event: 'TP1_HIT',
-                price: execExitPrice,
-                timestamp: Date.now()
-              }).catch(err => console.error('[PhaseXEngine] Telegram TP1 notify error:', err));
-            }
           }
         }
       } else if (managedRecord.lifecycleState === 'TP1_HIT') {
@@ -2533,17 +2507,6 @@ export async function analyzePhaseX(
           managedRecord.finalR = -1.0;
           recordCompletedTrade(managedRecord, bidAskAvailability);
           executionStatus = 'NONE';
-
-          // Asynchronous Telegram Lifecycle Notification (XAU/USD only)
-          if (assetId === 'xau-usd') {
-            dispatchPhaseXLifecycleTelegramUpdate({
-              setupId: managedRecord.setupId,
-              assetId: 'xau-usd',
-              event: 'STOP_LOSS_HIT',
-              price: execExitPrice,
-              timestamp: Date.now()
-            }).catch(err => console.error('[PhaseXEngine] Telegram SL notify error:', err));
-          }
         } else {
           // Check TP2 Hit (Section 6)
           const isTP2Hit = managedRecord.direction === 'BUY'
@@ -2558,17 +2521,6 @@ export async function analyzePhaseX(
             managedRecord.finalR = managedRecord.tp2RMultiple || 3.0;
             recordCompletedTrade(managedRecord, bidAskAvailability);
             executionStatus = 'NONE';
-
-            // Asynchronous Telegram Lifecycle Notification (XAU/USD only)
-            if (assetId === 'xau-usd') {
-              dispatchPhaseXLifecycleTelegramUpdate({
-                setupId: managedRecord.setupId,
-                assetId: 'xau-usd',
-                event: 'TP2_HIT',
-                price: execExitPrice,
-                timestamp: Date.now()
-              }).catch(err => console.error('[PhaseXEngine] Telegram TP2 notify error:', err));
-            }
           }
         }
       }
