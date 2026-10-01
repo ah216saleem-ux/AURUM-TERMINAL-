@@ -226,6 +226,7 @@ export interface SignalHistoryItem {
   reason: string;
   setupScore: number;
   decimals: number;
+  strategy?: string;
 }
 
 export interface SignalHistoryStats {
@@ -311,7 +312,7 @@ export interface AssetLockState {
   grade: string;
   lockedAt: number;
   expiryTimestamp: number;
-  tradeStatus: 'ACTIVE' | 'TP_HIT' | 'SL_HIT' | 'EXPIRED' | 'CANCELLED';
+  tradeStatus: 'ACTIVE' | 'TP_HIT' | 'SL_HIT' | 'EXPIRED' | 'CANCELLED' | 'MANUAL_CANCEL';
   signalId: string;
   paperTradeId?: string;
   lockReason?: string;
@@ -319,14 +320,15 @@ export interface AssetLockState {
 
 export interface SignalPipelineStatus {
   assetId: string;
-  symbol: string;
-  phase: PipelinePhase;
-  aurumStatus: 'COMPLETE' | 'WAITING';
-  qwenStatus: 'ANALYZING' | 'COMPLETE' | 'FAILED';
-  consensusStatus: 'WAITING' | 'CONFIRMED' | 'DIVERGENT';
+  symbol?: string;
+  phase: PipelinePhase | string;
+  aurumStatus: 'COMPLETE' | 'WAITING' | 'PENDING';
+  qwenStatus: 'ANALYZING' | 'COMPLETE' | 'FAILED' | 'PENDING';
+  consensusStatus: 'WAITING' | 'CONFIRMED' | 'DIVERGENT' | 'PENDING';
   riskStatus: 'PENDING' | 'VALIDATED' | 'BLOCKED';
   isSynchronizing: boolean;
-  activeLock: AssetLockState | null;
+  activeLock?: AssetLockState | null;
+  lastSyncTimestamp?: number;
   qwenOpinion?: {
     direction: 'BUY' | 'SELL' | 'WAIT';
     confidence: number;
@@ -411,21 +413,25 @@ export type RiskLevel = 'HIGH' | 'MEDIUM' | 'LOW';
 export interface EconomicEvent {
   id: string;
   eventName: string;
-  category: EventCategory;
-  country: string;
+  category?: EventCategory | string;
+  country?: string;
   currency: string;
-  impact: ImpactLevel;
-  exactDate: string;
-  exactTimeUtc: string;
-  dateTime: string;
+  impact: ImpactLevel | 'HIGH' | 'MEDIUM' | 'LOW';
+  importance?: number;
+  exactDate?: string;
+  exactTimeUtc?: string;
+  dateTime?: string;
   formattedTime: string;
-  source: string;
-  forecast: string;
-  previous: string;
-  actual: string | null;
-  isUpcoming: boolean;
-  minutesUntil: number;
+  timeLabel?: string;
+  source?: string;
+  forecast?: string | null;
+  previous?: string | null;
+  actual?: string | null;
+  unit?: string;
+  isUpcoming?: boolean;
+  minutesUntil?: number | null;
   tradingBlocked: boolean;
+  summary?: string;
   lastUpdated?: string;
   dataFreshness?: 'LIVE_FEED' | 'UPDATED' | 'UNAVAILABLE';
   status?: string;
@@ -455,30 +461,36 @@ export interface AiNewsCouncilOpinion {
 }
 
 export interface UpcomingNewsIntelligence {
-  id: string;
+  id?: string;
   eventName: string;
-  category: EventCategory;
-  country: string;
+  category?: EventCategory;
+  country?: string;
   currency: string;
-  exactDate: string;
-  exactTimeUtc: string;
-  impactLevel: ImpactLevel;
-  remainingTimeFormatted: string;
-  minutesRemaining: number;
+  exactDate?: string;
+  exactTimeUtc?: string;
+  impactLevel?: ImpactLevel;
+  impact?: string;
+  formattedTime?: string;
+  timeLabel?: string;
+  analysis?: string;
+  riskLevel?: string;
+  actionPlan?: string;
+  remainingTimeFormatted?: string;
+  minutesRemaining?: number;
   forecast?: string;
   previous?: string;
   actual?: string | null;
-  affectedAssets: string[];
-  expectedImpacts: {
+  affectedAssets?: string[];
+  expectedImpacts?: {
     gold: { direction: 'Bullish' | 'Bearish' | 'Neutral'; badge: string };
     usd: { direction: 'Bullish' | 'Bearish' | 'Neutral'; badge: string };
     equities: { direction: 'Bullish' | 'Bearish' | 'Neutral'; badge: string };
     risk: 'HIGH' | 'MEDIUM' | 'LOW';
   };
-  council: AiNewsCouncilOpinion;
-  source: string;
-  lastUpdated: string;
-  dataFreshness: 'LIVE_FEED' | 'UPDATED' | 'UNAVAILABLE';
+  council?: AiNewsCouncilOpinion;
+  source?: string;
+  lastUpdated?: string;
+  dataFreshness?: 'LIVE_FEED' | 'UPDATED' | 'UNAVAILABLE';
 }
 
 export interface NewsPredictionRecord {
@@ -515,37 +527,51 @@ export interface NewsPredictionRecord {
 }
 
 export interface NewsPredictionLearning {
-  accuracyPercent: number;
+  accuracyPercent?: number;
   aurumAccuracyPercent?: number;
   qwenAccuracyPercent?: number;
   consensusAccuracyPercent?: number;
-  totalEvaluated: number;
-  successfulPredictions: number;
-  historicalRecords: NewsPredictionRecord[];
+  totalEvaluated?: number;
+  successfulPredictions?: number;
+  historicalRecords?: NewsPredictionRecord[];
+  lastEvent?: string;
+  impactOutcome?: string;
+  modelDirection?: string;
+  modelConfidence?: number;
+  actualMovePips?: number;
+  accuracyStatus?: string;
+  predictionBrief?: string;
 }
 
 export interface BreakingNewsItem {
   id: string;
-  headline: string;
-  summary: string;
-  category: 'GEOPOLITICAL' | 'CENTRAL_BANK' | 'MARKET_SHOCK' | 'FINANCIAL';
+  headline?: string;
+  title?: string;
+  intensity?: string;
+  timestamp?: number;
+  summary?: string;
+  category?: 'GEOPOLITICAL' | 'CENTRAL_BANK' | 'MARKET_SHOCK' | 'FINANCIAL';
   source: string;
-  publishedAt: string;
+  publishedAt?: string;
   publishedTimeUtc?: string;
   sentiment?: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
-  timeAgo: string;
-  riskLevel: 'HIGH' | 'MEDIUM' | 'LOW';
-  affectedAssets: string[];
+  timeAgo?: string;
+  riskLevel?: 'HIGH' | 'MEDIUM' | 'LOW';
+  affectedAssets?: string[];
   impactedAssets?: string[];
-  marketImpactAnalysis: string;
+  marketImpactAnalysis?: string;
 }
 
 export interface DailyMarketIntelligenceBrief {
-  date: string;
+  date?: string;
+  summary?: string;
+  vibe?: string;
+  riskFactor?: string;
+  marketOutlook?: string;
   marketRegime?: 'Inflation Driven' | 'Fed Hawkish' | 'Risk On' | 'Risk Off' | 'Geopolitical Hedging';
-  goldBias: 'Bullish Bias' | 'Bearish Bias' | 'Neutral';
-  usdBias: 'Bullish Bias' | 'Bearish Bias' | 'Neutral';
-  equitiesBias: 'Bullish Bias' | 'Bearish Bias' | 'Neutral';
+  goldBias?: 'Bullish Bias' | 'Bearish Bias' | 'Neutral';
+  usdBias?: 'Bullish Bias' | 'Bearish Bias' | 'Neutral';
+  equitiesBias?: 'Bullish Bias' | 'Bearish Bias' | 'Neutral';
   goldMacroBias?: {
     bias: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
     keyNewsLevel: string;
@@ -569,10 +595,10 @@ export interface DailyMarketIntelligenceBrief {
     timeUtc: string;
     impact: 'HIGH' | 'MEDIUM' | 'LOW';
   }>;
-  majorRisk: string;
-  aiRecommendation: string;
-  sessionNotes: string;
-  lastUpdated: string;
+  majorRisk?: string;
+  aiRecommendation?: string;
+  sessionNotes?: string;
+  lastUpdated?: string;
 }
 
 export interface HistoricalEventAnalysis {
@@ -1112,16 +1138,20 @@ export interface AuthSession {
 
 export interface NewsArticle {
   id: string;
-  headline: string;
+  headline?: string;
+  title?: string;
   summary: string;
   source: string;
   url: string;
   publishedAt: string;
-  sentiment: 'Bullish' | 'Bearish' | 'Neutral';
-  impactLevel: 'Low' | 'Medium' | 'High';
-  riskScore: number;
-  relevantAssets: string[];
-  eventKeywords: string[];
+  sentiment: 'Bullish' | 'Bearish' | 'Neutral' | 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+  impactLevel?: 'Low' | 'Medium' | 'High' | 'LOW' | 'MEDIUM' | 'HIGH';
+  impact?: 'Low' | 'Medium' | 'High' | 'LOW' | 'MEDIUM' | 'HIGH';
+  riskScore?: number;
+  relevantAssets?: string[];
+  relevance?: string[];
+  eventKeywords?: string[];
+  timestamp?: number;
 }
 
 export interface QwenReviewRecord {
@@ -1198,6 +1228,7 @@ export interface PaperTradeRecord {
   currentPrice?: number;
   closePrice?: number;
   closeTimestamp?: string;
+  holdingDuration?: string;
 }
 
 export interface EquityPoint {
@@ -1220,6 +1251,7 @@ export interface ValidationMilestone {
   readinessScore: number;
   grade: string;
   reportDate?: string;
+  currentTrades?: number;
 }
 
 export interface DailyPaperReport {
@@ -1350,6 +1382,11 @@ export interface PaperTradeAnalytics {
     midConfTrades: number;
     lowConfWinRate: number;
     lowConfTrades: number;
+    calibrationScore?: number;
+    highCount?: number;
+    highWinRate?: number;
+    lowCount?: number;
+    lowWinRate?: number;
   };
   marketConditionsPerformance?: {
     trendingWinRate: number;

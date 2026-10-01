@@ -1,5 +1,23 @@
 [
   {
+    "id": "ops_1790897728504_xxnq1",
+    "timestamp": 1790897728504,
+    "timeFormatted": "2026-10-01T23:35:28.504Z",
+    "eventType": "SERVER_RESTART",
+    "severity": "INFO",
+    "reason": "Server process initialized. Restoring persistent Catalyst operations & risk state.",
+    "actionTaken": "Restored active operations safely."
+  },
+  {
+    "id": "ops_1790895745001_thgws",
+    "timestamp": 1790895745001,
+    "timeFormatted": "2026-10-01T23:02:25.001Z",
+    "eventType": "SERVER_RESTART",
+    "severity": "INFO",
+    "reason": "Server process initialized. Restoring persistent Catalyst operations & risk state.",
+    "actionTaken": "Restored active operations safely."
+  },
+  {
     "id": "ops_1790804707098_emb6i",
     "timestamp": 1790804707098,
     "timeFormatted": "2026-09-30T21:45:07.098Z",

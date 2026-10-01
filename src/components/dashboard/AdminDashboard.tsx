@@ -354,11 +354,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </h3>
             </div>
             <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${
-              portfolioRisk.riskStatus === 'NORMAL'
+              (portfolioRisk.riskStatus || (portfolioRisk.riskLimitsReached ? 'LIMIT_EXCEEDED' : 'NORMAL')) === 'NORMAL'
                 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
                 : 'bg-rose-500/20 text-rose-400 border-rose-500/40'
             }`}>
-              RISK: {portfolioRisk.riskStatus}
+              RISK: {portfolioRisk.riskStatus || (portfolioRisk.riskLimitsReached ? 'LIMIT_EXCEEDED' : 'NORMAL')}
             </span>
           </div>
 
@@ -374,7 +374,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="p-3 rounded-xl bg-zinc-900/60 border border-zinc-800/60">
               <span className="text-[10px] text-zinc-500 uppercase block font-bold">Open Positions</span>
               <div className="text-sm font-black text-white mt-1">
-                {portfolioRisk.activeTradesCount} / {portfolioRisk.maxConcurrentTrades} Max
+                {portfolioRisk.openPositionsCount} / {portfolioRisk.maxOpenPositions} Max
               </div>
               <span className="text-[10px] text-zinc-400">Slots Available</span>
             </div>
@@ -382,7 +382,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="p-3 rounded-xl bg-zinc-900/60 border border-zinc-800/60">
               <span className="text-[10px] text-zinc-500 uppercase block font-bold">Metal Correlation</span>
               <div className="text-sm font-black text-white mt-1">
-                {portfolioRisk.correlatedMetalsCount} / {portfolioRisk.maxMetalsExposure} Max
+                {portfolioRisk.correlatedExposure.metals} / 2 Max
               </div>
               <span className="text-[10px] text-zinc-400">XAU/XAG Protected</span>
             </div>
@@ -495,7 +495,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="p-3 rounded-xl bg-zinc-900/60 border border-zinc-800/60">
               <span className="text-[10px] text-zinc-500 uppercase block font-bold">Milestone 50</span>
               <div className="text-sm font-black text-amber-400 mt-1">
-                {analytics.milestone50.currentTrades} / 50 Trades
+                {analytics.milestone50.tradeCount || analytics.milestone50.currentTrades || 0} / 50 Trades
               </div>
               <span className="text-[10px] text-emerald-400">{analytics.milestone50.status}</span>
             </div>

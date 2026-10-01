@@ -17,7 +17,11 @@ import {
 } from 'lucide-react';
 import { PhaseXEngineDiagnostics } from './PhaseXTypes';
 
-export const PhaseXLiveDiagnosticsPanel: React.FC = () => {
+export interface PhaseXLiveDiagnosticsPanelProps {
+  selectedAssetId?: string;
+}
+
+export const PhaseXLiveDiagnosticsPanel: React.FC<PhaseXLiveDiagnosticsPanelProps> = () => {
   const [diagnostics, setDiagnostics] = useState<PhaseXEngineDiagnostics | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [testingApproval, setTestingApproval] = useState<boolean>(false);

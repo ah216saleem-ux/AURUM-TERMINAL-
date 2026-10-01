@@ -115,6 +115,7 @@ export interface PhaseXDataProvenance {
 export type Phase5GateStatus = 'APPROVED' | 'REJECTED' | 'ACTIVE';
 
 export interface Phase5QualityGateResult {
+  overallStatus?: string;
   finalGateStatus: Phase5GateStatus;
   liveDataStatus: 'VERIFIED' | 'STALE' | 'INSUFFICIENT' | 'DISRUPTED';
   tickAgeMs: number;
@@ -433,6 +434,7 @@ export interface Phase4VerificationReport {
   timestamp: number;
   system: string;
   overallStatus: 'PASS' | 'FAIL';
+  simulatedTrade?: any;
   checklist: Array<{
     id: string;
     title: string;

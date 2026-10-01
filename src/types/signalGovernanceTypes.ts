@@ -61,6 +61,11 @@ export interface PortfolioRiskState {
   maxDrawdownPercent: number;
   riskLimitsReached: boolean;
   limitViolationReason?: string;
+  riskStatus?: string;
+  activeTradesCount?: number;
+  maxConcurrentTrades?: number;
+  correlatedMetalsCount?: number;
+  maxMetalsExposure?: number;
 }
 
 export interface GovernedSignal {

@@ -488,9 +488,11 @@ Risk: ${riskLevel}`;
     portfolioRisk: PortfolioRiskState;
     stats: {
       total: number;
+      totalEvaluated: number;
       approvedCount: number;
       waitCount: number;
       blockedCount: number;
+      approvalRate: number;
     };
   } {
     const portfolioRisk = this.getPortfolioRiskState(paperTrades);
@@ -539,15 +541,19 @@ Risk: ${riskLevel}`;
     const approvedCount = governedSignals.filter(s => s.status === 'APPROVED').length;
     const waitCount = governedSignals.filter(s => s.status === 'WAIT').length;
     const blockedCount = governedSignals.filter(s => s.status === 'BLOCKED').length;
+    const total = governedSignals.length;
+    const approvalRate = total > 0 ? Math.round((approvedCount / total) * 100) : 0;
 
     return {
       governedSignals,
       portfolioRisk,
       stats: {
-        total: governedSignals.length,
+        total,
+        totalEvaluated: total,
         approvedCount,
         waitCount,
-        blockedCount
+        blockedCount,
+        approvalRate
       }
     };
   }

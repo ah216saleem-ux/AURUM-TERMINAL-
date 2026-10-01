@@ -1262,7 +1262,7 @@ export const PhaseXView: React.FC = () => {
                     <PhaseXLivePerformanceAndHistory />
                   )}
                   {adminTab === 'verification' && (
-                    <PhaseXHistoryAndVerification />
+                    <PhaseXHistoryAndVerification selectedAssetId="xau-usd" />
                   )}
                 </div>
               </div>

@@ -166,8 +166,8 @@ export const MarketRadarView: React.FC = () => {
   const telemetry: MarketRadarTelemetry = useMemo(() => {
     const currentPrice = tickDebug.currentPrice > 0 ? tickDebug.currentPrice : (goldMarket.price || 4353.50);
     const prevPrice = tickDebug.previousPrice > 0 ? tickDebug.previousPrice : currentPrice;
-    const changePct = goldMarket.change24h || 0;
-    const changeAmt = goldMarket.change24hAmount || (currentPrice * (changePct / 100));
+    const changePct = (goldMarket as any).change24h ?? (goldMarket as any).changePercent ?? 0;
+    const changeAmt = (goldMarket as any).change24hAmount ?? (goldMarket as any).change ?? (currentPrice * (changePct / 100));
     const bid = tickDebug.bid > 0 ? tickDebug.bid : +(currentPrice - 0.25).toFixed(2);
     const ask = tickDebug.ask > 0 ? tickDebug.ask : +(currentPrice + 0.25).toFixed(2);
     const spread = +(ask - bid).toFixed(2);

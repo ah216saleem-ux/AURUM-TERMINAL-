@@ -63,6 +63,47 @@
   -webkit-backdrop-filter: blur(16px);
 }
 
+/* Shimmering gold text animation */
+@keyframes gold-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.gold-shimmer-text {
+  background: linear-gradient(
+    90deg,
+    #FDE68A 0%,
+    #D4AF37 25%,
+    #FFFBEB 50%,
+    #F59E0B 75%,
+    #FDE68A 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gold-shimmer 6s linear infinite;
+}
+
+/* Ambient floating gradient pulse */
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 0.45;
+    transform: scale(1) translate(0, 0);
+  }
+  50% {
+    opacity: 0.75;
+    transform: scale(1.08) translate(15px, -15px);
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 9s ease-in-out infinite;
+}
+
 /* Subtle pulse for live data ticks */
 @keyframes tick-up {
   0% { background-color: rgba(16, 185, 129, 0.35); }
@@ -81,4 +122,3 @@
 .flash-down {
   animation: tick-down 0.7s ease-out;
 }
-

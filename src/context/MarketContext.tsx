@@ -627,7 +627,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         updated[assetId] = {
           ...updated[assetId],
           isLocked: false,
-          tradeStatus: reason
+          tradeStatus: reason === 'MANUAL_CANCEL' ? 'CANCELLED' : reason
         };
       }
       try {
