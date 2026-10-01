@@ -1493,7 +1493,7 @@ export async function dispatchPhaseXApprovedTelegramSignal(
   payload: TelegramSignalPayload,
   gateStatus: 'APPROVED' | 'REJECTED' | 'ACTIVE',
   userOutputState?: string
-): Promise<{ dispatched: boolean; status: string; reason?: string; log?: TelegramDeliveryLog }> {
+): Promise<{ dispatched: boolean; status: string; reason?: string; log?: TelegramDeliveryLog; messageId?: number }> {
   // Requirement 8: XAU/USD Only
   if (payload.assetId !== 'xau-usd') {
     return { dispatched: false, status: 'SKIPPED_NOT_XAU_USD' };
@@ -1632,22 +1632,20 @@ export async function dispatchPhaseXApprovedTelegramSignal(
     telegramMessageText: messageText
   }).catch(() => {});
 
-  // Track active trade in Telegram state
-  if (result.success || (result as any).apiResponse?.ok) {
-    activeTelegramTrade = {
-      setupId: payload.setupId,
-      assetId: payload.assetId,
-      direction: payload.direction,
-      preferredEntry: payload.preferredEntry,
-      stopLoss: payload.stopLoss,
-      takeProfit1: payload.takeProfit1,
-      takeProfit2: payload.takeProfit2,
-      dispatchedAt: Date.now(),
-      status: 'ACTIVE',
-      telegramMessageId: result.messageId
-    };
-    saveActiveTelegramTradeToDisk(activeTelegramTrade);
-  }
+  // Track active trade in Telegram state (guarantees single active trade lock)
+  activeTelegramTrade = {
+    setupId: payload.setupId,
+    assetId: payload.assetId,
+    direction: payload.direction,
+    preferredEntry: payload.preferredEntry,
+    stopLoss: payload.stopLoss,
+    takeProfit1: payload.takeProfit1,
+    takeProfit2: payload.takeProfit2,
+    dispatchedAt: Date.now(),
+    status: 'ACTIVE',
+    telegramMessageId: result.messageId
+  };
+  saveActiveTelegramTradeToDisk(activeTelegramTrade);
 
   dispatchedSignalsRegistry.unshift({
     setupId: payload.setupId,
@@ -1687,7 +1685,8 @@ export async function dispatchPhaseXApprovedTelegramSignal(
   return {
     dispatched: result.success,
     status: result.status,
-    log: deliveryLog
+    log: deliveryLog,
+    messageId: result.messageId
   };
 }
 
@@ -1765,7 +1764,7 @@ export async function dispatchPhaseXLifecycleTelegramUpdate(
       activeTelegramTrade.status = 'TP1_HIT';
       saveActiveTelegramTradeToDisk(activeTelegramTrade);
     }
-  } else if (payload.event === 'TP2_HIT' || payload.event === 'STOP_LOSS_HIT' || payload.event === 'EXPIRED') {
+  } else if (payload.event === 'TP2_HIT' || payload.event === 'STOP_LOSS_HIT' || payload.event === 'EXPIRED' || payload.event === 'AUTO_BREAK_EVEN') {
     // Current trade has concluded! Clear active trade and enforce cooldown before next signal
     activeTelegramTrade = null;
     saveActiveTelegramTradeToDisk(null);

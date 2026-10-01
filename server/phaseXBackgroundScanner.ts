@@ -8,7 +8,8 @@ import {
   registerBotActionHandlers,
   startTelegramBotCommandPoller,
   getEffectiveCooldownMinutes,
-  getNewsGuardStatus
+  getNewsGuardStatus,
+  getActiveTelegramTrade
 } from './phaseXTelegramService';
 import {
   recordNewApprovedLiveSignal,
@@ -269,8 +270,8 @@ export async function executePhaseXLiveScanCycle(forceScan = false): Promise<voi
       `Live XAU/USD price: ${livePrice > 0 ? '$' + livePrice.toFixed(2) : 'Unavailable'} | Tick Age: ${tickAge}s | Source: ${feedSource}`
     );
 
-    // 1. If an active signal is in progress:
-    if (activeSignalState && activeSignalState.status === 'ACTIVE') {
+    // 1. If an active signal is in progress (strictly wait until TP2, SL, or Expiry outcome):
+    if (activeSignalState && (activeSignalState.status === 'ACTIVE' || activeSignalState.status === 'TP1_HIT')) {
       currentPipelineState = 'SIGNAL ACTIVE';
       const ageMinutes = (now - activeSignalState.startedAt) / 60000;
 
@@ -283,9 +284,10 @@ export async function executePhaseXLiveScanCycle(forceScan = false): Promise<voi
       if (livePrice > 0) {
         const dir = activeSignalState.direction;
         const entry = activeSignalState.preferredEntry;
-        const sl = activeSignalState.stopLoss;
         const tp1 = activeSignalState.takeProfit1;
         const tp2 = activeSignalState.takeProfit2;
+        // As soon as TP1 is hit, SL is elevated to Entry (Break-even); otherwise initial SL
+        const currentSl = activeSignalState.tp1Reached ? entry : activeSignalState.stopLoss;
 
         // Safety: Ignore non-numeric or impossible out-of-range feed anomalies (< 2000 or > 8000)
         if (livePrice < 2000 || livePrice > 8000 || isNaN(livePrice)) {
@@ -293,11 +295,11 @@ export async function executePhaseXLiveScanCycle(forceScan = false): Promise<voi
           return;
         }
 
-        // Check TP2
+        // Check TP2 Hit
         const isTp2Hit = dir === 'BUY' ? livePrice >= tp2 : livePrice <= tp2;
-        // Check SL
-        const isSlHit = dir === 'BUY' ? livePrice <= sl : livePrice >= sl;
-        // Check TP1
+        // Check SL / Break-Even Hit
+        const isSlHit = dir === 'BUY' ? livePrice <= currentSl : livePrice >= currentSl;
+        // Check TP1 Hit
         const isTp1Hit = dir === 'BUY' ? livePrice >= tp1 : livePrice <= tp1;
 
         if (isTp2Hit) {
@@ -332,16 +334,18 @@ export async function executePhaseXLiveScanCycle(forceScan = false): Promise<voi
         }
 
         if (isSlHit) {
-          console.log(`[PhaseXScanner] Signal ${activeSignalState.setupId} hit Stop Loss! ($${livePrice})`);
+          const wasTp1Hit = activeSignalState.tp1Reached;
+          const outcomeEvent = wasTp1Hit ? 'AUTO_BREAK_EVEN' : 'STOP_LOSS_HIT';
+          console.log(`[PhaseXScanner] Signal ${activeSignalState.setupId} hit ${wasTp1Hit ? 'Break-Even' : 'Stop Loss'}! ($${livePrice})`);
           activeSignalState.slReached = true;
-          activeSignalState.status = 'STOP_LOSS_HIT';
+          activeSignalState.status = wasTp1Hit ? 'TP1_HIT' : 'STOP_LOSS_HIT';
           currentPipelineState = 'SL HIT';
-          recordPipelineLog('EXECUTION_OR_WAIT', 'FAIL', `Signal ${activeSignalState.setupId} hit Stop Loss ($${livePrice})! Closed at -1R.`);
+          recordPipelineLog('EXECUTION_OR_WAIT', wasTp1Hit ? 'PASS' : 'FAIL', `Signal ${activeSignalState.setupId} hit ${wasTp1Hit ? 'Break-Even ($' + livePrice + ')' : 'Stop Loss ($' + livePrice + ')'}! Closed.`);
 
           await dispatchPhaseXLifecycleTelegramUpdate({
             setupId: activeSignalState.setupId,
             assetId: 'xau-usd',
-            event: 'STOP_LOSS_HIT',
+            event: outcomeEvent as any,
             direction: dir,
             replyToMessageId: activeSignalState.telegramMessageId,
             price: livePrice
@@ -349,10 +353,10 @@ export async function executePhaseXLiveScanCycle(forceScan = false): Promise<voi
 
           updateLiveSignalLifecycle(activeSignalState.setupId, {
             slReached: true,
-            phase4FinalStatus: 'STOP_LOSS_HIT',
-            finalR: -1.0,
+            phase4FinalStatus: wasTp1Hit ? 'TP1_HIT' : 'STOP_LOSS_HIT',
+            finalR: wasTp1Hit ? 1.0 : -1.0,
             exitTimestamp: now,
-            displayStatusLabel: 'STOP LOSS HIT (-1R)'
+            displayStatusLabel: wasTp1Hit ? 'CLOSED AT BE (+1R)' : 'STOP LOSS HIT (-1R)'
           });
 
           cooldownUntilTimestamp = now + COOLDOWN_MINUTES * 60000;
@@ -364,6 +368,7 @@ export async function executePhaseXLiveScanCycle(forceScan = false): Promise<voi
         if (isTp1Hit && !activeSignalState.tp1Reached) {
           console.log(`[PhaseXScanner] Signal ${activeSignalState.setupId} hit TP1! ($${livePrice})`);
           activeSignalState.tp1Reached = true;
+          activeSignalState.status = 'TP1_HIT';
           recordPipelineLog('EXECUTION_OR_WAIT', 'PASS', `Signal ${activeSignalState.setupId} reached TP1 ($${livePrice})! SL moved to BE.`);
 
           await dispatchPhaseXLifecycleTelegramUpdate({
@@ -451,10 +456,18 @@ export async function executePhaseXLiveScanCycle(forceScan = false): Promise<voi
         return;
       }
 
+      // AS LONG AS THE CURRENT TRADE IS ACTIVE, WAIT & NEVER PROCEED TO NEW SETUP GENERATION!
       return;
     }
 
-    // 2. If NO active signal is running:
+    // 2. STRICT SAFETY LOCK: If an active signal exists in memory or Telegram trade tracker, DO NOT SCAN!
+    const activeTgTrade = getActiveTelegramTrade();
+    if (activeSignalState || (activeTgTrade && (activeTgTrade.status === 'ACTIVE' || activeTgTrade.status === 'TP1_HIT'))) {
+      currentPipelineState = 'SIGNAL ACTIVE';
+      return;
+    }
+
+    // 3. If NO active signal is running, check cooldown:
     if (now < cooldownUntilTimestamp) {
       currentPipelineState = 'MONITORING MARKET';
       const remSec = Math.ceil((cooldownUntilTimestamp - now) / 1000);
@@ -584,7 +597,9 @@ export async function executePhaseXLiveScanCycle(forceScan = false): Promise<voi
         newSignal.direction === 'BUY' ? '🟢 BUY — READY' : '🔴 SELL — READY'
       );
 
-      if (tgRes.log && (tgRes as any).log?.messageId) {
+      if (tgRes.messageId) {
+        newSignal.telegramMessageId = tgRes.messageId;
+      } else if (tgRes.log && (tgRes as any).log?.messageId) {
         newSignal.telegramMessageId = (tgRes as any).log.messageId;
       }
 
@@ -709,9 +724,11 @@ export function getPhaseXLiveState(): PhaseXLiveStateResponse {
   let scannerStatus: 'SCANNING' | 'WAITING' | 'SETUP_ACTIVE' | 'NEXT_SCAN' = 'WAITING';
   let scannerStatusDisplay = 'Waiting for 15M Candle Close';
 
-  if (activeSignalState && activeSignalState.status === 'ACTIVE') {
+  if (activeSignalState && (activeSignalState.status === 'ACTIVE' || activeSignalState.status === 'TP1_HIT')) {
     scannerStatus = 'SETUP_ACTIVE';
-    scannerStatusDisplay = `Setup Active — Targets Tracking (${activeSignalState.direction})`;
+    scannerStatusDisplay = activeSignalState.tp1Reached
+      ? `Setup Active — TP1 Hit (${activeSignalState.direction} running to TP2)`
+      : `Setup Active — Targets Tracking (${activeSignalState.direction})`;
   } else if (isScanRunning) {
     scannerStatus = 'SCANNING';
     scannerStatusDisplay = 'Scanning 15M Closed Candle Matrix...';
