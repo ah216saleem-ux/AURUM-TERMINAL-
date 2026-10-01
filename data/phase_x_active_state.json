@@ -1,0 +1,17 @@
+{
+  "setupId": "xau-usd_BUY_VOLUMETRIC_ORDER_FLOW_MATRIX__VOFM__1790816400000_1790817300000",
+  "assetId": "xau-usd",
+  "symbol": "XAU/USD",
+  "direction": "BUY",
+  "preferredEntry": 4137.5,
+  "stopLoss": 4127.5,
+  "takeProfit1": 4144.5,
+  "takeProfit2": 4147.5,
+  "riskRewardRatio": "TP1: $7.00 | TP2: $10.00",
+  "tradeConfidence": 79,
+  "startedAt": 1790818409114,
+  "tp1Reached": false,
+  "tp2Reached": false,
+  "slReached": false,
+  "status": "ACTIVE"
+}

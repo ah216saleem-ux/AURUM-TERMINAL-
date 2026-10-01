@@ -706,7 +706,8 @@ export async function sendRawTelegramMessage(
   text: string,
   overrideToken?: string,
   overrideChatId?: string,
-  replyToMessageId?: number
+  replyToMessageId?: number,
+  parseMode: 'Markdown' | 'HTML' | 'Plain' = 'Markdown'
 ): Promise<{ success: boolean; status: 'SENT' | 'FAILED' | 'CONFIG_MISSING'; error?: string; messageId?: number; httpStatus?: number; apiResponse?: any }> {
   const { botToken, chatId: initialChatId } = getTelegramCredentials(overrideToken, overrideChatId);
   
@@ -756,17 +757,33 @@ export async function sendRawTelegramMessage(
         text,
         disable_web_page_preview: true
       };
+      if (parseMode && parseMode !== 'Plain') {
+        bodyObj.parse_mode = parseMode;
+      }
       if (replyToMessageId && replyToMessageId > 0) {
         bodyObj.reply_to_message_id = replyToMessageId;
       }
 
-      const response = await fetch(url, {
+      let response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(bodyObj)
       });
 
-      const data = await response.json().catch(() => ({}));
+      let data = await response.json().catch(() => ({}));
+
+      // Automatic plain text fallback if markdown parsing fails
+      if (!response.ok && parseMode && parseMode !== 'Plain' && (data.description || '').toLowerCase().includes('parse')) {
+        console.warn(`[PhaseXTelegram] Markdown parsing failed, retrying delivery to ${cleanTarget} as plain text...`);
+        delete bodyObj.parse_mode;
+        response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(bodyObj)
+        });
+        data = await response.json().catch(() => ({}));
+      }
+
       if (response.ok && data.ok) {
         anySuccess = true;
         if (!firstMessageId) firstMessageId = data.result?.message_id;
@@ -1361,18 +1378,18 @@ export function buildApprovedSignalMessage(payload: TelegramSignalPayload): stri
   const confidenceStr = `${Math.round(payload.tradeConfidence)}%`;
 
   return [
-    `🟡 AURUM TERMINAL • XAUUSD (GOLD)`,
+    `🟡 *AURUM TERMINAL • XAUUSD (GOLD)*`,
     `━━━━━━━━━━━━━━━━━━━━━━`,
-    `${dirBadge}  |  15M Precision Structure`,
+    `${dirBadge}  |  *15M Precision Structure*`,
     ``,
-    `📍 Entry: $${entryStr}`,
-    `🛡️ Stop Loss: $${slStr} (-${slPips} pips / $${(slPips / 10).toFixed(1)})`,
-    `🎯 TP1 (1st Target): $${tp1Str} (+${tp1Pips} pips / +$7.00)`,
-    `🎯 TP2 (2nd Target): $${tp2Str} (+${tp2Pips} pips / +$10.00)`,
+    `📍 *Entry:* $${entryStr}`,
+    `🛡️ *Stop Loss:* $${slStr} (-${slPips} pips / $${(slPips / 10).toFixed(1)})`,
+    `🎯 *TP1 (1st Target):* $${tp1Str} (+${tp1Pips} pips / +$7.00)`,
+    `🎯 *TP2 (2nd Target):* $${tp2Str} (+${tp2Pips} pips / +$10.00)`,
     ``,
-    `⚖️ Target Plan: TP1: $7.00 (70 pips) | TP2: $10.00 (100 pips)`,
-    `📊 Confluence Score: ${confidenceStr}`,
-    `⏱️ Status: IN ZONE (ACTIVE)`,
+    `⚖️ *Target Plan:* TP1: $7.00 (70 pips) | TP2: $10.00 (100 pips)`,
+    `📊 *Confluence Score:* ${confidenceStr}`,
+    `⏱️ *Status:* IN ZONE (ACTIVE)`,
     `━━━━━━━━━━━━━━━━━━━━━━`,
     `Active until TP or SL is hit.`,
     `Exactly ONE trade managed at a time.`,
@@ -1389,34 +1406,34 @@ export function buildLifecycleUpdateMessage(payload: TelegramLifecyclePayload): 
   
   if (payload.event === 'TP1_HIT') {
     return [
-      `🎯 1st TP HIT (+$7.00 / +70 pips) ✅`,
+      `🎯 *1st TP HIT (+$7.00 / +70 pips) ✅*`,
       `━━━━━━━━━━━━━━━━━━━━━━`,
-      `AURUM TERMINAL • XAUUSD (GOLD) ${dir}`,
-      priceStr ? `Current Price: ${priceStr}` : '',
+      `*AURUM TERMINAL • XAUUSD (GOLD)* ${dir}`,
+      priceStr ? `Live Price: ${priceStr}` : '',
       ``,
-      `🛡️ SL Moved to Break-Even (Risk-Free)`,
+      `🛡️ *SL Moved to Break-Even (Risk-Free)*`,
       `💰 Secure 50% partial profits. Remaining position running to TP2 (+$10.00)!`,
       `━━━━━━━━━━━━━━━━━━━━━━`
     ].filter(Boolean).join('\n');
   }
   if (payload.event === 'TP2_HIT') {
     return [
-      `🎯🎯 2nd TP HIT (+$10.00 / +100 pips Full Target) 🚀`,
+      `🎯🎯 *2nd TP HIT (+$10.00 / +100 pips Full Target) 🚀*`,
       `━━━━━━━━━━━━━━━━━━━━━━`,
-      `AURUM TERMINAL • XAUUSD (GOLD) ${dir}`,
-      priceStr ? `Current Price: ${priceStr}` : '',
+      `*AURUM TERMINAL • XAUUSD (GOLD)* ${dir}`,
+      priceStr ? `Live Price: ${priceStr}` : '',
       ``,
-      `🏆 Full target achieved! Trade closed with +$10.00 profit (+100 pips).`,
+      `🏆 *Full target achieved!* Trade closed with +$10.00 profit (+100 pips).`,
       `⏳ 3-Minute cooldown initiated before next 15M market scan.`,
       `━━━━━━━━━━━━━━━━━━━━━━`
     ].filter(Boolean).join('\n');
   }
   if (payload.event === 'STOP_LOSS_HIT') {
     return [
-      `🛑 STOP LOSS HIT (-1R)`,
+      `🛑 *STOP LOSS HIT (-1R) ❌*`,
       `━━━━━━━━━━━━━━━━━━━━━━`,
-      `AURUM TERMINAL • XAUUSD (GOLD) ${dir}`,
-      priceStr ? `Current Price: ${priceStr}` : '',
+      `*AURUM TERMINAL • XAUUSD (GOLD)* ${dir}`,
+      priceStr ? `Live Price: ${priceStr}` : '',
       ``,
       `Protected SL triggered. Risk contained strictly at -1R.`,
       `⏳ 3-Minute cooldown initiated before next 15M market scan.`,
@@ -1425,9 +1442,9 @@ export function buildLifecycleUpdateMessage(payload: TelegramLifecyclePayload): 
   }
   if (payload.event === 'EXPIRED') {
     return [
-      `⏱️ TRADE EXPIRED (Hold Duration Limit)`,
+      `⏱️ *TRADE EXPIRED (Hold Duration Limit)*`,
       `━━━━━━━━━━━━━━━━━━━━━━`,
-      `AURUM TERMINAL • XAUUSD (GOLD) ${dir}`,
+      `*AURUM TERMINAL • XAUUSD (GOLD)* ${dir}`,
       ``,
       `Position closed after maximum hold time without target hit.`,
       `⏳ 3-Minute cooldown initiated before next 15M market scan.`,
@@ -1436,30 +1453,30 @@ export function buildLifecycleUpdateMessage(payload: TelegramLifecyclePayload): 
   }
   if (payload.event === 'AUTO_BREAK_EVEN') {
     return [
-      `🛡️ AUTO BREAK-EVEN ALERT (+$4.00 Profit Reached) 🟢`,
+      `🛡️ *AUTO BREAK-EVEN ALERT (+$4.00 Profit Reached) 🟢*`,
       `━━━━━━━━━━━━━━━━━━━━━━`,
-      `AURUM TERMINAL • XAUUSD (GOLD) ${dir}`,
+      `*AURUM TERMINAL • XAUUSD (GOLD)* ${dir}`,
       priceStr ? `Live Price: ${priceStr}` : '',
       ``,
-      ` Floating Profit: +$4.00 (+40 pips)!`,
-      `🛡️ ACTION RECOMMENDED: Move Stop Loss to Entry Price now.`,
+      `Floating Profit: +$4.00 (+40 pips)!`,
+      `🛡️ *ACTION RECOMMENDED:* Move Stop Loss to Entry Price now.`,
       `✨ Your trade is now 100% RISK-FREE!`,
       `━━━━━━━━━━━━━━━━━━━━━━`
     ].filter(Boolean).join('\n');
   }
   if (payload.event === 'EARLY_EXIT') {
     return [
-      `⚠️ EARLY TRADE EXIT ALERT (Structure Invalidation) 🚨`,
+      `⚠️ *EARLY TRADE EXIT ALERT (Structure Invalidation) 🚨*`,
       `━━━━━━━━━━━━━━━━━━━━━━`,
-      `AURUM TERMINAL • XAUUSD (GOLD) ${dir}`,
+      `*AURUM TERMINAL • XAUUSD (GOLD)* ${dir}`,
       priceStr ? `Live Price: ${priceStr}` : '',
       ``,
-      `🚨 Market Structure Invalidated! Opposite momentum detected.`,
-      `🛑 ACTION RECOMMENDED: Close trade manually now to minimize loss before full SL is hit!`,
+      `🚨 *Market Structure Invalidated!* Opposite momentum detected.`,
+      `🛑 *ACTION RECOMMENDED:* Close trade manually now to minimize loss before full SL is hit!`,
       `━━━━━━━━━━━━━━━━━━━━━━`
     ].filter(Boolean).join('\n');
   }
-  return `AURUM TERMINAL — XAU/USD ${dir}: ${payload.event}`;
+  return `*AURUM TERMINAL — XAU/USD ${dir}: ${payload.event}*`;
 }
 
 /**
@@ -1591,7 +1608,7 @@ export async function dispatchPhaseXApprovedTelegramSignal(
   payload.livePriceTimestamp = verifiedPriceTimestamp;
 
   const messageText = buildApprovedSignalMessage(payload);
-  const result = await sendRawTelegramMessage(messageText);
+  const result = await sendRawTelegramMessage(messageText, undefined, undefined, undefined, 'Markdown');
 
   // In parallel, forward approved signal JSON payload to n8n Webhook
   sendN8nWebhookPayload({
@@ -1726,7 +1743,7 @@ export async function dispatchPhaseXLifecycleTelegramUpdate(
   }
 
   const messageText = buildLifecycleUpdateMessage(payload);
-  const result = await sendRawTelegramMessage(messageText, undefined, undefined, payload.replyToMessageId);
+  const result = await sendRawTelegramMessage(messageText, undefined, undefined, payload.replyToMessageId, 'Markdown');
 
   // In parallel, forward lifecycle event JSON payload to n8n Webhook
   sendN8nWebhookPayload({
