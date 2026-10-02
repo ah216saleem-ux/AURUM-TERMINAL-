@@ -121,21 +121,22 @@ function MainApp() {
   });
   const [categoryFilter, setCategoryFilter] = useState<MarketCategory | 'all'>('all');
   
-  // Persistent Login & Direct Access Protection State
+  // Persistent Login & Direct Access Protection State - Always opens LANDING PAGE first on initial visit
   const [viewMode, setViewMode] = useState<'LANDING' | 'LOGIN' | 'TERMINAL'>(() => {
     try {
-      if (!userService.isAuthenticated()) {
-        try { userService.login('gmcf7', 'Aurum@1', 'USER', true); } catch {}
+      const hash = window.location.hash.toLowerCase();
+      const search = window.location.search.toLowerCase();
+      if (hash.includes('terminal') || search.includes('terminal')) {
+        if (userService.isAuthenticated()) {
+          return 'TERMINAL';
+        }
+        return 'LOGIN';
       }
-      const savedMode = localStorage.getItem('aurum_view_mode');
-      if (savedMode === 'LANDING' || savedMode === 'LOGIN') {
-        return savedMode;
+      if (hash.includes('login') || search.includes('login')) {
+        return 'LOGIN';
       }
     } catch {}
-    if (userService.getExpiredNotice()) {
-      return 'LOGIN'; // Show session expired notice
-    }
-    return 'TERMINAL'; // Open terminal directly with live Phase X and trade records
+    return 'LANDING'; // Default to 3D Landing Page on website open
   });
 
   const [currentUser, setCurrentUser] = useState(userService.getUser());

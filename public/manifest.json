@@ -2,13 +2,13 @@
   "id": "/",
   "start_url": "/",
   "scope": "/",
-  "name": "Aurum Terminal — AI Signal Hub",
-  "short_name": "Aurum",
-  "description": "Autonomous AI Trading Terminal & Real-Time Catalyst Signals for XAU/USD Gold.",
+  "name": "AURUM TERMINAL",
+  "short_name": "AURUM",
+  "description": "Institutional Market Intelligence Terminal with real-time AI signal consensus, risk HUD, and live market streams.",
   "display": "standalone",
   "orientation": "portrait",
-  "theme_color": "#0a0c16",
-  "background_color": "#0a0c16",
+  "theme_color": "#050608",
+  "background_color": "#050608",
   "icons": [
     {
       "src": "/pwa-192x192.png",

@@ -191,7 +191,7 @@ export const AiCommandCenterHero: React.FC<AiCommandCenterHeroProps> = ({
               <div className="mt-2.5 space-y-1.5">
                 <div className="flex items-baseline justify-between">
                   <span className="text-[10px] font-mono text-zinc-400 uppercase">Live Price</span>
-                  <span className="text-base font-bold font-mono text-zinc-100 group-hover:text-amber-300 transition">
+                  <span className="text-base font-bold font-mono tabular-nums text-zinc-100 group-hover:text-amber-300 transition">
                     {formatPrice(xauMarket.price, xauMarket.symbol)}
                   </span>
                 </div>
@@ -232,7 +232,7 @@ export const AiCommandCenterHero: React.FC<AiCommandCenterHeroProps> = ({
               <div className="mt-2.5 space-y-1.5">
                 <div className="flex items-baseline justify-between">
                   <span className="text-[10px] font-mono text-zinc-400 uppercase">Live Price</span>
-                  <span className="text-base font-bold font-mono text-zinc-100 group-hover:text-sky-300 transition">
+                  <span className="text-base font-bold font-mono tabular-nums text-zinc-100 group-hover:text-sky-300 transition">
                     {formatPrice(eurMarket.price, eurMarket.symbol)}
                   </span>
                 </div>
@@ -296,7 +296,7 @@ export const AiCommandCenterHero: React.FC<AiCommandCenterHeroProps> = ({
               <div className="mt-2.5 space-y-1.5">
                 <div className="flex items-baseline justify-between">
                   <span className="text-[10px] font-mono text-zinc-400 uppercase">Live Price</span>
-                  <span className="text-base font-bold font-mono text-zinc-100 group-hover:text-amber-300 transition">
+                  <span className="text-base font-bold font-mono tabular-nums text-zinc-100 group-hover:text-amber-300 transition">
                     {formatPrice(spMarket.price, spMarket.symbol)}
                   </span>
                 </div>
@@ -337,7 +337,7 @@ export const AiCommandCenterHero: React.FC<AiCommandCenterHeroProps> = ({
               <div className="mt-2.5 space-y-1.5">
                 <div className="flex items-baseline justify-between">
                   <span className="text-[10px] font-mono text-zinc-400 uppercase">Live Price</span>
-                  <span className="text-base font-bold font-mono text-zinc-100 group-hover:text-purple-300 transition">
+                  <span className="text-base font-bold font-mono tabular-nums text-zinc-100 group-hover:text-purple-300 transition">
                     {formatPrice(nasdaqMarket.price, nasdaqMarket.symbol)}
                   </span>
                 </div>

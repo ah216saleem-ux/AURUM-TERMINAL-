@@ -50,6 +50,24 @@ export default defineConfig(() => {
         '@': path.resolve(__dirname, '.'),
       },
     },
+    build: {
+      chunkSizeWarningLimit: 1200,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules/three') || id.includes('@react-three')) {
+              return 'three-vendor';
+            }
+            if (id.includes('node_modules/lucide-react')) {
+              return 'lucide-vendor';
+            }
+            if (id.includes('node_modules/gsap')) {
+              return 'gsap-vendor';
+            }
+          }
+        }
+      }
+    },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.

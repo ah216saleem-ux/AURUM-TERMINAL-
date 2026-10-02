@@ -3,31 +3,55 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Aurum Terminal | AI Trading Assistant & Live Signals</title>
-    <meta name="description" content="Autonomous AI trading assistant and signal center for Gold, NASDAQ, S&P 500, and Crude Oil. Features real-time AI trade setups, risk-reward ratios, deep market reasoning, and Telegram integration." />
-    <meta property="og:title" content="Aurum Terminal | AI Trading Assistant & Live Signals" />
-    <meta property="og:description" content="Autonomous AI trading assistant and signal center for Gold, NASDAQ, S&P 500, and Crude Oil. Features real-time AI trade setups, risk-reward ratios, deep market reasoning, and Telegram integration." />
+    <title>AURUM TERMINAL | Institutional Market Intelligence</title>
+    <meta name="description" content="Institutional market intelligence terminal with real-time AI signal consensus, risk HUD, macroeconomic calendar, and live market stream." />
+    
+    <!-- Open Graph Social Share Tags -->
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="AURUM TERMINAL" />
+    <meta property="og:title" content="AURUM TERMINAL | Institutional Market Intelligence" />
+    <meta property="og:description" content="Institutional market intelligence terminal with real-time AI signal consensus, risk HUD, macroeconomic calendar, and live market stream." />
+    <meta property="og:image" content="/og-image.png" />
+
+    <!-- Twitter / X Card Tags -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="theme-color" content="#0a0c16" />
+    <meta name="twitter:title" content="AURUM TERMINAL | Institutional Market Intelligence" />
+    <meta name="twitter:description" content="Institutional market intelligence terminal with real-time AI signal consensus, risk HUD, macroeconomic calendar, and live market stream." />
+    <meta name="twitter:image" content="/og-image.png" />
+
+    <!-- Theme & App Colors -->
+    <meta name="theme-color" content="#050608" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Aurum" />
+    <meta name="apple-mobile-web-app-title" content="AURUM" />
+
+    <!-- Icons & Manifest -->
     <link rel="manifest" href="/manifest.json" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+
+    <!-- Preconnect & Google Fonts Optimization -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
-    
-    <!-- Google Analytics GA4 Script (Optional Configurable Measurement ID) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-AURUMTERMINAL"></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      window.gtag = gtag;
-      gtag('js', new Date());
-      gtag('config', 'G-AURUMTERMINAL', { send_page_view: false });
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=JetBrains+Mono:wght@500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Schema.org JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "AURUM TERMINAL",
+      "shortName": "AURUM",
+      "applicationCategory": "FinanceApplication",
+      "operatingSystem": "All",
+      "description": "Institutional market intelligence terminal with real-time AI signal consensus, risk HUD, macroeconomic calendar, and live market stream.",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      }
+    }
     </script>
 
     <!-- PWA Service Worker Registration -->
@@ -35,13 +59,12 @@
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js')
-            .then(reg => console.log('[PWA] Service Worker registered successfully:', reg.scope))
             .catch(err => console.warn('[PWA] Service Worker registration failed:', err));
         });
       }
     </script>
   </head>
-  <body class="bg-[#07080a] text-zinc-100 antialiased selection:bg-amber-500/20 selection:text-amber-200">
+  <body class="bg-[#050608] text-zinc-100 antialiased selection:bg-amber-500/20 selection:text-amber-200">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

@@ -20,7 +20,7 @@ export const MagneticButton: React.FC<MagneticButtonProps> = ({
   const [isHovered, setIsHovered] = useState(false);
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
-    if (!btnRef.current) return;
+    if (!btnRef.current || (typeof window !== 'undefined' && 'ontouchstart' in window)) return;
     const rect = btnRef.current.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;

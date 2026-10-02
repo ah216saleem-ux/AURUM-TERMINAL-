@@ -1,6 +1,6 @@
 {
-  "name": "Aurum Terminal",
-  "description": "Aurum Terminal is an elite, real-time autonomous AI trading terminal and options signal center for Gold, NASDAQ, S&P 500, Crude Oil, and SPY Options. Features premium real-time AI market setups, deep analytical reasoning, direct Finnhub-powered market feeds, automated SPY 0DTE Options Sniper alerts, live contract tracking with trailing stop-losses, and seamless Telegram signal dispatch integration.",
+  "name": "AURUM TERMINAL",
+  "description": "Institutional market intelligence terminal with real-time AI signal consensus, risk HUD, macroeconomic calendar, and live market stream.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
