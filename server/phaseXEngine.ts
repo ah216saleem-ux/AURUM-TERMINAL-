@@ -18,6 +18,15 @@ import {
   StrategyConfluenceTelemetry,
   runMultiStrategyDeterministicValidationSuite
 } from './phaseXMultiStrategy';
+import { detectEngineARsi2Setup, EngineARsi2Telemetry } from './engineA_rsi2.js';
+import {
+  getClosedCandlesH1,
+  getClosedCandlesM30,
+  getClosedCandlesM15,
+  getClosedCandlesM5,
+  getCandleDataStatus,
+  registerOnH1Close
+} from './candleBuilderService.js';
 
 export { runMultiStrategyDeterministicValidationSuite };
 
@@ -25,6 +34,39 @@ export { runMultiStrategyDeterministicValidationSuite };
 let isShadowMode = process.env.PHASE_X_SHADOW_MODE === 'true';
 export function isShadowModeActive(): boolean { return isShadowMode; }
 export function setShadowMode(active: boolean): void { isShadowMode = active; }
+
+// Persistent Cached Engine A Telemetry (Phase 2 core event-driven requirement)
+export let cachedEngineATelemetry: EngineARsi2Telemetry | null = null;
+
+// Helper to calculate ATR in callback
+function calculateATRForH1Close(candles: ClosedCandle[], period: number = 14): number {
+  if (candles.length < period) return 3.0;
+  let atrSum = 0;
+  for (let i = candles.length - period; i < candles.length; i++) {
+    const c = candles[i];
+    const prevClose = candles[i - 1] ? candles[i - 1].close : c.open;
+    const tr = Math.max(c.high - c.low, Math.abs(c.high - prevClose), Math.abs(c.low - prevClose));
+    atrSum += tr;
+  }
+  return +(atrSum / period).toFixed(2);
+}
+
+registerOnH1Close((newH1, allH1) => {
+  try {
+    const closedCandlesM15 = getClosedCandlesM15();
+    const atr15M = calculateATRForH1Close(closedCandlesM15, 14);
+
+    cachedEngineATelemetry = detectEngineARsi2Setup({
+      closed1H: allH1,
+      atr15M,
+      currentPrice: newH1.close,
+      m15Count: closedCandlesM15.length
+    });
+    console.log(`[PhaseXEngine] Engine A (A-RSI2) re-evaluated on H1 close event: direction=${cachedEngineATelemetry.direction}`);
+  } catch (err) {
+    console.error('[PhaseXEngine] Error during onH1Close Engine A execution:', err);
+  }
+});
 
 // Phase 4 Lifecycle States (Section 2)
 export type PhaseXLifecycleState =
@@ -866,36 +908,36 @@ export async function analyzePhaseX(
 
   const yahooSymbol = getYahooSymbol(assetId);
 
-  // 1. Fetch Closed Candles across all 5 internal timeframes:
-  // 4H = Macro Context, 1H = Primary Phase, 30M = Setup Development, 15M = Precision Structure, 5M = Invalidation & Noise Buffer
-  const [candles5mRaw, candles15mRaw, candles30mRaw, candles1hRaw] = replayOptions
-    ? [replayOptions.candles5mRaw, replayOptions.candles15mRaw, replayOptions.candles30mRaw, replayOptions.candles1hRaw]
-    : await Promise.all([
-        fetchYahooCandles(yahooSymbol, '5m', '2d'),
-        fetchYahooCandles(yahooSymbol, '15m', '5d'),
-        fetchYahooCandles(yahooSymbol, '30m', '5d'),
-        fetchYahooCandles(yahooSymbol, '60m', '1mo')
-      ]);
+  let closed5M: ClosedCandle[] = [];
+  let closed15M: ClosedCandle[] = [];
+  let closed30M: ClosedCandle[] = [];
+  let closed1H: ClosedCandle[] = [];
 
-  // CLOSED-CANDLE RULE: Drop the last unfinished/forming candle strictly
-  const filterClosed = (list: any[]): ClosedCandle[] => {
-    if (!list || list.length <= 1) return [];
-    const closed = list.slice(0, -1);
-    return closed.map(c => ({
-      time: c.time,
-      timeLabel: c.timeLabel || new Date(c.time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-      open: +c.open,
-      high: +c.high,
-      low: +c.low,
-      close: +c.close,
-      volume: +c.volume || 0
-    }));
-  };
-
-  let closed5M = filterClosed(candles5mRaw);
-  let closed15M = filterClosed(candles15mRaw);
-  let closed30M = filterClosed(candles30mRaw);
-  let closed1H = filterClosed(candles1hRaw);
+  if (replayOptions) {
+    const filterClosed = (list: any[]): ClosedCandle[] => {
+      if (!list || list.length <= 1) return [];
+      const closed = list.slice(0, -1);
+      return closed.map(c => ({
+        time: c.time,
+        timeLabel: c.timeLabel || new Date(c.time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        open: +c.open,
+        high: +c.high,
+        low: +c.low,
+        close: +c.close,
+        volume: +c.volume || 0
+      }));
+    };
+    closed5M = filterClosed(replayOptions.candles5mRaw);
+    closed15M = filterClosed(replayOptions.candles15mRaw);
+    closed30M = filterClosed(replayOptions.candles30mRaw);
+    closed1H = filterClosed(replayOptions.candles1hRaw);
+  } else {
+    // AUTHORITATIVE LIVE CANDLE BUILDER DATA LAYER
+    closed5M = getClosedCandlesM5();
+    closed15M = getClosedCandlesM15();
+    closed30M = getClosedCandlesM30();
+    closed1H = getClosedCandlesH1();
+  }
 
   // Synchronize candle basis to verified real-time spot price (e.g. MetaTrader 5 / BIQUOTE spot vs GC=F futures)
   if (assetId === 'xau-usd' && closed15M.length > 0) {
@@ -1074,11 +1116,11 @@ export async function analyzePhaseX(
         lastTickTimestamp: Date.now(),
         tickAgeMs: 0,
         tickAgeFormatted: '0.0s',
-        candleSource5M: `Yahoo Finance API (${yahooSymbol} - 5M Closed)`,
-        candleSource15M: `Yahoo Finance API (${yahooSymbol} - 15M Closed)`,
-        candleSource30M: `Yahoo Finance API (${yahooSymbol} - 30M Closed)`,
-        candleSource1H: `Yahoo Finance API (${yahooSymbol} - 1H Closed)`,
-        candleSource4H: `Aggregated from 1H Closed Candles (${yahooSymbol})`,
+        candleSource5M: assetId === 'xau-usd' ? 'BiQuote API (XAUUSD - 5M Closed)' : `Yahoo Finance API (${yahooSymbol} - 5M Closed)`,
+        candleSource15M: assetId === 'xau-usd' ? 'BiQuote API (XAUUSD - 15M Closed)' : `Yahoo Finance API (${yahooSymbol} - 15M Closed)`,
+        candleSource30M: assetId === 'xau-usd' ? 'BiQuote API (XAUUSD - 30M Closed)' : `Yahoo Finance API (${yahooSymbol} - 30M Closed)`,
+        candleSource1H: assetId === 'xau-usd' ? 'BiQuote API (XAUUSD - 1H Closed)' : `Yahoo Finance API (${yahooSymbol} - 1H Closed)`,
+        candleSource4H: assetId === 'xau-usd' ? 'Aggregated from 1H Closed Candles (XAUUSD)' : `Aggregated from 1H Closed Candles (${yahooSymbol})`,
         lastClosedCandleTimestamp: Date.now(),
         historicalDataRange: '5 days (5M/15M/30M) / 1 month (1H/4H)',
         dataFreshnessStatus: 'OFFLINE',
@@ -1226,6 +1268,17 @@ export async function analyzePhaseX(
           setupQualified: false,
           direction: 'WAIT',
           triggerDescription: 'Insufficient candle depth'
+        },
+        engineA: {
+          engineName: 'A-RSI2',
+          h1Close: 0,
+          ema200_1H: 0,
+          rsi2_1H: 50,
+          calculatedSLDistance: 10,
+          slExceedsLimit: false,
+          setupQualified: false,
+          direction: 'WAIT',
+          triggerDescription: 'A-RSI2: Insufficient verified closed candles'
         },
         wyckoff: {
           detectedPhase: 'UNCONFIRMED',
@@ -1676,48 +1729,23 @@ export async function analyzePhaseX(
   // 4. MULTI-STRATEGY SELECTION & CONFLUENCE ARBITRATION LAYER
   // =========================================================================
   // Strategies:
-  // A) WYCKOFF STRUCTURE ENGINE
+  // A) ENGINE A: RSI(2) + EMA200 MEAN REVERSION ENGINE (H1)
   // B) SMC / ICT LIQUIDITY ENGINE
   // C) TREND PULLBACK ENGINE
 
   const confirmation30mTimestamp = closed30M[closed30M.length - 1]?.time || Date.now();
   const trigger15mTimestamp = lastClosed15M.time;
 
-  // 4.1. Wyckoff Strategy Evaluation
-  let wyckoffDirection: 'BUY' | 'SELL' | 'WAIT' = 'WAIT';
-  let wyckoffTriggerDesc = 'No confirmed Wyckoff trigger on 15M closed candle.';
-  let wyckoffQualified = false;
-
-  if (bullishContextValid && hasBullishWyckoff && bullish30MValid && bullish15MTrigger && alignment !== 'CONFLICTING') {
-    wyckoffDirection = 'BUY';
-    wyckoffQualified = true;
-    if (is15MBullishRetest) wyckoffTriggerDesc = `15M Retest of Micro Breakout High (${last15MHigh.toFixed(assetConfig.decimals)})`;
-    else if (is15MHigherLow) wyckoffTriggerDesc = `15M Higher Low Structure Formed (${last15MLow.toFixed(assetConfig.decimals)})`;
-    else if (is15MBreakout) wyckoffTriggerDesc = `15M Closed Candle Micro High Breakout (${last15MHigh.toFixed(assetConfig.decimals)})`;
-    else if (is15MSpringReclaim) wyckoffTriggerDesc = `15M Reclaim of Range Low (${rangeLow.toFixed(assetConfig.decimals)})`;
-    else if (is15MBullishRejection) wyckoffTriggerDesc = `15M Bullish Wick Rejection (${(lowerWickRatio15M * 100).toFixed(0)}% lower wick)`;
-    else wyckoffTriggerDesc = `15M Bullish Structural Shift above 20 EMA`;
-  } else if (bearishContextValid && hasBearishWyckoff && bearish30MValid && bearish15MTrigger && alignment !== 'CONFLICTING') {
-    wyckoffDirection = 'SELL';
-    wyckoffQualified = true;
-    if (is15MBearishRetest) wyckoffTriggerDesc = `15M Retest of Micro Breakdown Low (${last15MLow.toFixed(assetConfig.decimals)})`;
-    else if (is15MLowerHigh) wyckoffTriggerDesc = `15M Lower High Structure Formed (${last15MHigh.toFixed(assetConfig.decimals)})`;
-    else if (is15MBreakdown) wyckoffTriggerDesc = `15M Closed Candle Micro Low Breakdown (${last15MLow.toFixed(assetConfig.decimals)})`;
-    else if (is15MUpthrustRejection) wyckoffTriggerDesc = `15M Rejection of Range High (${rangeHigh.toFixed(assetConfig.decimals)})`;
-    else if (is15MBearishRejection) wyckoffTriggerDesc = `15M Bearish Wick Rejection (${(upperWickRatio15M * 100).toFixed(0)}% upper wick)`;
-    else wyckoffTriggerDesc = `15M Bearish Structural Shift below 20 EMA`;
+  // 4.1. Engine A (A-RSI2) Evaluation (Closed H1 Candles Only) - Cached & Event Driven
+  if (!cachedEngineATelemetry) {
+    cachedEngineATelemetry = detectEngineARsi2Setup({
+      closed1H,
+      atr15M,
+      currentPrice: signalConfirmationPrice,
+      m15Count: closed15M.length
+    });
   }
-
-  const wyckoffTelemetry: WyckoffStrategyTelemetry = {
-    detectedPhase,
-    activeEvent,
-    eventStatus: activeEvent !== 'NO CONFIRMED EVENT' ? 'CONFIRMED' : 'SCANNING',
-    springStatus,
-    upthrustStatus,
-    setupQualified: wyckoffQualified,
-    direction: wyckoffDirection,
-    triggerDescription: wyckoffTriggerDesc
-  };
+  const engineATelemetry = cachedEngineATelemetry;
 
   // 4.2. SMC / ICT Liquidity Engine Evaluation
   const smcTelemetry = detectSmcLiquiditySetup({
@@ -1745,7 +1773,7 @@ export async function analyzePhaseX(
   // 4.4. Strategy Arbitration & Confluence Resolution
   const confluenceResult = arbitrateStrategyConfluence({
     assetId,
-    wyckoffResult: wyckoffTelemetry,
+    engineAResult: engineATelemetry,
     smcResult: smcTelemetry,
     trendResult: trendTelemetry,
     confirmation30mTs: confirmation30mTimestamp,
@@ -1760,7 +1788,7 @@ export async function analyzePhaseX(
     setupTypeLabel: setupType,
     smc: smcTelemetry,
     trend: trendTelemetry,
-    wyckoff: wyckoffTelemetry,
+    engineA: engineATelemetry,
     confluence: confluenceResult.confluenceTelemetry
   };
 
@@ -1770,13 +1798,19 @@ export async function analyzePhaseX(
   let executionTriggerDescription = 'No confirmed trigger on 15M closed candle.';
 
   const effectiveNow = replayOptions?.simulatedNow || Date.now();
-  const isFeedStale = (effectiveNow - lastClosedTimestamp) > (7 * 24 * 3600 * 1000);
+  const builderDataStatus = getCandleDataStatus();
+  const isFeedStale = (effectiveNow - lastClosedTimestamp) > (7 * 24 * 3600 * 1000) || builderDataStatus.status === 'STALE';
+  const isWarmingUp = closed1H.length < 200 || builderDataStatus.status === 'WARMING UP';
   const isExtremeVolatility = volatilityPct > 4.5 || (atr15M / signalConfirmationPrice) > 0.045;
 
-  if (isFeedStale) {
+  if (isWarmingUp) {
+    candidateDirection = 'WAIT';
+    waitReasonCode = 'INSUFFICIENT_DATA';
+    executionTriggerDescription = `Engine A/B/C is warming up history (loaded H1 candles: ${closed1H.length}/200).`;
+  } else if (isFeedStale) {
     candidateDirection = 'WAIT';
     waitReasonCode = 'STALE_FEED';
-    executionTriggerDescription = 'Market feed data exceeds maximum staleness threshold.';
+    executionTriggerDescription = `Market feed data exceeds maximum 5-second staleness threshold (last tick age: ${builderDataStatus.lastTickAge}s).`;
   } else if (isExtremeVolatility) {
     candidateDirection = 'WAIT';
     waitReasonCode = 'EXTREME_VOLATILITY';
@@ -2196,13 +2230,13 @@ export async function analyzePhaseX(
     slDistance = slDist;
     targetRiskDistance = slDist;
 
-    // Strict Gold Precision Dynamic Stop-Loss Architecture (8.00 to 10.00 dollars / 80 to 100 pips)
+    // New Gold Risk Rules (SL = max($10, 1.3 x ATR(M15)), max SL cap = $14)
     if (assetId === 'xau-usd' && preferredEntry != null) {
-      const dynamicGoldSl = Math.min(10.00, Math.max(8.00, slDist > 0 ? slDist : +(atr15M * 1.5).toFixed(assetConfig.decimals)));
-      slDist = dynamicGoldSl;
-      finalProtectedSL = +(preferredEntry - dynamicGoldSl).toFixed(assetConfig.decimals);
-      targetRiskDistance = dynamicGoldSl;
-      slDistance = dynamicGoldSl;
+      const calculatedGoldSl = +Math.max(10.00, 1.3 * (atr15M > 0 ? atr15M : 3.0)).toFixed(assetConfig.decimals);
+      slDist = calculatedGoldSl;
+      finalProtectedSL = +(preferredEntry - calculatedGoldSl).toFixed(assetConfig.decimals);
+      targetRiskDistance = calculatedGoldSl;
+      slDistance = calculatedGoldSl;
     }
 
     slDistanceAtr = +(slDist / (atr15M > 0 ? atr15M : atr5M)).toFixed(2);
@@ -2221,23 +2255,23 @@ export async function analyzePhaseX(
     slDistance = slDist;
     targetRiskDistance = slDist;
 
-    // Strict Gold Precision Dynamic Stop-Loss Architecture (8.00 to 10.00 dollars / 80 to 100 pips)
+    // New Gold Risk Rules (SL = max($10, 1.3 x ATR(M15)), max SL cap = $14)
     if (assetId === 'xau-usd' && preferredEntry != null) {
-      const dynamicGoldSl = Math.min(10.00, Math.max(8.00, slDist > 0 ? slDist : +(atr15M * 1.5).toFixed(assetConfig.decimals)));
-      slDist = dynamicGoldSl;
-      finalProtectedSL = +(preferredEntry + dynamicGoldSl).toFixed(assetConfig.decimals);
-      targetRiskDistance = dynamicGoldSl;
-      slDistance = dynamicGoldSl;
+      const calculatedGoldSl = +Math.max(10.00, 1.3 * (atr15M > 0 ? atr15M : 3.0)).toFixed(assetConfig.decimals);
+      slDist = calculatedGoldSl;
+      finalProtectedSL = +(preferredEntry + calculatedGoldSl).toFixed(assetConfig.decimals);
+      targetRiskDistance = calculatedGoldSl;
+      slDistance = calculatedGoldSl;
     }
 
     slDistanceAtr = +(slDist / (atr15M > 0 ? atr15M : atr5M)).toFixed(2);
   }
 
-  // 9.5. Maximum SL Protection Check (Section 10)
+  // 9.5. Maximum SL Protection Check (Max $14.00 SL for Gold)
   const maxAcceptableRisk = Math.max(
     fallbackTriggered ? 2.5 * atr15M : 3.5 * atr5M,
     2.5 * atr15M,
-    (assetId === 'xau-usd' ? 11.50 : 0)
+    (assetId === 'xau-usd' ? 14.00 : 0)
   );
   if (
     fallbackRejectedDueToExcessiveDistance || 
@@ -2261,8 +2295,8 @@ export async function analyzePhaseX(
 
   if (candidateDirection === 'BUY' && preferredEntry != null && targetRiskDistance != null && targetRiskDistance > 0) {
     if (assetId === 'xau-usd') {
-      // Direct Gold Specific Target Structure: TP1 = +$7.00 (70 pips), TP2 = +$10.00 (100 pips)
-      takeProfit1 = +(preferredEntry + 7.00).toFixed(assetConfig.decimals);
+      // Direct Gold Specific Target Structure: TP1 = +$6.00 (60 pips), TP2 = +$10.00 (100 pips)
+      takeProfit1 = +(preferredEntry + 6.00).toFixed(assetConfig.decimals);
       takeProfit2 = +(preferredEntry + 10.00).toFixed(assetConfig.decimals);
     } else {
       takeProfit1 = +(preferredEntry + (2.0 * targetRiskDistance)).toFixed(assetConfig.decimals);
@@ -2289,8 +2323,8 @@ export async function analyzePhaseX(
     }
   } else if (candidateDirection === 'SELL' && preferredEntry != null && targetRiskDistance != null && targetRiskDistance > 0) {
     if (assetId === 'xau-usd') {
-      // Direct Gold Specific Target Structure: TP1 = -$7.00 (70 pips), TP2 = -$10.00 (100 pips)
-      takeProfit1 = +(preferredEntry - 7.00).toFixed(assetConfig.decimals);
+      // Direct Gold Specific Target Structure: TP1 = -$6.00 (60 pips), TP2 = -$10.00 (100 pips)
+      takeProfit1 = +(preferredEntry - 6.00).toFixed(assetConfig.decimals);
       takeProfit2 = +(preferredEntry - 10.00).toFixed(assetConfig.decimals);
     } else {
       takeProfit1 = +(preferredEntry - (2.0 * targetRiskDistance)).toFixed(assetConfig.decimals);
@@ -2816,8 +2850,8 @@ export async function analyzePhaseX(
       e.impact === 'HIGH' &&
       (e.currency === assetCurrency || e.currency === 'USD') &&
       e.minutesUntil !== undefined &&
-      e.minutesUntil >= -15 &&
-      e.minutesUntil <= 15
+      e.minutesUntil >= -30 &&
+      e.minutesUntil <= 30
     );
     if (match && match.minutesUntil !== undefined) {
       imminentHighImpactEvent = {
@@ -2883,6 +2917,7 @@ export async function analyzePhaseX(
     imminentHighImpactEvent,
     dataFreshness: engineDetails.dataProvenance?.dataFreshnessStatus || 'FRESH',
     realDataStatus: engineDetails.dataProvenance?.realDataStatus || 'VERIFIED',
+    builderDataStatus: builderDataStatus.status,
     existingActiveSetupCount,
     isPreEntryInvalidated: managedRecord?.lifecycleState === 'INVALIDATED_BEFORE_ENTRY',
     isStrategyConflict: confluenceResult.agreementStatus === 'CONFLICTING',
@@ -3316,6 +3351,7 @@ export interface Phase5EvaluationInput {
   imminentHighImpactEvent: { eventName: string; currency: string; minutesUntil: number } | null;
   dataFreshness: 'FRESH' | 'STALE' | 'OFFLINE';
   realDataStatus: 'VERIFIED' | 'DEGRADED' | 'UNAVAILABLE';
+  builderDataStatus?: 'OK' | 'WARMING UP' | 'STALE';
   existingActiveSetupCount: number;
   isPreEntryInvalidated?: boolean;
   isStrategyConflict?: boolean;
@@ -3400,11 +3436,25 @@ export function evaluatePhase5QualityGate(input: Phase5EvaluationInput): Phase5Q
   // Check 1: Live Market Data Integrity (Priority 1 - High Precision Real-Time Verification)
   // ==========================================
   let liveDataStatus: 'VERIFIED' | 'STALE' | 'INSUFFICIENT' | 'DISRUPTED' = 'VERIFIED';
-  if (input.currentLivePrice <= 0 || isNaN(input.currentLivePrice) || input.dataFreshness === 'OFFLINE' || input.dataFreshness === 'STALE' || tickAgeMs > 45000) {
+  if (input.builderDataStatus === 'WARMING UP') {
+    liveDataStatus = 'INSUFFICIENT';
+    failures.push({
+      priority: 1,
+      reason: `Candle builder is currently warming up historical data (Warmup Status: WARMING UP). Trade execution paused.`,
+      waitState: 'WAIT — WARMING UP'
+    });
+  } else if (input.builderDataStatus === 'STALE') {
     liveDataStatus = 'STALE';
     failures.push({
       priority: 1,
-      reason: `Live market price feed is stale (>45s operational limit, current age: ${tickAgeFormatted}) or offline. Real-time tick freshness required.`,
+      reason: `Candle builder has stale pricing (Status: STALE). Real-time fresh ticks required.`,
+      waitState: 'WAIT — STALE'
+    });
+  } else if (input.currentLivePrice <= 0 || isNaN(input.currentLivePrice) || input.dataFreshness === 'OFFLINE' || input.dataFreshness === 'STALE' || tickAgeMs > 5000) {
+    liveDataStatus = 'STALE';
+    failures.push({
+      priority: 1,
+      reason: `Live market price feed is stale (>5s operational limit, current age: ${tickAgeFormatted}) or offline. Real-time tick freshness required.`,
       waitState: 'WAIT — MARKET DATA'
     });
   } else if (input.primaryCandlesCount < 15 || input.closed15MCount < 10 || input.closed5MCount < 5 || input.realDataStatus === 'UNAVAILABLE') {
@@ -3595,32 +3645,69 @@ export function evaluatePhase5QualityGate(input: Phase5EvaluationInput): Phase5Q
   // ==========================================
   // Check 4: TP1 / TP2 & R:R Viability Gate (Priority 4)
   // ==========================================
-  let tp1Validation: 'VALID_2R+' | 'LESS_THAN_2R' | 'OBSTACLE_DETECTED' = input.tp1RMultiple >= 1.95 ? (input.tp1Feasibility === 'OBSTACLE_DETECTED' ? 'OBSTACLE_DETECTED' : 'VALID_2R+') : 'LESS_THAN_2R';
-  let tp1ValidationDetails = `TP1 R-Multiple: ${input.tp1RMultiple.toFixed(2)}R (${input.tp1Feasibility})`;
-  let tp2Validation: 'VALID_3R+' | 'LESS_THAN_3R' | 'TARGET_INVALID' = input.tp2RMultiple >= 2.8 ? 'VALID_3R+' : 'LESS_THAN_3R';
-  let tp2ValidationDetails = `TP2 R-Multiple: ${input.tp2RMultiple.toFixed(2)}R`;
-  let rrValidation: 'QUALIFIED' | 'REJECTED' = (input.tp1RMultiple >= 1.95 && input.tp2RMultiple >= 2.8 && input.tp1Feasibility !== 'OBSTACLE_DETECTED') ? 'QUALIFIED' : 'REJECTED';
-  let rrValidationDetails = `TP1 ${input.tp1RMultiple.toFixed(1)}R / TP2 ${input.tp2RMultiple.toFixed(1)}R`;
+  const isGold = input.assetId === 'xau-usd';
+  const slDistance = (input.preferredEntry != null && input.finalProtectedSL != null) 
+    ? Math.abs(input.preferredEntry - input.finalProtectedSL) 
+    : 0;
+
+  let tp1Validation: 'VALID_2R+' | 'LESS_THAN_2R' | 'OBSTACLE_DETECTED' = 'VALID_2R+';
+  let tp1ValidationDetails = '';
+  let tp2Validation: 'VALID_3R+' | 'LESS_THAN_3R' | 'TARGET_INVALID' = 'VALID_3R+';
+  let tp2ValidationDetails = '';
+  let rrValidation: 'QUALIFIED' | 'REJECTED' = 'QUALIFIED';
+  let rrValidationDetails = '';
+
+  if (isGold) {
+    tp1Validation = 'VALID_2R+';
+    tp1ValidationDetails = `Gold TP1: $6.00 Fixed Target | SL: $${slDistance.toFixed(2)}`;
+    tp2Validation = 'VALID_3R+';
+    tp2ValidationDetails = `Gold TP2: $10.00 Fixed Target`;
+    rrValidation = 'QUALIFIED';
+    rrValidationDetails = `Gold SL Cap Check: $${slDistance.toFixed(2)} <= $14.00`;
+  } else {
+    tp1Validation = input.tp1RMultiple >= 1.95 ? (input.tp1Feasibility === 'OBSTACLE_DETECTED' ? 'OBSTACLE_DETECTED' : 'VALID_2R+') : 'LESS_THAN_2R';
+    tp1ValidationDetails = `TP1 R-Multiple: ${input.tp1RMultiple.toFixed(2)}R (${input.tp1Feasibility})`;
+    tp2Validation = input.tp2RMultiple >= 2.8 ? 'VALID_3R+' : 'LESS_THAN_3R';
+    tp2ValidationDetails = `TP2 R-Multiple: ${input.tp2RMultiple.toFixed(2)}R`;
+    rrValidation = (input.tp1RMultiple >= 1.95 && input.tp2RMultiple >= 2.8 && input.tp1Feasibility !== 'OBSTACLE_DETECTED') ? 'QUALIFIED' : 'REJECTED';
+    rrValidationDetails = `TP1 ${input.tp1RMultiple.toFixed(1)}R / TP2 ${input.tp2RMultiple.toFixed(1)}R`;
+  }
 
   if (input.direction !== 'WAIT') {
-    if (input.tp1RMultiple < 1.95) {
-      failures.push({
-        priority: 4,
-        reason: `Take Profit 1 (${input.tp1RMultiple.toFixed(1)}R) does not satisfy the strict 2.0R minimum threshold.`,
-        waitState: 'WAIT — R:R NOT VIABLE'
-      });
-    } else if (input.tp1Feasibility === 'OBSTACLE_DETECTED') {
-      failures.push({
-        priority: 4,
-        reason: 'Major opposing structural level blocks the direct path to TP1.',
-        waitState: 'WAIT — R:R NOT VIABLE'
-      });
-    } else if (input.tp2RMultiple < 2.8) {
-      failures.push({
-        priority: 4,
-        reason: `Take Profit 2 (${input.tp2RMultiple.toFixed(1)}R) does not satisfy the 3.0R target threshold.`,
-        waitState: 'WAIT — R:R NOT VIABLE'
-      });
+    if (isGold) {
+      if (slDistance > 14.00) {
+        failures.push({
+          priority: 4,
+          reason: `Gold SL distance ($${slDistance.toFixed(2)}) exceeds maximum allowed risk limit ($14.00).`,
+          waitState: 'WAIT — RISK EXCEEDED'
+        });
+      } else if (input.tp1Feasibility === 'OBSTACLE_DETECTED') {
+        failures.push({
+          priority: 4,
+          reason: 'Major opposing structural level blocks the direct path to TP1.',
+          waitState: 'WAIT — R:R NOT VIABLE'
+        });
+      }
+    } else {
+      if (input.tp1RMultiple < 1.95) {
+        failures.push({
+          priority: 4,
+          reason: `Take Profit 1 (${input.tp1RMultiple.toFixed(1)}R) does not satisfy the strict 2.0R minimum threshold.`,
+          waitState: 'WAIT — R:R NOT VIABLE'
+        });
+      } else if (input.tp1Feasibility === 'OBSTACLE_DETECTED') {
+        failures.push({
+          priority: 4,
+          reason: 'Major opposing structural level blocks the direct path to TP1.',
+          waitState: 'WAIT — R:R NOT VIABLE'
+        });
+      } else if (input.tp2RMultiple < 2.8) {
+        failures.push({
+          priority: 4,
+          reason: `Take Profit 2 (${input.tp2RMultiple.toFixed(1)}R) does not satisfy the 3.0R target threshold.`,
+          waitState: 'WAIT — R:R NOT VIABLE'
+        });
+      }
     }
   }
 
@@ -3641,13 +3728,14 @@ export function evaluatePhase5QualityGate(input: Phase5EvaluationInput): Phase5Q
   // ==========================================
   // Check 6: Spread Safety (Priority 6)
   // ==========================================
-  let spreadStatus: 'SAFE' | 'UNSAFE' | 'LIMITED' = typeof input.spread === 'number' ? (input.spread <= 0.45 * input.atr15M ? 'SAFE' : 'UNSAFE') : 'LIMITED';
-  let spreadDetails = typeof input.spread === 'number' ? `Spread: ${input.spread.toFixed(2)} (Limit: ${(0.45 * input.atr15M).toFixed(2)})` : 'Spot feed depth limited (pass)';
+  const maxAllowedSpread = isGold ? 0.50 : 0.45 * input.atr15M;
+  let spreadStatus: 'SAFE' | 'UNSAFE' | 'LIMITED' = typeof input.spread === 'number' ? (input.spread <= maxAllowedSpread ? 'SAFE' : 'UNSAFE') : 'LIMITED';
+  let spreadDetails = typeof input.spread === 'number' ? `Spread: ${input.spread.toFixed(2)} (Limit: ${maxAllowedSpread.toFixed(2)})` : 'Spot feed depth limited (pass)';
 
   if (input.direction !== 'WAIT' && spreadStatus === 'UNSAFE') {
     failures.push({
       priority: 6,
-      reason: `Verified spread (${input.spread}) exceeds safe operational limit (0.45x ATR).`,
+      reason: `Verified spread (${typeof input.spread === 'number' ? input.spread.toFixed(2) : ''}) exceeds safe operational limit (${maxAllowedSpread.toFixed(2)}).`,
       waitState: 'WAIT — SPREAD UNSAFE'
     });
   }
@@ -3656,12 +3744,12 @@ export function evaluatePhase5QualityGate(input: Phase5EvaluationInput): Phase5Q
   // Check 7: News / Event Risk (Priority 7)
   // ==========================================
   let newsEventStatus: 'CLEAR' | 'EVENT_RISK_IMMINENT' | 'LIMITED' = input.imminentHighImpactEvent ? 'EVENT_RISK_IMMINENT' : 'CLEAR';
-  let newsEventDetails = input.imminentHighImpactEvent ? `High-Impact: ${input.imminentHighImpactEvent.eventName} in ${input.imminentHighImpactEvent.minutesUntil}m` : 'No high-impact economic releases within 15m window.';
+  let newsEventDetails = input.imminentHighImpactEvent ? `High-Impact: ${input.imminentHighImpactEvent.eventName} in ${input.imminentHighImpactEvent.minutesUntil}m` : 'No high-impact economic releases within 30m window.';
 
   if (input.direction !== 'WAIT' && input.imminentHighImpactEvent) {
     failures.push({
       priority: 7,
-      reason: `High-impact economic release (${input.imminentHighImpactEvent.eventName} [${input.imminentHighImpactEvent.currency}]) is scheduled within 15 minutes.`,
+      reason: `High-impact economic release (${input.imminentHighImpactEvent.eventName} [${input.imminentHighImpactEvent.currency}]) is scheduled within 30 minutes.`,
       waitState: 'WAIT — EVENT RISK'
     });
   }
@@ -3697,27 +3785,41 @@ export function evaluatePhase5QualityGate(input: Phase5EvaluationInput): Phase5Q
   // ==========================================
   let antiChaseValidation: 'PASS' | 'CHASING_DETECTED' | 'MISSED_ENTRY' = 'PASS';
   let antiChaseDetails = 'Live price is positioned within safe entry tolerance.';
+  const GOLD_ANTI_CHASE_LIMIT = 2.0; // Anti-chase threshold in dollars (config)
 
-  if (input.direction !== 'WAIT' && input.entryZoneHigh != null && input.entryZoneLow != null) {
-    const buyChaseThreshold = input.entryZoneHigh + 0.35 * input.atr15M;
-    const sellChaseThreshold = input.entryZoneLow - 0.35 * input.atr15M;
+  if (input.direction !== 'WAIT' && input.preferredEntry != null) {
+    if (isGold) {
+      const distance = Math.abs(input.currentLivePrice - input.preferredEntry);
+      if (distance > GOLD_ANTI_CHASE_LIMIT) {
+        antiChaseValidation = 'MISSED_ENTRY';
+        antiChaseDetails = `Live price (${input.currentLivePrice.toFixed(2)}) is more than $${GOLD_ANTI_CHASE_LIMIT.toFixed(2)} away from Entry (${input.preferredEntry.toFixed(2)}).`;
+        failures.push({
+          priority: 9,
+          reason: `Price has moved materially beyond the entry price by $${distance.toFixed(2)} (Limit: $${GOLD_ANTI_CHASE_LIMIT.toFixed(2)}). Chasing is prohibited.`,
+          waitState: 'MISSED ENTRY — DO NOT CHASE'
+        });
+      }
+    } else if (input.entryZoneHigh != null && input.entryZoneLow != null) {
+      const buyChaseThreshold = input.entryZoneHigh + 0.35 * input.atr15M;
+      const sellChaseThreshold = input.entryZoneLow - 0.35 * input.atr15M;
 
-    if (input.direction === 'BUY' && input.currentLivePrice > buyChaseThreshold) {
-      antiChaseValidation = 'MISSED_ENTRY';
-      antiChaseDetails = `Live price (${input.currentLivePrice}) extended past entry zone high (${input.entryZoneHigh}) by >0.35 ATR.`;
-      failures.push({
-        priority: 9,
-        reason: 'Price has moved materially beyond the entry zone. Chasing is strictly prohibited.',
-        waitState: 'MISSED ENTRY — DO NOT CHASE'
-      });
-    } else if (input.direction === 'SELL' && input.currentLivePrice < sellChaseThreshold) {
-      antiChaseValidation = 'MISSED_ENTRY';
-      antiChaseDetails = `Live price (${input.currentLivePrice}) extended below entry zone low (${input.entryZoneLow}) by >0.35 ATR.`;
-      failures.push({
-        priority: 9,
-        reason: 'Price has moved materially beyond the entry zone. Chasing is strictly prohibited.',
-        waitState: 'MISSED ENTRY — DO NOT CHASE'
-      });
+      if (input.direction === 'BUY' && input.currentLivePrice > buyChaseThreshold) {
+        antiChaseValidation = 'MISSED_ENTRY';
+        antiChaseDetails = `Live price (${input.currentLivePrice}) extended past entry zone high (${input.entryZoneHigh}) by >0.35 ATR.`;
+        failures.push({
+          priority: 9,
+          reason: 'Price has moved materially beyond the entry zone. Chasing is strictly prohibited.',
+          waitState: 'MISSED ENTRY — DO NOT CHASE'
+        });
+      } else if (input.direction === 'SELL' && input.currentLivePrice < sellChaseThreshold) {
+        antiChaseValidation = 'MISSED_ENTRY';
+        antiChaseDetails = `Live price (${input.currentLivePrice}) extended below entry zone low (${input.entryZoneLow}) by >0.35 ATR.`;
+        failures.push({
+          priority: 9,
+          reason: 'Price has moved materially beyond the entry zone. Chasing is strictly prohibited.',
+          waitState: 'MISSED ENTRY — DO NOT CHASE'
+        });
+      }
     }
   }
 

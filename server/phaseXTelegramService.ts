@@ -185,6 +185,26 @@ export interface NewsGuardStatus {
   windowReason?: string;
 }
 
+export interface CustomNewsEvent {
+  id: string;
+  eventName: string;
+  timestamp: number; // UTC timestamp of the event
+}
+
+// Configurable news events list
+export let customNewsEvents: CustomNewsEvent[] = [
+  { id: 'fed_speech_1', eventName: 'Federal Reserve Chairman Powell Speech', timestamp: Date.now() + 24 * 3600 * 1000 },
+  { id: 'fed_speech_2', eventName: 'FOMC Member Speech & Policy Review', timestamp: Date.now() + 48 * 3600 * 1000 }
+];
+
+export function addCustomNewsEvent(event: CustomNewsEvent) {
+  customNewsEvents.push(event);
+}
+
+export function clearCustomNewsEvents() {
+  customNewsEvents = [];
+}
+
 export function getNewsGuardStatus(): NewsGuardStatus {
   const isEnabled = dynamicSettings.newsGuardEnabled !== false;
   if (!isEnabled) {
@@ -192,6 +212,21 @@ export function getNewsGuardStatus(): NewsGuardStatus {
   }
 
   const now = new Date();
+  const nowMs = now.getTime();
+
+  // 0. Custom high-impact news events list check (30 min before & 30 min after)
+  for (const ev of customNewsEvents) {
+    const diffMin = (nowMs - ev.timestamp) / 60000;
+    if (diffMin >= -30 && diffMin <= 30) {
+      return {
+        enabled: true,
+        isInNewsWindow: true,
+        upcomingEvent: ev.eventName,
+        windowReason: `Custom news guard active: 30 minutes before and after ${ev.eventName}.`
+      };
+    }
+  }
+
   const utcDay = now.getUTCDay();
   const utcDate = now.getUTCDate();
   const utcHours = now.getUTCHours();

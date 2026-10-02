@@ -118,6 +118,7 @@ export interface Phase5QualityGateResult {
   overallStatus?: string;
   finalGateStatus: Phase5GateStatus;
   liveDataStatus: 'VERIFIED' | 'STALE' | 'INSUFFICIENT' | 'DISRUPTED';
+  realDataStatus?: 'VERIFIED' | 'DEGRADED' | 'UNAVAILABLE';
   tickAgeMs: number;
   tickAgeFormatted: string;
   alignment4H: 'ALIGNED' | 'CONFLICTING' | 'NEUTRAL';
@@ -334,6 +335,18 @@ export interface TrendPullbackTelemetry {
   direction: 'BUY' | 'SELL' | 'WAIT';
 }
 
+export interface EngineARsi2Telemetry {
+  engineName: 'A-RSI2';
+  h1Close: number;
+  ema200_1H: number;
+  rsi2_1H: number;
+  calculatedSLDistance: number;
+  slExceedsLimit: boolean;
+  setupQualified: boolean;
+  direction: 'BUY' | 'SELL' | 'WAIT';
+  triggerDescription: string;
+}
+
 export interface WyckoffStrategyTelemetry {
   detectedPhase: string;
   activeEvent: string;
@@ -351,6 +364,11 @@ export interface StrategyConfluenceTelemetry {
   conflictDetails: string | null;
   selectedSetupType: string;
   mergedSetupId: string;
+  level?: 'APEX' | 'DUAL' | 'DUAL-TB' | 'SINGLE_BLOCKED' | 'WAIT';
+  enginesList?: string[];
+  tieBreakerUsed?: boolean;
+  tieBreakerBias?: string;
+  votes?: { [key: string]: 'BUY' | 'SELL' | 'WAIT' };
 }
 
 export interface PhaseXStrategyTelemetry {
@@ -358,7 +376,8 @@ export interface PhaseXStrategyTelemetry {
   setupTypeLabel: string;
   smc: SmcEngineTelemetry;
   trend: TrendPullbackTelemetry;
-  wyckoff: WyckoffStrategyTelemetry;
+  engineA?: EngineARsi2Telemetry;
+  wyckoff?: WyckoffStrategyTelemetry;
   confluence: StrategyConfluenceTelemetry;
 }
 

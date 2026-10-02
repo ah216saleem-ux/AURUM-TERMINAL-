@@ -344,7 +344,25 @@ export function initWebSocketServer(httpServer: any) {
   startLiveTickStream();
 }
 
+const tickListeners = new Set<(data: LivePriceData) => void>();
+
+export function registerLiveTickListener(listener: (data: LivePriceData) => void) {
+  tickListeners.add(listener);
+  return () => {
+    tickListeners.delete(listener);
+  };
+}
+
 function broadcastTick(data: LivePriceData) {
+  // Trigger server-side listeners
+  tickListeners.forEach(listener => {
+    try {
+      listener(data);
+    } catch (e) {
+      console.error('[WebSocketServer] Tick listener error:', e);
+    }
+  });
+
   if (clients.size === 0) return;
   const payload = JSON.stringify({
     type: 'tick',

@@ -17,6 +17,9 @@
  */
 
 import { ClosedCandle } from './phaseXEngine.js';
+import { EngineARsi2Telemetry } from './engineA_rsi2.js';
+
+export type { EngineARsi2Telemetry };
 
 export interface SmcEngineTelemetry {
   asianHigh: number;
@@ -87,6 +90,11 @@ export interface StrategyConfluenceTelemetry {
   conflictDetails: string | null;
   selectedSetupType: string;
   mergedSetupId: string;
+  level?: 'APEX' | 'DUAL' | 'DUAL-TB' | 'SINGLE_BLOCKED' | 'WAIT';
+  enginesList?: string[];
+  tieBreakerUsed?: boolean;
+  tieBreakerBias?: string;
+  votes?: { [key: string]: 'BUY' | 'SELL' | 'WAIT' };
 }
 
 export interface PhaseXStrategyTelemetry {
@@ -94,7 +102,8 @@ export interface PhaseXStrategyTelemetry {
   setupTypeLabel: string;
   smc: SmcEngineTelemetry;
   trend: TrendPullbackTelemetry;
-  wyckoff: WyckoffStrategyTelemetry;
+  engineA: EngineARsi2Telemetry;
+  wyckoff?: WyckoffStrategyTelemetry;
   confluence: StrategyConfluenceTelemetry;
 }
 
@@ -159,6 +168,40 @@ export function detectSmcLiquiditySetup(params: {
   last15MLow: number;
 }): SmcEngineTelemetry {
   const { closed15M, closed1H, atr15M, currentPrice, last15MHigh, last15MLow } = params;
+
+  if (!closed1H || closed1H.length < 200 || !closed15M || closed15M.length < 20) {
+    return {
+      asianHigh: 0,
+      asianLow: 0,
+      prevDayHigh: 0,
+      prevDayLow: 0,
+      keySwingHigh15M: last15MHigh,
+      keySwingLow15M: last15MLow,
+      liquiditySwept: 'NONE',
+      sweptLevelPrice: null,
+      sweptLevelDescription: 'warming up (BiQuote ticks only)',
+      sweepCandleTime: null,
+      sweepConfirmed: false,
+      sweepDepthAtr: 0,
+      chochDetected: false,
+      chochLevel: null,
+      chochTime: null,
+      displacementSpread: 0,
+      displacementAtrRatio: 0,
+      displacementConfirmed: false,
+      fvgZoneHigh: null,
+      fvgZoneLow: null,
+      fvgCandleTime: null,
+      fvgStatus: 'NONE',
+      fvgRetestConfirmed: false,
+      obRejectionWickPct: 0,
+      obReactionConfirmed: false,
+      currentSession: 'ASIAN',
+      setupQualified: false,
+      direction: 'WAIT',
+      triggerDescription: `warming up (BiQuote ticks only) — H1 Count: ${closed1H ? closed1H.length : 0}/200, M15 Count: ${closed15M ? closed15M.length : 0}/20`
+    };
+  }
 
   // 1. Calculate Asian High & Low
   let asianHigh = 0;
@@ -469,6 +512,27 @@ export function detectTrendPullbackSetup(params: {
 }): TrendPullbackTelemetry {
   const { tf4H, tf1H, tf30M, closed15M, closed5M, atr15M, currentPrice, last15MHigh, last15MLow } = params;
 
+  if (!closed15M || closed15M.length < 20 || !closed5M || closed5M.length < 10) {
+    return {
+      tf4HDirection: 'RANGING',
+      tf1HDirection: 'RANGING',
+      tf30MDirection: 'RANGING',
+      ema20_15M: 0,
+      ema50_15M: 0,
+      emaSlope15M: 0,
+      emaSlopeConfirmed: false,
+      pullbackTarget: 'NONE',
+      pullbackDistanceAtr: 0,
+      isPullbackWithinZone: false,
+      micro5MRejectionWickPct: 0,
+      micro5MReclaimConfirmed: false,
+      micro5MStructureConfirmed: false,
+      setupQualified: false,
+      direction: 'WAIT',
+      triggerDescription: `warming up (BiQuote ticks only) — M15 Count: ${closed15M ? closed15M.length : 0}/20, M5 Count: ${closed5M ? closed5M.length : 0}/10`
+    };
+  }
+
   const tf4HDirection = tf4H.bias === 'BULLISH' ? 'BULLISH' : tf4H.bias === 'BEARISH' ? 'BEARISH' : 'RANGING';
   const tf1HDirection = tf1H.bias === 'BULLISH' ? 'BULLISH' : tf1H.bias === 'BEARISH' ? 'BEARISH' : 'RANGING';
   const tf30MDirection = tf30M.bias === 'BULLISH' ? 'BULLISH' : tf30M.bias === 'BEARISH' ? 'BEARISH' : 'RANGING';
@@ -603,7 +667,8 @@ export function detectTrendPullbackSetup(params: {
  */
 export function arbitrateStrategyConfluence(params: {
   assetId: string;
-  wyckoffResult: WyckoffStrategyTelemetry;
+  engineAResult?: EngineARsi2Telemetry;
+  wyckoffResult?: WyckoffStrategyTelemetry;
   smcResult: SmcEngineTelemetry;
   trendResult: TrendPullbackTelemetry;
   confirmation30mTs: number;
@@ -619,135 +684,125 @@ export function arbitrateStrategyConfluence(params: {
   conflictDetails: string | null;
   combinedTriggerDescription: string;
 } {
-  const { assetId, wyckoffResult, smcResult, trendResult, confirmation30mTs, trigger15mTs, htfBias, marketPhase } = params;
+  const { assetId, engineAResult, smcResult, trendResult, confirmation30mTs, trigger15mTs, htfBias } = params;
 
-  let activeStrategies: Array<{ name: string; direction: 'BUY' | 'SELL'; desc: string }> = [];
+  // Collect precise engine direction votes (only closed, qualified setups)
+  const dirA: 'BUY' | 'SELL' | 'WAIT' = (engineAResult && engineAResult.setupQualified && engineAResult.direction !== 'WAIT') ? engineAResult.direction : 'WAIT';
+  const dirB: 'BUY' | 'SELL' | 'WAIT' = (smcResult && smcResult.setupQualified && smcResult.direction !== 'WAIT') ? smcResult.direction : 'WAIT';
+  const dirC: 'BUY' | 'SELL' | 'WAIT' = (trendResult && trendResult.setupQualified && trendResult.direction !== 'WAIT') ? trendResult.direction : 'WAIT';
 
-  if (wyckoffResult.setupQualified && wyckoffResult.direction !== 'WAIT') {
-    activeStrategies.push({ name: 'VOLUMETRIC ORDER-FLOW (VOFM)', direction: wyckoffResult.direction, desc: wyckoffResult.triggerDescription });
+  const activeEngines: { name: string; direction: 'BUY' | 'SELL'; desc: string }[] = [];
+  if (dirA !== 'WAIT' && engineAResult) {
+    activeEngines.push({ name: 'A-RSI2', direction: dirA, desc: engineAResult.triggerDescription });
   }
-  if (smcResult.setupQualified && smcResult.direction !== 'WAIT') {
-    activeStrategies.push({ name: 'INSTITUTIONAL LIQUIDITY DISPLACEMENT (ILD)', direction: smcResult.direction, desc: smcResult.triggerDescription });
+  if (dirB !== 'WAIT' && smcResult) {
+    activeEngines.push({ name: 'B-SMC/ILD', direction: dirB, desc: smcResult.triggerDescription });
   }
-  if (trendResult.setupQualified && trendResult.direction !== 'WAIT') {
-    activeStrategies.push({ name: 'DYNAMIC MOMENTUM VECTOR (DMV)', direction: trendResult.direction, desc: trendResult.triggerDescription });
-  }
-
-  // Check for conflicts
-  let buyCount = activeStrategies.filter(s => s.direction === 'BUY').length;
-  let sellCount = activeStrategies.filter(s => s.direction === 'SELL').length;
-
-  if (buyCount > 0 && sellCount > 0) {
-    // Intelligent Multi-Timeframe Arbitration:
-    // Rule 1: H1 Institutional Direction determines the valid trade (counter-trend setup rejected)
-    if (htfBias === 'BEARISH' && sellCount > 0) {
-      activeStrategies = activeStrategies.filter(s => s.direction === 'SELL');
-    } else if (htfBias === 'BULLISH' && buyCount > 0) {
-      activeStrategies = activeStrategies.filter(s => s.direction === 'BUY');
-    } 
-    // Rule 2: Wyckoff Market Phase Tie-Breaker
-    else if (marketPhase && (marketPhase === 'MARKDOWN' || marketPhase === 'DISTRIBUTION') && sellCount > 0) {
-      activeStrategies = activeStrategies.filter(s => s.direction === 'SELL');
-    } else if (marketPhase && (marketPhase === 'MARKUP' || marketPhase === 'ACCUMULATION') && buyCount > 0) {
-      activeStrategies = activeStrategies.filter(s => s.direction === 'BUY');
-    }
-    // Rule 3: Majority Consensus (2 vs 1)
-    else if (sellCount > buyCount) {
-      activeStrategies = activeStrategies.filter(s => s.direction === 'SELL');
-    } else if (buyCount > sellCount) {
-      activeStrategies = activeStrategies.filter(s => s.direction === 'BUY');
-    } else {
-      // Unresolvable deadlock: Both equal, H1 neutral and phase neutral
-      const conflictDesc = `Material Strategy Conflict: ${buyCount} engine(s) BUY vs ${sellCount} engine(s) SELL`;
-      return {
-        finalDirection: 'WAIT',
-        agreementStatus: 'CONFLICTING',
-        confluenceTelemetry: {
-          detectedStrategies: activeStrategies.map(s => s.name),
-          confluenceCount: activeStrategies.length,
-          agreementStatus: 'CONFLICTING',
-          conflictDetails: conflictDesc,
-          selectedSetupType: 'NONE',
-          mergedSetupId: `${assetId}_WAIT_CONFLICT_${confirmation30mTs}_${trigger15mTs}`
-        },
-        setupTypeLabel: 'STRATEGY CONFLICT',
-        setupId: `${assetId}_WAIT_CONFLICT_${confirmation30mTs}_${trigger15mTs}`,
-        conflictDetails: conflictDesc,
-        combinedTriggerDescription: 'Conflicting strategy signals detected. Capital protection priority: WAIT.'
-      };
-    }
+  if (dirC !== 'WAIT' && trendResult) {
+    activeEngines.push({ name: 'C-DMV', direction: dirC, desc: trendResult.triggerDescription });
   }
 
-  if (activeStrategies.length === 0) {
-    return {
-      finalDirection: 'WAIT',
-      agreementStatus: 'NONE',
-      confluenceTelemetry: {
-        detectedStrategies: [],
-        confluenceCount: 0,
-        agreementStatus: 'NONE',
-        conflictDetails: null,
-        selectedSetupType: 'NONE',
-        mergedSetupId: `${assetId}_WAIT_NONE_${confirmation30mTs}_${trigger15mTs}`
-      },
-      setupTypeLabel: 'NONE',
-      setupId: `${assetId}_WAIT_NONE_${confirmation30mTs}_${trigger15mTs}`,
-      conflictDetails: null,
-      combinedTriggerDescription: 'No strategy engine satisfied execution triggers.'
-    };
-  }
+  const buyCount = activeEngines.filter(e => e.direction === 'BUY').length;
+  const sellCount = activeEngines.filter(e => e.direction === 'SELL').length;
 
-  const finalDir = activeStrategies[0].direction;
-  let agreementStatus: 'UNANIMOUS' | 'CONFLUENT' | 'SINGLE_STRATEGY' = 'SINGLE_STRATEGY';
-  let setupTypeLabel = activeStrategies[0].name;
+  let finalDirection: 'BUY' | 'SELL' | 'WAIT' = 'WAIT';
+  let agreementStatus: 'UNANIMOUS' | 'CONFLUENT' | 'SINGLE_STRATEGY' | 'CONFLICTING' | 'NONE' = 'NONE';
+  let level: 'APEX' | 'DUAL' | 'DUAL-TB' | 'SINGLE_BLOCKED' | 'WAIT' = 'WAIT';
+  let setupTypeLabel = 'NONE';
+  let combinedTriggerDescription = 'No strategy engine satisfied execution triggers.';
+  let tieBreakerUsed = false;
+  let tieBreakerBias = 'NEUTRAL';
 
-  if (activeStrategies.length === 3) {
+  // 1. 3 engines same direction = "APEX"
+  if (buyCount === 3 || sellCount === 3) {
+    finalDirection = buyCount === 3 ? 'BUY' : 'SELL';
     agreementStatus = 'UNANIMOUS';
+    level = 'APEX';
     setupTypeLabel = 'APEX TRIPLE-VECTOR CONVERGENCE (FULL SPECTRUM)';
-  } else if (activeStrategies.length === 2) {
+    combinedTriggerDescription = `APEX TRIPLE: A-RSI2, B-SMC/ILD, and C-DMV converged on ${finalDirection}.`;
+  }
+  // 2. 2 engines same direction, teesra WAIT = "DUAL"
+  else if ((buyCount === 2 && sellCount === 0) || (sellCount === 2 && buyCount === 0)) {
+    finalDirection = buyCount === 2 ? 'BUY' : 'SELL';
     agreementStatus = 'CONFLUENT';
-    const names = activeStrategies.map(s => s.name);
-    const hasIld = names.some(n => n.includes('ILD') || n.includes('LIQUIDITY'));
-    const hasVofm = names.some(n => n.includes('VOFM') || n.includes('VOLUMETRIC'));
-    const hasDmv = names.some(n => n.includes('DMV') || n.includes('MOMENTUM'));
-    
-    if (hasIld && hasVofm) {
-      setupTypeLabel = 'APEX DUAL CONVERGENCE (ALGO-FLOW + LIQUIDITY)';
-    } else if (hasDmv && hasVofm) {
-      setupTypeLabel = 'MOMENTUM & VOLUMETRIC CONFLUENCE';
-    } else {
-      setupTypeLabel = 'LIQUIDITY & MOMENTUM CONFLUENCE';
+    level = 'DUAL';
+    const names = activeEngines.map(e => e.name).join(' + ');
+    setupTypeLabel = `APEX DUAL CONVERGENCE (${names})`;
+    combinedTriggerDescription = `APEX DUAL: ${activeEngines[0].name} and ${activeEngines[1].name} converged on ${finalDirection}.`;
+  }
+  // 3. 2 engines same direction aur 1 opposite = conflict
+  else if ((buyCount === 2 && sellCount === 1) || (sellCount === 2 && buyCount === 1)) {
+    const majorityDirection: 'BUY' | 'SELL' = buyCount > sellCount ? 'BUY' : 'SELL';
+    const minorityDirection: 'BUY' | 'SELL' = majorityDirection === 'BUY' ? 'SELL' : 'BUY';
+    const conflictingEngine = activeEngines.find(e => e.direction === minorityDirection)?.name || 'Opposing Engine';
+
+    // 1H trend bias (EMA200 H1 ya Engine C ka 1H bias) se tie-breaker
+    let h1TrendBias: 'BUY' | 'SELL' | 'NEUTRAL' = 'NEUTRAL';
+    if (engineAResult && engineAResult.ema200_1H > 0 && engineAResult.h1Close > 0) {
+      h1TrendBias = engineAResult.h1Close > engineAResult.ema200_1H ? 'BUY' : 'SELL';
+    } else if (trendResult && trendResult.tf1HDirection && trendResult.tf1HDirection !== 'RANGING') {
+      h1TrendBias = trendResult.tf1HDirection === 'BULLISH' ? 'BUY' : 'SELL';
+    } else if (htfBias && htfBias !== 'RANGING') {
+      h1TrendBias = htfBias === 'BULLISH' ? 'BUY' : 'SELL';
     }
-  } else {
+
+    tieBreakerUsed = true;
+    tieBreakerBias = h1TrendBias;
+
+    // Agar bias majority direction ke saath ho to "DUAL-TB" signal, warna WAIT
+    if (h1TrendBias === majorityDirection) {
+      finalDirection = majorityDirection;
+      agreementStatus = 'CONFLUENT';
+      level = 'DUAL-TB';
+      setupTypeLabel = 'DUAL-TB (TIE-BREAKER APPROVED)';
+      combinedTriggerDescription = `DUAL-TB: Majority is ${majorityDirection} (2 vs 1: ${conflictingEngine} opposed), approved via 1H Bias alignment (${h1TrendBias}).`;
+    } else {
+      finalDirection = 'WAIT';
+      agreementStatus = 'CONFLICTING';
+      level = 'WAIT';
+      setupTypeLabel = 'STRATEGY CONFLICT';
+      combinedTriggerDescription = `Conflict Rejected: Majority is ${majorityDirection} (2 vs 1: ${conflictingEngine} opposed), but 1H Bias (${h1TrendBias}) does not support majority direction.`;
+    }
+  }
+  // 4. Sirf 1 engine ka signal = WAIT (blocked from Dispatch, shown as single-engine setup blocked in UI)
+  else if (activeEngines.length === 1) {
+    const act = activeEngines[0];
+    finalDirection = 'WAIT'; // BLOCKED from dispatching
     agreementStatus = 'SINGLE_STRATEGY';
-    if (activeStrategies[0].name.includes('ILD') || activeStrategies[0].name.includes('LIQUIDITY')) {
-      setupTypeLabel = 'INSTITUTIONAL LIQUIDITY DISPLACEMENT (ILD)';
-    } else if (activeStrategies[0].name.includes('DMV') || activeStrategies[0].name.includes('MOMENTUM')) {
-      setupTypeLabel = 'DYNAMIC MOMENTUM CONTINUATION (DMC)';
-    } else {
-      setupTypeLabel = 'VOLUMETRIC ORDER-FLOW MATRIX (VOFM)';
-    }
+    level = 'SINGLE_BLOCKED';
+    setupTypeLabel = 'SINGLE ENGINE SETUP (BLOCKED)';
+    combinedTriggerDescription = `Single engine (${act.name}) signaled ${act.direction}, but blocked (requires Dual/Triple convergence).`;
   }
 
   const slug = setupTypeLabel.replace(/[^a-zA-Z0-9]/g, '_');
-  const mergedSetupId = `${assetId}_${finalDir}_${slug}_${confirmation30mTs}_${trigger15mTs}`;
-  const combinedDesc = activeStrategies.map(s => s.desc).join(' | ');
+  const mergedSetupId = `${assetId}_${finalDirection}_${slug}_${confirmation30mTs}_${trigger15mTs}`;
+
+  const confluenceTelemetry: StrategyConfluenceTelemetry = {
+    detectedStrategies: activeEngines.map(e => e.name),
+    confluenceCount: activeEngines.length,
+    agreementStatus,
+    conflictDetails: agreementStatus === 'CONFLICTING' ? combinedTriggerDescription : null,
+    selectedSetupType: setupTypeLabel,
+    mergedSetupId,
+    level,
+    enginesList: activeEngines.map(e => e.name),
+    tieBreakerUsed,
+    tieBreakerBias,
+    votes: {
+      'A-RSI2': dirA,
+      'B-SMC/ILD': dirB,
+      'C-DMV': dirC
+    }
+  };
 
   return {
-    finalDirection: finalDir,
+    finalDirection,
     agreementStatus,
-    confluenceTelemetry: {
-      detectedStrategies: activeStrategies.map(s => s.name),
-      confluenceCount: activeStrategies.length,
-      agreementStatus,
-      conflictDetails: null,
-      selectedSetupType: setupTypeLabel,
-      mergedSetupId
-    },
+    confluenceTelemetry,
     setupTypeLabel,
     setupId: mergedSetupId,
-    conflictDetails: null,
-    combinedTriggerDescription: combinedDesc
+    conflictDetails: agreementStatus === 'CONFLICTING' ? combinedTriggerDescription : null,
+    combinedTriggerDescription
   };
 }
 

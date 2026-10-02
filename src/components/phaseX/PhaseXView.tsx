@@ -102,6 +102,14 @@ interface LiveStateData {
     source: string;
   };
   serverTime?: number;
+  dataStatus?: {
+    h1Count: number;
+    m15Count: number;
+    lastTickAge: number;
+    spread: number;
+    status: 'OK' | 'WARMING UP' | 'STALE';
+    historySource?: 'Broker' | 'Yahoo fallback';
+  };
 }
 
 const DEFAULT_INITIAL_LIVE_DATA: LiveStateData = {
@@ -119,6 +127,13 @@ const DEFAULT_INITIAL_LIVE_DATA: LiveStateData = {
   nextSetupCycleText: '15-Minute Closed Candle Scan (Institutional M15 Cycle)',
   isScanRunning: false,
   activeSignal: null,
+  dataStatus: {
+    h1Count: 0,
+    m15Count: 0,
+    lastTickAge: 0,
+    spread: 0.18,
+    status: 'WARMING UP'
+  },
   metrics: {
     totalApprovedSignals: 0,
     completedTrades: 0,
@@ -623,6 +638,54 @@ export const PhaseXView: React.FC = () => {
             </div>
           </div>
         </section>
+
+        {/* 1.5. DATA STATUS PANEL (Phase 2 core requirement) */}
+        {liveData.dataStatus && (
+          <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 bg-[#12161C]/90 border border-[#1E252E] rounded-xl p-3 text-xs font-mono">
+            <div className="p-2 rounded-lg bg-[#0B0D10] border border-[#1E252E]">
+              <span className="text-[10px] text-zinc-500 uppercase block">H1 Candles</span>
+              <span className="text-sm font-bold text-white tabular-nums">
+                {liveData.dataStatus.h1Count} / 200
+              </span>
+            </div>
+            <div className="p-2 rounded-lg bg-[#0B0D10] border border-[#1E252E]">
+              <span className="text-[10px] text-zinc-500 uppercase block">M15 Candles</span>
+              <span className="text-sm font-bold text-white tabular-nums">
+                {liveData.dataStatus.m15Count}
+              </span>
+            </div>
+            <div className="p-2 rounded-lg bg-[#0B0D10] border border-[#1E252E]">
+              <span className="text-[10px] text-zinc-500 uppercase block">Last Tick</span>
+              <span className={`text-sm font-bold tabular-nums ${liveData.dataStatus.lastTickAge > 5 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                {liveData.dataStatus.lastTickAge}s ago
+              </span>
+            </div>
+            <div className="p-2 rounded-lg bg-[#0B0D10] border border-[#1E252E]">
+              <span className="text-[10px] text-zinc-500 uppercase block">Live Spread</span>
+              <span className="text-sm font-bold text-amber-400 tabular-nums">
+                ${liveData.dataStatus.spread.toFixed(2)}
+              </span>
+            </div>
+            <div className="p-2 rounded-lg bg-[#0B0D10] border border-[#1E252E]">
+              <span className="text-[10px] text-zinc-500 uppercase block">Data Status</span>
+              <span className={`text-xs font-bold px-1.5 py-0.5 rounded uppercase tracking-wide inline-block ${
+                liveData.dataStatus.status === 'OK'
+                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                  : liveData.dataStatus.status === 'WARMING UP'
+                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                  : 'bg-rose-500/20 text-rose-400 border border-rose-500/30 animate-pulse'
+              }`}>
+                {liveData.dataStatus.status}
+              </span>
+            </div>
+            <div className="p-2 rounded-lg bg-[#0B0D10] border border-[#1E252E]">
+              <span className="text-[10px] text-zinc-500 uppercase block">Data Source</span>
+              <span className="text-xs font-bold text-sky-400 block truncate">
+                {liveData.dataStatus.historySource || 'Broker'}
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* 2. MAIN HEADER BAR */}
         <header className="bg-[#12161C] border border-[#1E252E] rounded-2xl p-4 sm:p-5 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4">

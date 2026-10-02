@@ -125,27 +125,39 @@ export const PhaseXMultiStrategyPanel: React.FC<Props> = ({ currentAnalysis }) =
             {/* Engine A */}
             <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-4 space-y-3 relative overflow-hidden group hover:border-amber-500/40 transition-colors">
               <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-amber-400 font-bold">ENGINE A</span>
+                <span className="text-amber-400 font-bold">ENGINE A (A-RSI2)</span>
                 <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 text-[10px]">
-                  PHASE 1 CORE
+                  NEW RSI(2)+EMA200
                 </span>
               </div>
-              <h3 className="text-sm font-bold text-slate-200 font-mono">VOLUMETRIC ORDER-FLOW MATRIX (VOFM)</h3>
+              <h3 className="text-sm font-bold text-slate-200 font-mono">RSI(2) + EMA200 MEAN REVERSION (H1)</h3>
               <p className="text-xs text-slate-400 leading-relaxed font-mono">
-                Proprietary institutional capital cycle detection across 1H / 30M / 15M. Identifies Capital Accumulation, Re-distribution, and Liquidity Climax Rejections.
+                Closed H1 candle mean reversion filtering trend via 200 EMA and extreme momentum w/ 2-period RSI (&lt;10 BUY, &gt;90 SELL).
               </p>
               <div className="pt-2 border-t border-slate-800/80 space-y-1.5 text-[11px] font-mono text-slate-300">
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Detected Phase:</span>
-                  <span className="text-amber-300 font-semibold">{currentAnalysis?.marketPhase || 'Evaluating'}</span>
+                  <span className="text-slate-400">H1 Close / EMA200:</span>
+                  <span className="text-amber-300 font-semibold">
+                    ${strategyTelemetry?.engineA?.h1Close?.toFixed(2) || '---'} / ${strategyTelemetry?.engineA?.ema200_1H?.toFixed(2) || '---'}
+                  </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Confirmed Event:</span>
-                  <span className="text-slate-200">{currentAnalysis?.detectedEventLabel || 'None'}</span>
+                  <span className="text-slate-400">RSI(2) Level:</span>
+                  <span className={
+                    (strategyTelemetry?.engineA?.rsi2_1H ?? 50) < 10
+                      ? 'text-emerald-400 font-bold'
+                      : (strategyTelemetry?.engineA?.rsi2_1H ?? 50) > 90
+                      ? 'text-rose-400 font-bold'
+                      : 'text-slate-200'
+                  }>
+                    {strategyTelemetry?.engineA?.rsi2_1H != null ? `${strategyTelemetry.engineA.rsi2_1H.toFixed(1)} ${strategyTelemetry.engineA.rsi2_1H < 10 ? '[OVERSOLD]' : strategyTelemetry.engineA.rsi2_1H > 90 ? '[OVERBOUGHT]' : ''}` : 'Scanning'}
+                  </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Execution Trigger:</span>
-                  <span className="text-emerald-400 font-semibold truncate max-w-[160px]">{currentAnalysis?.executionTriggerDescription || 'Scanning'}</span>
+                  <span className="text-slate-400">Risk SL Cap ($14 Max):</span>
+                  <span className={strategyTelemetry?.engineA?.slExceedsLimit ? 'text-rose-400 font-bold' : 'text-slate-200'}>
+                    ${strategyTelemetry?.engineA?.calculatedSLDistance?.toFixed(2) || '10.00'} {strategyTelemetry?.engineA?.slExceedsLimit ? '[EXCEEDED]' : '[SAFE]'}
+                  </span>
                 </div>
               </div>
             </div>
@@ -230,6 +242,192 @@ export const PhaseXMultiStrategyPanel: React.FC<Props> = ({ currentAnalysis }) =
                 <AlertTriangle className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" />
                 <div>
                   <strong className="text-rose-300">Conflict Veto Protection:</strong> If one engine signals BUY while another signals SELL, arbitration instantly rejects both and outputs: <span className="text-amber-300 font-bold">WAIT — CONFIRMATION WEAK</span>. No chasing or contradictory positions allowed.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Live Phase X Arbitration & Quality Gate Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Live Arbitration Card */}
+            <div className="bg-slate-950/80 rounded-xl p-4 border border-slate-800 space-y-3 font-mono text-xs">
+              <div className="flex items-center gap-2 text-slate-200 font-bold border-b border-slate-800 pb-2">
+                <Scale className="w-4 h-4 text-amber-400" />
+                <span>LIVE ARBITRATION STATUS</span>
+              </div>
+              <div className="space-y-2">
+                <div className="grid grid-cols-3 gap-2 text-center text-[10px]">
+                  <div className="p-2 rounded bg-slate-900 border border-slate-800">
+                    <span className="text-slate-500 block">ENGINE A</span>
+                    <span className="text-zinc-400 block font-bold text-[11px]">A-RSI2</span>
+                    <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold mt-1 ${
+                      strategyTelemetry?.confluence?.votes?.['A-RSI2'] === 'BUY'
+                        ? 'bg-emerald-500/20 text-emerald-400'
+                        : strategyTelemetry?.confluence?.votes?.['A-RSI2'] === 'SELL'
+                        ? 'bg-rose-500/20 text-rose-400'
+                        : 'bg-slate-800 text-slate-400'
+                    }`}>
+                      {strategyTelemetry?.confluence?.votes?.['A-RSI2'] || 'WAIT'}
+                    </span>
+                  </div>
+                  <div className="p-2 rounded bg-slate-900 border border-slate-800">
+                    <span className="text-slate-500 block">ENGINE B</span>
+                    <span className="text-zinc-400 block font-bold text-[11px]">B-SMC/ILD</span>
+                    <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold mt-1 ${
+                      strategyTelemetry?.confluence?.votes?.['B-SMC/ILD'] === 'BUY'
+                        ? 'bg-emerald-500/20 text-emerald-400'
+                        : strategyTelemetry?.confluence?.votes?.['B-SMC/ILD'] === 'SELL'
+                        ? 'bg-rose-500/20 text-rose-400'
+                        : 'bg-slate-800 text-slate-400'
+                    }`}>
+                      {strategyTelemetry?.confluence?.votes?.['B-SMC/ILD'] || 'WAIT'}
+                    </span>
+                  </div>
+                  <div className="p-2 rounded bg-slate-900 border border-slate-800">
+                    <span className="text-slate-500 block">ENGINE C</span>
+                    <span className="text-zinc-400 block font-bold text-[11px]">C-DMV</span>
+                    <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold mt-1 ${
+                      strategyTelemetry?.confluence?.votes?.['C-DMV'] === 'BUY'
+                        ? 'bg-emerald-500/20 text-emerald-400'
+                        : strategyTelemetry?.confluence?.votes?.['C-DMV'] === 'SELL'
+                        ? 'bg-rose-500/20 text-rose-400'
+                        : 'bg-slate-800 text-slate-400'
+                    }`}>
+                      {strategyTelemetry?.confluence?.votes?.['C-DMV'] || 'WAIT'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="pt-1 space-y-1.5 text-[11px]">
+                  <div className="flex justify-between border-b border-slate-900/60 pb-1.5">
+                    <span className="text-slate-400 font-sans">Arbitration Level:</span>
+                    <span className={`font-bold uppercase tracking-wider ${
+                      strategyTelemetry?.confluence?.level === 'APEX'
+                        ? 'text-amber-400'
+                        : strategyTelemetry?.confluence?.level === 'DUAL'
+                        ? 'text-sky-400'
+                        : strategyTelemetry?.confluence?.level === 'DUAL-TB'
+                        ? 'text-teal-400'
+                        : strategyTelemetry?.confluence?.level === 'SINGLE_BLOCKED'
+                        ? 'text-rose-400 animate-pulse'
+                        : 'text-zinc-400'
+                    }`}>
+                      {strategyTelemetry?.confluence?.level === 'SINGLE_BLOCKED' ? 'Blocked (Single Engine)' : (strategyTelemetry?.confluence?.level || 'WAIT (NO SETUP)')}
+                    </span>
+                  </div>
+                  <div className="flex justify-between border-b border-slate-900/60 pb-1.5">
+                    <span className="text-slate-400 font-sans">Tie-Breaker Used:</span>
+                    <span className={`font-bold ${strategyTelemetry?.confluence?.tieBreakerUsed ? 'text-teal-400' : 'text-slate-500'}`}>
+                      {strategyTelemetry?.confluence?.tieBreakerUsed ? `YES (1H Bias: ${strategyTelemetry?.confluence?.tieBreakerBias || 'NEUTRAL'})` : 'NO'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400 font-sans">Final Confluence Result:</span>
+                    <span className={`font-bold px-2 py-0.5 rounded uppercase ${
+                      currentAnalysis?.finalDirection === 'BUY'
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                        : currentAnalysis?.finalDirection === 'SELL'
+                        ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                        : 'bg-slate-800 text-slate-400'
+                    }`}>
+                      {currentAnalysis?.finalDirection || 'WAIT'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Live Phase 5 Quality Gate Card */}
+            <div className="bg-slate-950/80 rounded-xl p-4 border border-slate-800 space-y-3 font-mono text-xs">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <span className="text-slate-200 font-bold uppercase flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  PHASE 5 QUALITY GATE CHECKS
+                </span>
+                <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${
+                  currentAnalysis?.phase5QualityGate?.finalGateStatus === 'APPROVED'
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                    : currentAnalysis?.phase5QualityGate?.finalGateStatus === 'REJECTED'
+                    ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                    : 'bg-slate-800 text-slate-400'
+                }`}>
+                  {currentAnalysis?.phase5QualityGate?.finalGateStatus || 'WAITING'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-[10px] font-sans">
+                {/* Check 1: Price Freshness */}
+                <div className="p-1.5 rounded bg-slate-900 border border-slate-900/60 flex items-center justify-between">
+                  <span className="text-slate-400">1. Fresh Tick (&lt;5s)</span>
+                  <span className={`px-1.5 py-0.5 rounded font-mono text-[9px] font-bold ${
+                    currentAnalysis?.phase5QualityGate?.liveDataStatus === 'VERIFIED'
+                      ? 'bg-emerald-500/20 text-emerald-400'
+                      : 'bg-rose-500/20 text-rose-400 animate-pulse'
+                  }`}>
+                    {currentAnalysis?.phase5QualityGate?.liveDataStatus === 'VERIFIED' ? 'PASS' : 'STALE'}
+                  </span>
+                </div>
+
+                {/* Check 2: Spread Limit */}
+                <div className="p-1.5 rounded bg-slate-900 border border-slate-900/60 flex items-center justify-between">
+                  <span className="text-slate-400">2. Spread (&lt;=$0.50)</span>
+                  <span className={`px-1.5 py-0.5 rounded font-mono text-[9px] font-bold ${
+                    currentAnalysis?.phase5QualityGate?.spreadStatus === 'SAFE'
+                      ? 'bg-emerald-500/20 text-emerald-400'
+                      : currentAnalysis?.phase5QualityGate?.spreadStatus === 'UNSAFE'
+                      ? 'bg-rose-500/20 text-rose-400 animate-pulse'
+                      : 'bg-slate-800 text-slate-400'
+                  }`}>
+                    {currentAnalysis?.phase5QualityGate?.spreadStatus === 'SAFE' ? 'PASS' : currentAnalysis?.phase5QualityGate?.spreadStatus === 'UNSAFE' ? 'FAIL' : 'LIMITED'}
+                  </span>
+                </div>
+
+                {/* Check 3: SL Risk Cap */}
+                <div className="p-1.5 rounded bg-slate-900 border border-slate-900/60 flex items-center justify-between">
+                  <span className="text-slate-400">3. SL Risk Cap (&lt;=$14)</span>
+                  <span className={`px-1.5 py-0.5 rounded font-mono text-[9px] font-bold ${
+                    currentAnalysis?.phase5QualityGate?.rrValidation === 'QUALIFIED'
+                      ? 'bg-emerald-500/20 text-emerald-400'
+                      : 'bg-rose-500/20 text-rose-400 animate-pulse'
+                  }`}>
+                    {currentAnalysis?.phase5QualityGate?.rrValidation === 'QUALIFIED' ? 'PASS' : 'FAIL'}
+                  </span>
+                </div>
+
+                {/* Check 4: Anti-Chasing */}
+                <div className="p-1.5 rounded bg-slate-900 border border-slate-900/60 flex items-center justify-between">
+                  <span className="text-slate-400">4. Anti-Chasing (&lt;$2)</span>
+                  <span className={`px-1.5 py-0.5 rounded font-mono text-[9px] font-bold ${
+                    currentAnalysis?.phase5QualityGate?.antiChaseValidation === 'PASS'
+                      ? 'bg-emerald-500/20 text-emerald-400'
+                      : 'bg-rose-500/20 text-rose-400 animate-pulse'
+                  }`}>
+                    {currentAnalysis?.phase5QualityGate?.antiChaseValidation === 'PASS' ? 'PASS' : 'CHASE'}
+                  </span>
+                </div>
+
+                {/* Check 5: Economic News */}
+                <div className="p-1.5 rounded bg-slate-900 border border-slate-900/60 flex items-center justify-between col-span-2">
+                  <span className="text-slate-400">5. High-Impact News Filter (CPI, NFP, FOMC +/-30m)</span>
+                  <span className={`px-1.5 py-0.5 rounded font-mono text-[9px] font-bold flex-shrink-0 ${
+                    currentAnalysis?.phase5QualityGate?.newsEventStatus === 'CLEAR'
+                      ? 'bg-emerald-500/20 text-emerald-400'
+                      : 'bg-rose-500/20 text-rose-400 animate-pulse'
+                  }`}>
+                    {currentAnalysis?.phase5QualityGate?.newsEventStatus === 'CLEAR' ? 'CLEAR' : 'BLOCK'}
+                  </span>
+                </div>
+
+                {/* Check 6: Data Builder Status */}
+                <div className="p-1.5 rounded bg-slate-900 border border-slate-900/60 flex items-center justify-between col-span-2">
+                  <span className="text-slate-400">6. Candle Data Warming-up / Stale Status</span>
+                  <span className={`px-1.5 py-0.5 rounded font-mono text-[9px] font-bold ${
+                    currentAnalysis?.phase5QualityGate?.realDataStatus === 'VERIFIED'
+                      ? 'bg-emerald-500/20 text-emerald-400'
+                      : 'bg-rose-500/20 text-rose-400 animate-pulse'
+                  }`}>
+                    {currentAnalysis?.phase5QualityGate?.realDataStatus === 'VERIFIED' ? 'OK' : 'BLOCK'}
+                  </span>
                 </div>
               </div>
             </div>

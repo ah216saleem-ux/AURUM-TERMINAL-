@@ -18,6 +18,7 @@ import {
   calculatePhaseXPerformanceMetrics
 } from './phaseXLiveHistoryService';
 import { getVerifiedXauPrice, getLatestLivePrices } from './websocketServer';
+import { initializeCandleBuilder, getCandleDataStatus } from './candleBuilderService.js';
 
 export const SIGNAL_MAX_AGE_MINUTES = 120;
 export const COOLDOWN_MINUTES = 3;
@@ -102,6 +103,13 @@ export interface PhaseXLiveStateResponse {
   };
   serverTime?: number;
   pipelineLogs?: PipelineStageLog[];
+  dataStatus?: {
+    h1Count: number;
+    m15Count: number;
+    lastTickAge: number;
+    spread: number;
+    status: 'OK' | 'WARMING UP' | 'STALE';
+  };
 }
 
 export interface PipelineStageLog {
@@ -638,6 +646,11 @@ export async function executePhaseXLiveScanCycle(forceScan = false): Promise<voi
  * Start the continuous server background scanner (every 2.5 seconds)
  */
 export function startPhaseXBackgroundScanner(): void {
+  // Initialize Authoritative Candle Builder on server startup (Phase 2 requirement)
+  initializeCandleBuilder().catch(err => {
+    console.error('[PhaseXScanner] Failed to initialize candle builder:', err);
+  });
+
   // Register two-way bot command actions
   registerBotActionHandlers({
     onScan: async () => {
@@ -837,7 +850,8 @@ export function getPhaseXLiveState(): PhaseXLiveStateResponse {
       source: verified?.source || fallbackTick?.source || 'BIQUOTE (MetaTrader 5)'
     },
     serverTime: now,
-    pipelineLogs: getPhaseXPipelineLogs().slice(0, 15)
+    pipelineLogs: getPhaseXPipelineLogs().slice(0, 15),
+    dataStatus: getCandleDataStatus()
   };
 }
 
