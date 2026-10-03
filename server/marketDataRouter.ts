@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import https from 'https';
+import { getClosedCandlesH1, getClosedCandlesM30, getClosedCandlesM15, getClosedCandlesM5 } from './candleBuilderService.js';
 
 interface CachedData {
   timestamp: number;
@@ -43,7 +44,6 @@ export const ASSET_CONFIGS: AssetConfigItem[] = [
     category: 'commodities',
     primaryProvider: 'BIQUOTE' as const,
     providerSymbol: 'XAUUSD',
-    fallbackSymbol: 'GC=F',
     decimals: 2
   },
   {
@@ -715,7 +715,7 @@ export async function handleMarketDataRequest(req: IncomingMessage, res: ServerR
     }
 
     if (pathname === '/api/market-data/candles') {
-      let rawSymbol = parsedUrl.searchParams.get('symbol') || 'GC=F';
+      let rawSymbol = parsedUrl.searchParams.get('symbol') || 'XAUUSD';
       // Map asset ID or pair symbol to provider symbol
       const config = ASSET_CONFIGS.find(c => c.id === rawSymbol || c.symbol === rawSymbol || c.providerSymbol === rawSymbol);
       const symbol = config ? config.providerSymbol : rawSymbol;
@@ -723,17 +723,37 @@ export async function handleMarketDataRequest(req: IncomingMessage, res: ServerR
       const interval = parsedUrl.searchParams.get('interval') || '1h';
       const range = parsedUrl.searchParams.get('range') || '5d';
 
-      // Map Biquote symbols back to Yahoo equivalents for historical candles
-      let yahooSymbol = symbol;
-      if (symbol === 'XAUUSD') yahooSymbol = 'GC=F';
-      else if (symbol === 'XAGUSD') yahooSymbol = 'SI=F';
-      else if (symbol === 'EURUSD') yahooSymbol = 'EURUSD=X';
-      else if (symbol === 'GBPUSD') yahooSymbol = 'GBPUSD=X';
-      else if (symbol === 'USDJPY') yahooSymbol = 'JPY=X';
-      else if (symbol === 'AUDUSD') yahooSymbol = 'AUDUSD=X';
-      else if (symbol === 'USDCAD') yahooSymbol = 'CAD=X';
+      if (symbol === 'XAUUSD' || rawSymbol === 'xau-usd') {
+        let candles: any[] = [];
+        if (interval === '1h' || interval === '60m') candles = getClosedCandlesH1();
+        else if (interval === '30m') candles = getClosedCandlesM30();
+        else if (interval === '15m') candles = getClosedCandlesM15();
+        else candles = getClosedCandlesM5();
 
-      const candles = await fetchYahooCandles(yahooSymbol, interval, range);
+        res.statusCode = 200;
+        res.end(JSON.stringify({
+          status: 'DATA CONNECTED',
+          symbol: 'XAUUSD',
+          assetId: 'xau-usd',
+          provider: 'BIQUOTE',
+          interval,
+          range,
+          count: candles.length,
+          candles
+        }));
+        return true;
+      }
+
+      // Map Biquote symbols back to fallback equivalents for historical candles
+      let providerSymbol = symbol;
+      if (symbol === 'XAGUSD') providerSymbol = 'SI=F';
+      else if (symbol === 'EURUSD') providerSymbol = 'EURUSD=X';
+      else if (symbol === 'GBPUSD') providerSymbol = 'GBPUSD=X';
+      else if (symbol === 'USDJPY') providerSymbol = 'JPY=X';
+      else if (symbol === 'AUDUSD') providerSymbol = 'AUDUSD=X';
+      else if (symbol === 'USDCAD') providerSymbol = 'CAD=X';
+
+      const candles = await fetchYahooCandles(providerSymbol, interval, range);
       res.statusCode = 200;
       res.end(JSON.stringify({
         status: 'DATA CONNECTED',
@@ -764,7 +784,7 @@ export async function handleMarketDataRequest(req: IncomingMessage, res: ServerR
     }
 
     if (pathname === '/api/market-data/yahoo') {
-      const symbol = parsedUrl.searchParams.get('symbol') || 'GC=F';
+      const symbol = parsedUrl.searchParams.get('symbol') || 'CL=F';
       const data = await fetchYahooQuote(symbol);
       res.statusCode = data ? 200 : 502;
       res.end(JSON.stringify(data || { error: 'Failed to fetch from Yahoo Finance' }));

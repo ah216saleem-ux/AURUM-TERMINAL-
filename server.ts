@@ -45,7 +45,7 @@ async function startServer() {
   // Gemini Institutional AI Agent Router
   app.all('/api/ai-agent*', async (req, res) => {
     const handled = await handleAiAgentRequest(req, res);
-    if (!handled) {
+    if (!handled && !res.headersSent) {
       res.status(404).json({ error: 'AI Agent route not found' });
     }
   });
@@ -53,7 +53,7 @@ async function startServer() {
   // Admin Security & Protected Module Routes
   app.all(['/api/auth/admin*', '/api/admin*'], async (req, res) => {
     const handled = await handleAdminAuthRequest(req, res);
-    if (!handled) {
+    if (!handled && !res.headersSent) {
       res.status(404).json({ error: 'Admin route not found' });
     }
   });
@@ -74,7 +74,7 @@ async function startServer() {
   // Dedicated Gold News Intelligence Engine route
   app.all('/api/gold-news-intelligence*', async (req, res) => {
     const handled = await handleGoldNewsIntelligenceRequest(req, res);
-    if (!handled) {
+    if (!handled && !res.headersSent) {
       res.status(404).json({ error: 'Gold news intelligence route not found' });
     }
   });
@@ -82,7 +82,7 @@ async function startServer() {
   // Market Data API routes
   app.all('/api/market-data*', async (req, res) => {
     const handled = await handleMarketDataRequest(req, res);
-    if (!handled) {
+    if (!handled && !res.headersSent) {
       res.status(404).json({ error: 'Market data route not found' });
     }
   });
@@ -90,7 +90,7 @@ async function startServer() {
   // SPY Options Sniper API routes (Server-authoritative engine)
   app.all('/api/spy-sniper*', async (req, res) => {
     const handled = await handleSpySniperRequest(req, res);
-    if (!handled) {
+    if (!handled && !res.headersSent) {
       res.status(404).json({ error: 'SPY sniper route not found' });
     }
   });
@@ -98,7 +98,7 @@ async function startServer() {
   // AURUM Terminal Non-SPY Signals & Trade Lock API routes
   app.all('/api/terminal-signals*', async (req, res) => {
     const handled = await handleTerminalSignalsRequest(req, res);
-    if (!handled) {
+    if (!handled && !res.headersSent) {
       res.status(404).json({ error: 'Terminal signals route not found' });
     }
   });
@@ -106,7 +106,7 @@ async function startServer() {
   // AURUM PHASE X — Market Cycle Intelligence (Wyckoff Engine) API routes
   app.all('/api/phase-x*', async (req, res) => {
     const handled = await handlePhaseXRequest(req, res);
-    if (!handled) {
+    if (!handled && !res.headersSent) {
       res.status(404).json({ error: 'Phase X route not found' });
     }
   });
@@ -114,7 +114,7 @@ async function startServer() {
   // AURUM CATALYST — STRATEGY MODULE API routes
   app.all('/api/catalyst*', async (req, res) => {
     const handled = await handleCatalystRequest(req, res);
-    if (!handled) {
+    if (!handled && !res.headersSent) {
       res.status(404).json({ error: 'Catalyst route not found' });
     }
   });
@@ -122,7 +122,7 @@ async function startServer() {
   // AURUM EXECUTION INTELLIGENCE SYSTEM
   app.all('/api/execution-intelligence*', async (req, res) => {
     const handled = await handleExecutionIntelligenceRequest(req, res);
-    if (!handled) {
+    if (!handled && !res.headersSent) {
       res.status(404).json({ error: 'Execution Intelligence route not found' });
     }
   });
@@ -130,7 +130,7 @@ async function startServer() {
   // AURUM MARKET CONTEXT INTELLIGENCE BRAIN
   app.all('/api/market-context*', async (req, res) => {
     const handled = await handleMarketContextRequest(req, res);
-    if (!handled) {
+    if (!handled && !res.headersSent) {
       res.status(404).json({ error: 'Market Context route not found' });
     }
   });
@@ -138,7 +138,7 @@ async function startServer() {
   // AURUM DECISION AUDIT & EXPLAINABILITY ENGINE
   app.all('/api/decision-audit*', async (req, res) => {
     const handled = await handleDecisionAuditRequest(req, res);
-    if (!handled) {
+    if (!handled && !res.headersSent) {
       res.status(404).json({ error: 'Decision Audit route not found' });
     }
   });
@@ -146,7 +146,7 @@ async function startServer() {
   // AURUM SCENARIO SIMULATION INTELLIGENCE ENGINE (SCENARIO LAB)
   app.all('/api/scenario-lab*', async (req, res) => {
     const handled = await handleScenarioLabRequest(req, res);
-    if (!handled) {
+    if (!handled && !res.headersSent) {
       res.status(404).json({ error: 'Scenario Lab route not found' });
     }
   });
@@ -154,7 +154,7 @@ async function startServer() {
   // AURUM ADAPTIVE STRATEGY MEMORY ENGINE
   app.all('/api/strategy-memory*', async (req, res) => {
     const handled = await handleStrategyMemoryRequest(req, res);
-    if (!handled) {
+    if (!handled && !res.headersSent) {
       res.status(404).json({ error: 'Strategy Memory route not found' });
     }
   });
@@ -162,7 +162,7 @@ async function startServer() {
   // AURUM XAU/USD GOLD DATA INTEGRITY & LIVE FEED ENGINE
   app.all('/api/gold-data-integrity*', async (req, res) => {
     const handled = await handleGoldDataIntegrityRequest(req, res);
-    if (!handled) {
+    if (!handled && !res.headersSent) {
       res.status(404).json({ error: 'Gold data integrity route not found' });
     }
   });

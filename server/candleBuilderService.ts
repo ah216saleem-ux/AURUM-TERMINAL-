@@ -83,19 +83,19 @@ function loadCandlesFromDisk(timeframe: 'H1' | 'M30' | 'M15' | 'M5'): ClosedCand
   return [];
 }
 
-function cleanYahooCaches() {
+function cleanOldCaches() {
   try {
-    const yahooFiles = [
-      path.join(CACHE_DIR, 'yahoo_candles_h1.json'),
-      path.join(CACHE_DIR, 'yahoo_candles_m30.json'),
-      path.join(CACHE_DIR, 'yahoo_candles_m15.json'),
-      path.join(CACHE_DIR, 'yahoo_candles_m5.json'),
-      path.join(CACHE_DIR, 'yahoo_candles.json'),
+    const legacyFiles = [
+      path.join(CACHE_DIR, 'legacy_candles_h1.json'),
+      path.join(CACHE_DIR, 'legacy_candles_m30.json'),
+      path.join(CACHE_DIR, 'legacy_candles_m15.json'),
+      path.join(CACHE_DIR, 'legacy_candles_m5.json'),
+      path.join(CACHE_DIR, 'legacy_candles.json'),
     ];
-    for (const f of yahooFiles) {
+    for (const f of legacyFiles) {
       if (fs.existsSync(f)) {
         fs.unlinkSync(f);
-        console.log(`[CandleBuilderService] Deleted old Yahoo cache file: ${f}`);
+        console.log(`[CandleBuilderService] Deleted old legacy cache file: ${f}`);
       }
     }
   } catch (err) {
@@ -108,7 +108,7 @@ function cleanYahooCaches() {
  */
 async function fetchBrokerCandles(symbol: string, interval: string): Promise<any[] | null> {
   try {
-    const brokerSymbol = symbol === 'GC=F' ? 'XAUUSD' : symbol;
+    const brokerSymbol = 'XAUUSD';
     const url = `https://biquote.io/api/candles/${brokerSymbol}?interval=${interval}`;
     const res = await fetch(url, {
       headers: {
@@ -200,15 +200,15 @@ export function getM5Boundary(timestamp: number): number {
 
 /**
  * Initialize candle builder with historical closed candles.
- * Deletes old Yahoo caches, tries Broker/BiQuote first, falls back to disk cache.
+ * Deletes old legacy caches, tries Broker/BiQuote first, falls back to disk cache.
  */
 export async function initializeCandleBuilder() {
   if (isInitialized || isInitializing) return;
   isInitializing = true;
   console.log('[CandleBuilderService] Preloading historical closed candles...');
 
-  // Delete old Yahoo caches if present
-  cleanYahooCaches();
+  // Delete old legacy caches if present
+  cleanOldCaches();
 
   // Load from disk caches first (so we don't lose data on restart if BiQuote history API fails)
   closedCandlesH1 = loadCandlesFromDisk('H1');

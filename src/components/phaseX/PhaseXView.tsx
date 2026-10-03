@@ -108,7 +108,7 @@ interface LiveStateData {
     lastTickAge: number;
     spread: number;
     status: 'OK' | 'WARMING UP' | 'STALE';
-    historySource?: 'Broker' | 'Yahoo fallback';
+    historySource?: 'BiQuote (history)' | 'BiQuote ticks only';
   };
 }
 
@@ -680,8 +680,8 @@ export const PhaseXView: React.FC = () => {
             </div>
             <div className="p-2 rounded-lg bg-[#0B0D10] border border-[#1E252E]">
               <span className="text-[10px] text-zinc-500 uppercase block">Data Source</span>
-              <span className="text-xs font-bold text-sky-400 block truncate">
-                {liveData.dataStatus.historySource || 'Broker'}
+              <span className="text-xs font-bold text-sky-400 block truncate" title={liveData.dataStatus.historySource ? `Source: ${liveData.dataStatus.historySource}` : 'Source: BiQuote ticks only'}>
+                {liveData.dataStatus.historySource ? (liveData.dataStatus.historySource.startsWith('Source:') ? liveData.dataStatus.historySource : `Source: ${liveData.dataStatus.historySource}`) : 'Source: BiQuote ticks only'}
               </span>
             </div>
           </div>

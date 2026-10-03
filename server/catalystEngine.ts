@@ -20,7 +20,7 @@
  * SELL: SL = Entry + 10.00 | TP1 = Entry - 7.00 | TP2 = Entry - 11.00
  */
 
-import { fetchYahooCandles } from './marketDataRouter';
+import { getClosedCandlesM30, getClosedCandlesH1 } from './candleBuilderService';
 import { getVerifiedXauPrice, getLatestLivePrices } from './websocketServer';
 import { getNewsGuardStatus } from './phaseXTelegramService';
 
@@ -843,12 +843,8 @@ export async function analyzeCatalystSetup(
   let raw1H: any[] = [];
 
   try {
-    const [m30Res, h1Res] = await Promise.all([
-      fetchYahooCandles('GC=F', '30m', '5d'),
-      fetchYahooCandles('GC=F', '60m', '1mo')
-    ]);
-    rawM30 = m30Res || [];
-    raw1H = h1Res || [];
+    rawM30 = getClosedCandlesM30();
+    raw1H = getClosedCandlesH1();
   } catch (err) {
     console.warn('[CatalystEngine] Failed to fetch market candles:', err);
   }

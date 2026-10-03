@@ -802,7 +802,7 @@ class MarketDataService {
     const conf = intervalMap[timeframe] || intervalMap['1H'];
 
     try {
-      const res = await fetch(`/api/market-data/candles?symbol=GC=F&interval=${conf.interval}&range=${conf.range}`);
+      const res = await fetch(`/api/market-data/candles?symbol=XAUUSD&interval=${conf.interval}&range=${conf.range}`);
       if (res.ok) {
         const payload = await res.json();
         if (payload && Array.isArray(payload.candles) && payload.candles.length > 0) {

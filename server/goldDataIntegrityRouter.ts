@@ -327,7 +327,7 @@ export function getLiveGoldDataIntegrityState(): GoldDataIntegrityState {
       lastPingUtc: new Date(now - 400).toISOString()
     },
     {
-      provider: 'COMEX Gold Futures (GC=F Front Month)',
+      provider: 'COMEX Gold Futures (Front Month)',
       sourceType: 'FUTURES_COMEX',
       price: Number((livePrice + 0.45).toFixed(2)),
       bid: Number((livePrice + 0.35).toFixed(2)),

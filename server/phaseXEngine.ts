@@ -1,4 +1,4 @@
-import { fetchYahooCandles, fetchYahooQuote, fetchBiquoteQuote, ASSET_CONFIGS, fetchAllMarketData } from './marketDataRouter';
+import { fetchYahooQuote, fetchBiquoteQuote, ASSET_CONFIGS, fetchAllMarketData } from './marketDataRouter';
 import { getLatestLivePrices, getVerifiedXauPrice } from './websocketServer';
 import { getLiveEconomicEvents, EconomicEvent } from './newsRouter';
 import {
@@ -858,11 +858,11 @@ function checkVolumeSafety(candles: ClosedCandle[]): { isReliable: boolean; reas
 }
 
 /**
- * Map asset ID to Yahoo query symbol
+ * Map asset ID to data provider query symbol
  */
-function getYahooSymbol(assetId: string): string {
+function getProviderSymbol(assetId: string): string {
   const assetConfig = ASSET_CONFIGS.find(c => c.id === assetId);
-  if (assetId === 'xau-usd') return 'GC=F';
+  if (assetId === 'xau-usd') return 'XAUUSD';
   if (assetId === 'xag-usd') return 'SI=F';
   if (assetId === 'crude-oil') return 'CL=F';
   if (assetId === 'nasdaq-100') return '^NDX';
@@ -901,12 +901,12 @@ export async function analyzePhaseX(
     symbol: assetId.toUpperCase(),
     name: assetId.toUpperCase(),
     category: 'forex' as const,
-    primaryProvider: 'YAHOO_FINANCE' as const,
+    primaryProvider: (assetId === 'xau-usd' ? 'BIQUOTE' : 'MARKET_FEED') as any,
     providerSymbol: assetId,
     decimals: 2
   };
 
-  const yahooSymbol = getYahooSymbol(assetId);
+  const providerSymbol = getProviderSymbol(assetId);
 
   let closed5M: ClosedCandle[] = [];
   let closed15M: ClosedCandle[] = [];
@@ -939,7 +939,7 @@ export async function analyzePhaseX(
     closed1H = getClosedCandlesH1();
   }
 
-  // Synchronize candle basis to verified real-time spot price (e.g. MetaTrader 5 / BIQUOTE spot vs GC=F futures)
+  // Synchronize candle basis to verified real-time spot price (e.g. MetaTrader 5 / BIQUOTE spot)
   if (assetId === 'xau-usd' && closed15M.length > 0) {
     const verifiedXauInit = getVerifiedXauPrice(10000);
     const liveTicksInit = getLatestLivePrices();
@@ -1109,18 +1109,18 @@ export async function analyzePhaseX(
       },
       liveTradeDetails: emptyLiveTradeDetails,
       dataProvenance: {
-        liveDataProvider: assetConfig.primaryProvider || 'YAHOO_FINANCE',
-        instrumentSymbol: assetConfig.providerSymbol || yahooSymbol,
+        liveDataProvider: assetConfig.primaryProvider || (assetId === 'xau-usd' ? 'BIQUOTE' : 'MARKET_DATA'),
+        instrumentSymbol: assetConfig.providerSymbol || providerSymbol,
         livePrice: 0,
         bidAskAvailability: 'UNAVAILABLE',
         lastTickTimestamp: Date.now(),
         tickAgeMs: 0,
         tickAgeFormatted: '0.0s',
-        candleSource5M: assetId === 'xau-usd' ? 'BiQuote API (XAUUSD - 5M Closed)' : `Yahoo Finance API (${yahooSymbol} - 5M Closed)`,
-        candleSource15M: assetId === 'xau-usd' ? 'BiQuote API (XAUUSD - 15M Closed)' : `Yahoo Finance API (${yahooSymbol} - 15M Closed)`,
-        candleSource30M: assetId === 'xau-usd' ? 'BiQuote API (XAUUSD - 30M Closed)' : `Yahoo Finance API (${yahooSymbol} - 30M Closed)`,
-        candleSource1H: assetId === 'xau-usd' ? 'BiQuote API (XAUUSD - 1H Closed)' : `Yahoo Finance API (${yahooSymbol} - 1H Closed)`,
-        candleSource4H: assetId === 'xau-usd' ? 'Aggregated from 1H Closed Candles (XAUUSD)' : `Aggregated from 1H Closed Candles (${yahooSymbol})`,
+        candleSource5M: assetId === 'xau-usd' ? 'BiQuote API (XAUUSD - 5M Closed)' : `API (${providerSymbol} - 5M Closed)`,
+        candleSource15M: assetId === 'xau-usd' ? 'BiQuote API (XAUUSD - 15M Closed)' : `API (${providerSymbol} - 15M Closed)`,
+        candleSource30M: assetId === 'xau-usd' ? 'BiQuote API (XAUUSD - 30M Closed)' : `API (${providerSymbol} - 30M Closed)`,
+        candleSource1H: assetId === 'xau-usd' ? 'BiQuote API (XAUUSD - 1H Closed)' : `API (${providerSymbol} - 1H Closed)`,
+        candleSource4H: assetId === 'xau-usd' ? 'Aggregated from 1H Closed Candles (XAUUSD)' : `Aggregated from 1H Closed Candles (${providerSymbol})`,
         lastClosedCandleTimestamp: Date.now(),
         historicalDataRange: '5 days (5M/15M/30M) / 1 month (1H/4H)',
         dataFreshnessStatus: 'OFFLINE',
@@ -1664,12 +1664,12 @@ export async function analyzePhaseX(
         livePriceTimestamp = bQuote.timestamp || Date.now();
         livePriceSource = 'BIQUOTE Live API';
         isLiveTickFresh = (Date.now() - livePriceTimestamp) <= 5000;
-      } else {
-        const yQuote = await fetchYahooQuote(yahooSymbol);
+      } else if (assetId !== 'xau-usd') {
+        const yQuote = await fetchYahooQuote(providerSymbol);
         if (yQuote?.price && yQuote.price > 0) {
           currentLivePrice = yQuote.price;
           livePriceTimestamp = yQuote.timestamp || Date.now();
-          livePriceSource = 'Yahoo Finance API (GC=F)';
+          livePriceSource = 'Live API (' + providerSymbol + ')';
           isLiveTickFresh = (Date.now() - livePriceTimestamp) <= 5000;
         } else {
           const allQuotes = await fetchAllMarketData();
@@ -1680,6 +1680,15 @@ export async function analyzePhaseX(
             livePriceSource = quote.provider || 'Market Data Oracle';
             isLiveTickFresh = (Date.now() - livePriceTimestamp) <= 5000;
           }
+        }
+      } else {
+        const allQuotes = await fetchAllMarketData();
+        const quote = allQuotes?.data?.[assetId];
+        if (quote?.price && quote.price > 0) {
+          currentLivePrice = quote.price;
+          livePriceTimestamp = quote.timestamp || Date.now();
+          livePriceSource = quote.provider || 'Market Data Oracle';
+          isLiveTickFresh = (Date.now() - livePriceTimestamp) <= 5000;
         }
       }
     } catch {
@@ -2689,7 +2698,7 @@ export async function analyzePhaseX(
     activationPrice: managedRecord?.activationPrice ?? null,
     currentVerifiedPrice: currentLivePrice,
     currentLiveR,
-    priceSource: quoteData?.provider || 'YAHOO_FINANCE',
+    priceSource: quoteData?.provider || (assetId === 'xau-usd' ? 'BIQUOTE' : 'MARKET_DATA'),
     bidAskAvailability,
     bidPrice,
     askPrice,
@@ -2814,24 +2823,24 @@ export async function analyzePhaseX(
     liveTradeDetails,
     dataProvenance: {
       liveDataProvider: livePriceSource,
-      instrumentSymbol: assetConfig.providerSymbol || yahooSymbol,
+      instrumentSymbol: assetConfig.providerSymbol || providerSymbol,
       livePrice: currentLivePrice,
       bidAskAvailability: liveTradeDetails?.bidAskAvailability || (assetConfig.primaryProvider === 'BIQUOTE' || assetConfig.primaryProvider === 'BINANCE' ? 'VERIFIED' : 'LIMITED'),
       lastTickTimestamp: liveTradeDetails?.lastVerifiedPriceTimestamp || livePriceTimestamp || lastClosedTimestamp,
       tickAgeMs: Math.max(0, effectiveNow - (liveTradeDetails?.lastVerifiedPriceTimestamp || livePriceTimestamp || lastClosedTimestamp)),
       tickAgeFormatted: `${(Math.max(0, effectiveNow - (liveTradeDetails?.lastVerifiedPriceTimestamp || livePriceTimestamp || lastClosedTimestamp)) / 1000).toFixed(1)}s`,
-      candleSource5M: `Yahoo Finance API (${yahooSymbol} - 5M Closed)`,
-      candleSource15M: `Yahoo Finance API (${yahooSymbol} - 15M Closed)`,
-      candleSource30M: `Yahoo Finance API (${yahooSymbol} - 30M Closed)`,
-      candleSource1H: `Yahoo Finance API (${yahooSymbol} - 1H Closed)`,
-      candleSource4H: `Aggregated from 1H Closed Candles (${yahooSymbol})`,
+      candleSource5M: assetId === 'xau-usd' ? 'BiQuote API (XAUUSD - 5M Closed)' : `API (${providerSymbol} - 5M Closed)`,
+      candleSource15M: assetId === 'xau-usd' ? 'BiQuote API (XAUUSD - 15M Closed)' : `API (${providerSymbol} - 15M Closed)`,
+      candleSource30M: assetId === 'xau-usd' ? 'BiQuote API (XAUUSD - 30M Closed)' : `API (${providerSymbol} - 30M Closed)`,
+      candleSource1H: assetId === 'xau-usd' ? 'BiQuote API (XAUUSD - 1H Closed)' : `API (${providerSymbol} - 1H Closed)`,
+      candleSource4H: assetId === 'xau-usd' ? 'Aggregated from 1H Closed Candles (XAUUSD)' : `Aggregated from 1H Closed Candles (${providerSymbol})`,
       lastClosedCandleTimestamp: lastClosedTimestamp,
       historicalDataRange: '5 days (5M/15M/30M) / 1 month (1H/4H)',
       dataFreshnessStatus: Math.max(0, effectiveNow - (liveTradeDetails?.lastVerifiedPriceTimestamp || livePriceTimestamp || lastClosedTimestamp)) <= 60000 ? 'FRESH' : 'STALE',
       dataGapsDetected: false,
       dataGapsDetails: 'NO DATA GAPS DETECTED',
-      fallbackProviderUsed: yahooSymbol !== assetConfig.providerSymbol,
-      fallbackProviderName: yahooSymbol !== assetConfig.providerSymbol ? `Yahoo Finance API (${yahooSymbol})` : 'NONE',
+      fallbackProviderUsed: assetId === 'xau-usd' ? false : (providerSymbol !== assetConfig.providerSymbol),
+      fallbackProviderName: assetId === 'xau-usd' ? 'NONE' : (providerSymbol !== assetConfig.providerSymbol ? `API (${providerSymbol})` : 'NONE'),
       realDataStatus: primaryCandles.length >= 15 && closed15M.length >= 10 ? (Math.max(0, effectiveNow - (liveTradeDetails?.lastVerifiedPriceTimestamp || livePriceTimestamp || lastClosedTimestamp)) <= 60000 ? 'VERIFIED' : 'DEGRADED') : 'UNAVAILABLE'
     },
     setupType: managedRecord?.setupType || setupType,

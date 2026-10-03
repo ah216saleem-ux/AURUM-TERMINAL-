@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'http';
 import fs from 'fs';
 import path from 'path';
 import { fetchYahooCandles, fetchAllMarketData, ASSET_CONFIGS } from './marketDataRouter';
+import { getClosedCandlesM15, getClosedCandlesH1 } from './candleBuilderService';
 
 export type AllowedTimeframe = '15M' | '30M' | '1H';
 
@@ -350,23 +351,37 @@ class ServerTerminalSignalsEngine {
       range = '15d';
     }
 
-    let yahooSymbol = assetConfig.symbol;
-    if (assetId === 'xau-usd') yahooSymbol = 'GC=F';
-    else if (assetId === 'xag-usd') yahooSymbol = 'SI=F';
-    else if (assetId === 'crude-oil') yahooSymbol = 'CL=F';
-    else if (assetId === 'nasdaq-100') yahooSymbol = '^NDX';
-    else if (assetId === 'sp-500') yahooSymbol = '^GSPC';
-    else if (assetId === 'eur-usd') yahooSymbol = 'EURUSD=X';
-    else if (assetId === 'gbp-usd') yahooSymbol = 'GBPUSD=X';
-    else if (assetId === 'usd-jpy') yahooSymbol = 'JPY=X';
-    else if (assetId === 'aud-usd') yahooSymbol = 'AUDUSD=X';
-    else if (assetId === 'usd-cad') yahooSymbol = 'CAD=X';
-    else if (assetId === 'btc-usd') yahooSymbol = 'BTC-USD';
+    let rawCandles: any[] = [];
+    let rawHtfCandles: any[] = [];
 
-    const [rawCandles, rawHtfCandles] = await Promise.all([
-      fetchYahooCandles(yahooSymbol, yahooInterval, range).catch(() => []),
-      fetchYahooCandles(yahooSymbol, htfInterval, range).catch(() => [])
-    ]);
+    if (assetId === 'xau-usd') {
+      if (timeframe === '15M') {
+        rawCandles = getClosedCandlesM15();
+        rawHtfCandles = getClosedCandlesH1();
+      } else {
+        rawCandles = getClosedCandlesH1();
+        rawHtfCandles = getClosedCandlesH1();
+      }
+    } else {
+      let yahooSymbol = assetConfig.symbol;
+      if (assetId === 'xag-usd') yahooSymbol = 'SI=F';
+      else if (assetId === 'crude-oil') yahooSymbol = 'CL=F';
+      else if (assetId === 'nasdaq-100') yahooSymbol = '^NDX';
+      else if (assetId === 'sp-500') yahooSymbol = '^GSPC';
+      else if (assetId === 'eur-usd') yahooSymbol = 'EURUSD=X';
+      else if (assetId === 'gbp-usd') yahooSymbol = 'GBPUSD=X';
+      else if (assetId === 'usd-jpy') yahooSymbol = 'JPY=X';
+      else if (assetId === 'aud-usd') yahooSymbol = 'AUDUSD=X';
+      else if (assetId === 'usd-cad') yahooSymbol = 'CAD=X';
+      else if (assetId === 'btc-usd') yahooSymbol = 'BTC-USD';
+
+      const [resCandles, resHtfCandles] = await Promise.all([
+        fetchYahooCandles(yahooSymbol, yahooInterval, range).catch(() => []),
+        fetchYahooCandles(yahooSymbol, htfInterval, range).catch(() => [])
+      ]);
+      rawCandles = resCandles;
+      rawHtfCandles = resHtfCandles;
+    }
 
     const closedCandles = rawCandles.length > 1 ? rawCandles.slice(0, -1) : rawCandles;
     const closedHtf = rawHtfCandles.length > 1 ? rawHtfCandles.slice(0, -1) : rawHtfCandles;
